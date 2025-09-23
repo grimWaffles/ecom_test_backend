@@ -5,6 +5,7 @@
     hostname: kafka
     ports:
       - "9093:9093" # external access for host apps
+    
     environment:
       # Roles
       KAFKA_PROCESS_ROLES: broker,controller
