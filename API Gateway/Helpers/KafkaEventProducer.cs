@@ -52,7 +52,7 @@ namespace API_Gateway.Helpers
             {
                 var orderEvent = new OrderCreatedEvent()
                 {
-                    OrderId = 1,
+                    OrderId = 16969,
                     CustomerId = 123,
                     Amount = 250.75m,
                     CreatedAt = DateTime.UtcNow
