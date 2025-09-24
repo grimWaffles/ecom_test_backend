@@ -11,16 +11,19 @@ namespace API_Gateway.Controllers
     using System.Security.Claims;
     using System.Threading.Tasks;
     using ApiGateway.Protos;
+    using API_Gateway.Helpers;
 
-    [Authorize]
+    //[Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class OrderController : ControllerBase
     {
         private readonly IOrderGrpcClient _grpcClient;
-        public OrderController(IOrderGrpcClient grpcClient)
+        private readonly IKafkaEventProducer _orderEvent;
+        public OrderController(IOrderGrpcClient grpcClient, IKafkaEventProducer orderEvent)
         {
             _grpcClient = grpcClient;
+            _orderEvent = orderEvent;
         }
 
         // Get userId from JWT token
@@ -84,6 +87,15 @@ namespace API_Gateway.Controllers
             var request = new DeleteOrderRequest { Id = id };
             var response = await _grpcClient.DeleteOrderAsync(request);
             return Ok(response);
+        }
+
+        //Event Driven Approach
+        [HttpPost]
+        [Route("publish-new-order")]
+        public async Task<IActionResult> PublishOrderCreatedEvent()
+        {
+            var result = await _orderEvent.PublishOrderEvent();
+            return Ok(result);
         }
     }
 

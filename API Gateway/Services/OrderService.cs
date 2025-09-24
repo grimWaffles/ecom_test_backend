@@ -1,5 +1,8 @@
-﻿using ApiGateway.Protos;
+﻿using API_Gateway.Helpers;
+using ApiGateway.Protos;
+using Confluent.Kafka;
 using Grpc.Net.Client;
+using System.Text.Json;
 namespace API_Gateway.Services
 {
     public interface IOrderGrpcClient
@@ -13,15 +16,16 @@ namespace API_Gateway.Services
     }
     public class OrderGrpcClient : IOrderGrpcClient
     {
-        private readonly OrderGrpcService.OrderGrpcServiceClient _client;
+        private readonly OrderGrpcService.OrderGrpcServiceClient _orderClient;
+        private readonly IKafkaEventProducer _kafkaEventProducer;
 
-        public OrderGrpcClient(IConfiguration configuration)
+        private readonly string order_create_topic = "order-create";
+        private readonly string order_update_topic = "order-update";
+
+        public OrderGrpcClient(IConfiguration configuration, IKafkaEventProducer kafkaEventProducer)
         {
-            string serviceUrl = configuration["MicroService:orderService"];
-            if (string.IsNullOrEmpty(serviceUrl))
-            {
-                throw new ArgumentException("gRPC service URL not configured in appsettings.json");
-            }
+            //gRPC 
+            string serviceUrl = configuration["Microservices:orderService"] ?? "";
 
             var httpHandler = new HttpClientHandler
             {
@@ -34,25 +38,54 @@ namespace API_Gateway.Services
                 HttpHandler = httpHandler
             });
 
-            _client = new OrderGrpcService.OrderGrpcServiceClient(channel);
+            _orderClient = new OrderGrpcService.OrderGrpcServiceClient(channel);
+
+            //Kafka
+            _kafkaEventProducer = kafkaEventProducer;
         }
 
-        public async Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request)
-            => await _client.CreateOrderAsync(request);
-
+        //gRPC Endpoints
         public async Task<OrderResponse> GetOrderByIdAsync(OrderIdRequest request)
-            => await _client.GetOrderByIdAsync(request);
+            => await _orderClient.GetOrderByIdAsync(request);
 
         public async Task<OrderListResponse> GetOrdersByUserAsync(UserIdRequest request)
-            => await _client.GetOrdersByUserAsync(request);
+            => await _orderClient.GetOrdersByUserAsync(request);
 
         public async Task<OrderListResponse> GetAllOrdersAsync(OrderListRequest request)
-            => await _client.GetAllOrdersAsync(request);
-
-        public async Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request)
-            => await _client.UpdateOrderAsync(request);
+            => await _orderClient.GetAllOrdersAsync(request);
 
         public async Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request)
-            => await _client.DeleteOrderAsync(request);
+            => await _orderClient.DeleteOrderAsync(request);
+
+        //Kafka Producers
+        public async Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request)
+        {
+            Tuple<bool, string> result = await _kafkaEventProducer.ProduceEventAsync(
+                order_create_topic,
+                request.Order.Id.ToString(),
+                JsonSerializer.Serialize(request.Order));
+
+            return new OrderResponse()
+            {
+                Status = result.Item1,
+                Message = result.Item2,
+                Order = request.Order
+            };
+        }
+
+        public async Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request)
+        {
+            Tuple<bool, string> result = await _kafkaEventProducer.ProduceEventAsync(
+                order_update_topic,
+                request.Order.Id.ToString(),
+                JsonSerializer.Serialize(request.Order));
+
+            return new OrderResponse()
+            {
+                Status = result.Item1,
+                Message = result.Item2,
+                Order = request.Order
+            };
+        }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Dapper;
+﻿using Azure.Core;
+using Dapper;
 using Google.Protobuf;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -29,6 +30,8 @@ namespace OrderServiceGrpc.Repository
         #region OrderItems
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
         #endregion
+
+        Task<bool> InsertOrderCreateEvent(int orderId);
     }
 
     public class OrderRepository : IOrderRepository
@@ -104,6 +107,38 @@ namespace OrderServiceGrpc.Repository
             catch (Exception e)
             {
                 return false;
+            }
+        }
+
+        public async Task<bool> InsertOrderCreateEvent(int orderId)
+        {
+            string sql = "Insert into OrderEventLogs(OrderId,CreatedAt) values(@OrderId,@CreatedAt)";
+            try
+            {
+                await using SqlConnection conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync();
+
+                try
+                {
+                    DynamicParameters iop = new DynamicParameters();
+
+                    iop.Add("@OrderId", orderId);
+                    iop.Add("@CreatedAt", DateTime.UtcNow);
+
+                    await conn.ExecuteAsync(sql,iop);
+
+                    return true;
+                }
+
+                catch(Exception e) { Console.WriteLine(e.StackTrace); return false; }
+
+                finally { await conn.CloseAsync(); }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.StackTrace);
+
+                return false; 
             }
         }
 

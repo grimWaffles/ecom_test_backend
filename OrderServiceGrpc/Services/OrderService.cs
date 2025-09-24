@@ -11,10 +11,12 @@ namespace OrderServiceGrpc.Services
     public class OrderService : OrderGrpcService.OrderGrpcServiceBase
     {
         private readonly IOrderRepository _repo;
+
         public OrderService(IOrderRepository orderRepository)
         {
             _repo = orderRepository;
         }
+
         public override async Task<OrderResponse> CreateOrder(CreateOrderRequest request, ServerCallContext context)
         {
             int userId = 1;
@@ -30,6 +32,24 @@ namespace OrderServiceGrpc.Services
             {
                 Status = true,
                 Message = "Added successfully"
+            };
+        }
+
+        public override async Task<OrderResponse> UpdateOrder(UpdateOrderRequest request, ServerCallContext context)
+        {
+            int userId = 1;
+
+            if (!Validate())
+            {
+                return new OrderResponse() { Message = "Failed to validate", Status = false };
+            }
+
+            bool orderAdded = await _repo.UpdateOrder(OrderMapper.ToModel(request.Order), userId);
+
+            return new OrderResponse()
+            {
+                Status = true,
+                Message = "Updated successfully"
             };
         }
 
@@ -50,6 +70,7 @@ namespace OrderServiceGrpc.Services
                 Message = "Deleted successfully"
             };
         }
+
         public override async Task<OrderListResponse> GetAllOrders(OrderListRequest request, ServerCallContext context)
         {
             Tuple<int, int, List<OrderModel>> result = await _repo.GetAllOrdersWithPagination(request);
@@ -93,24 +114,6 @@ namespace OrderServiceGrpc.Services
         public override Task<OrderListResponse> GetOrdersByUser(UserIdRequest request, ServerCallContext context)
         {
             return base.GetOrdersByUser(request, context);
-        }
-
-        public override async Task<OrderResponse> UpdateOrder(UpdateOrderRequest request, ServerCallContext context)
-        {
-            int userId = 1;
-
-            if (!Validate())
-            {
-                return new OrderResponse() { Message = "Failed to validate", Status = false };
-            }
-
-            bool orderAdded = await _repo.UpdateOrder(OrderMapper.ToModel(request.Order), userId);
-
-            return new OrderResponse()
-            {
-                Status = true,
-                Message = "Updated successfully"
-            };
         }
 
         private bool Validate()

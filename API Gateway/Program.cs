@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using ApiGateway.Protos;
 using System.Text;
 using StackExchange.Redis;
+using API_Gateway.Helpers;
 namespace API_Gateway
 {
     public class Program
@@ -55,6 +56,8 @@ namespace API_Gateway
             builder.Services.AddScoped<IProductGrpcClient, ProductGrpcClient>();
             builder.Services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
             builder.Services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
+
+            builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
 
             builder.Services.AddSingleton<IRedisService, RedisService>();
 

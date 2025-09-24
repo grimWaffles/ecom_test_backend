@@ -1,5 +1,5 @@
-﻿version: "3.9"
-services:
+﻿services:
+# Microservice Configuration    
     userservice:
         build: ./UserServiceGrpc
         container_name: UserServiceContainer
@@ -10,6 +10,11 @@ services:
         container_name: ProductServiceContainer
         ports:
             - "5002:5002"
+    orderservice:
+        build: ./OrderServiceGrpc
+        container_name: OrderServiceContainer
+        ports:
+            - "5004:5004"
     apigateway:
         build: ./API Gateway
         container_name: APIGatewayContainer
@@ -18,4 +23,11 @@ services:
         depends_on:
             - userservice
             - productservice
+            - orderservice  
+
+#Network Configuration
+networks:
+    default:
+        external: true
+        name: ecom_services
     
