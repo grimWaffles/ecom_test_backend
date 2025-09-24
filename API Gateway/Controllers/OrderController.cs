@@ -94,7 +94,7 @@ namespace API_Gateway.Controllers
         [Route("publish-new-order")]
         public async Task<IActionResult> PublishOrderCreatedEvent()
         {
-            var result = _orderEvent.PublishOrderEvent();
+            var result = await _orderEvent.PublishOrderEvent();
             return Ok(result);
         }
     }

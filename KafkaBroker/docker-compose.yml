@@ -55,3 +55,9 @@
       - ./kafkauiconfig/config.yml:/etc/kafkaui/dynamic_config.yaml
     depends_on:
       - kafka
+
+#Network Configuration
+networks:
+  default:
+    external: true
+    name: ecom_services

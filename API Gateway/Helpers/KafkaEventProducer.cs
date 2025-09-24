@@ -7,7 +7,7 @@ namespace API_Gateway.Helpers
     public interface IKafkaEventProducer
     {
         Task<Tuple<bool, string>> ProduceEventAsync(string topic, string key, string payload);
-        bool PublishOrderEvent();
+        Task<bool> PublishOrderEvent();
     }
 
     public class KafkaEventProducer : IKafkaEventProducer
@@ -46,34 +46,44 @@ namespace API_Gateway.Helpers
             }
         }
 
-        public bool PublishOrderEvent()
+        public async Task<bool> PublishOrderEvent()
         {
-            using (var producer = new ProducerBuilder<string, string>(_producerConfig).Build())
+            using var producer = new ProducerBuilder<string, string>(_producerConfig).Build();
+
+            var orderEvent = new OrderCreatedEvent
             {
-                var orderEvent = new OrderCreatedEvent()
+                OrderId = 16969,
+                CustomerId = 123,
+                Amount = 250.75m,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            string eventJson = JsonSerializer.Serialize(orderEvent);
+
+            for (int i = 0; i < 1; i++)
+            {
+                try
                 {
-                    OrderId = 16969,
-                    CustomerId = 123,
-                    Amount = 250.75m,
-                    CreatedAt = DateTime.UtcNow
-                };
+                    var result = await producer.ProduceAsync(
+                        "order-create",
+                        new Message<string, string>
+                        {
+                            Key = orderEvent.OrderId.ToString(),
+                            Value = eventJson
+                        });
 
-                string eventJson = JsonSerializer.Serialize(orderEvent);
-
-                for (int i = 0; i < 500; i++)
+                    Console.WriteLine($"Delivered '{result.Value}' to {result.TopicPartitionOffset}");
+                }
+                catch (ProduceException<string, string> e)
                 {
-                    try
-                    {
-                        producer.ProduceAsync("order-create", new Message<string, string> { Key = orderEvent.OrderId.ToString(), Value = eventJson });
-                    }
-                    catch (Exception e)
-                    {
-                        return false;
-                    }
-
-                    Task.Delay(100);
+                    Console.WriteLine($"Delivery failed: {e.Error.Reason}");
+                    return false;
                 }
             }
+
+            // Ensure all outstanding messages are sent before disposing producer
+            producer.Flush(TimeSpan.FromSeconds(10));
+
             return true;
         }
     }
