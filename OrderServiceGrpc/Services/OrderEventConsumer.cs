@@ -117,17 +117,6 @@ namespace OrderServiceGrpc.Services
                             // After successful processing, store and track offset for manual commit
                             _consumer.StoreOffset(result);
                             _processedOffsets[result.TopicPartition] = result.Offset + 1;
-
-                            // Commit all tracked offsets to Kafka
-                            List<TopicPartitionOffset> offsets = _processedOffsets
-                                .Select(kv => new TopicPartitionOffset(kv.Key, kv.Value))
-                                .ToList();
-
-                            if (offsets.Any())
-                            {
-                                _consumer.Commit(offsets);
-                                Console.WriteLine("Successfully consumed eventId: " + result.Message.Key);
-                            }
                         }
                         catch (Exception e)
                         {
@@ -154,6 +143,21 @@ namespace OrderServiceGrpc.Services
 
                             // Still store offset to prevent the poison message from blocking consumption
                             _consumer.StoreOffset(result);
+                            _processedOffsets[result.TopicPartition] = result.Offset + 1;
+                        }
+
+                        finally
+                        {
+                            // Commit all tracked offsets to Kafka
+                            List<TopicPartitionOffset> offsets = _processedOffsets
+                                .Select(kv => new TopicPartitionOffset(kv.Key, kv.Value))
+                                .ToList();
+
+                            if (offsets.Any())
+                            {
+                                _consumer.Commit(offsets);
+                                Console.WriteLine("Successfully consumed eventId: " + result.Message.Key);
+                            }
                         }
                     }
                     catch (Exception e)

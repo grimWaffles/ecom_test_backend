@@ -33,9 +33,11 @@ namespace API_Gateway.Helpers
         {
             try
             {
+                Message<string, string> messageToSend = new Message<string, string> { Key = key, Value = payload };
+
                 using (IProducer<string, string> producer = new ProducerBuilder<string, string>(_producerConfig).Build())
                 {
-                    await producer.ProduceAsync(topic, new Message<string, string> { Key = key, Value = payload });
+                    await producer.ProduceAsync(topic, messageToSend);
                 }
 
                 return new Tuple<bool, string>(true, "Success");
