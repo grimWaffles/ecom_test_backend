@@ -15,10 +15,10 @@ namespace OrderServiceGrpc.Services
         private readonly string _bootstrapServer;
 
         // List of topics this consumer subscribes to
-        private readonly string[] _topic;
+        private readonly string[] _topics;
 
         // Dead Letter Queue topics (for failed messages)
-        private readonly string[] _dqlTopic;
+        private readonly string[] _dlqTopics;
 
         // Consumer group ID, used for Kafka offset tracking
         private readonly string _groupId;
@@ -45,11 +45,21 @@ namespace OrderServiceGrpc.Services
         {
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
             _bootstrapServer = configuration["Kafka:BootstrapServer"] ?? "";
-            _topic = configuration.GetSection("Kafka:Topic").Get<string[]>() ?? Array.Empty<string>();
-            _dqlTopic = configuration.GetSection("Kafka:DlqTopic").Get<string[]>() ?? Array.Empty<string>();
-
+            _topics = configuration.GetSection("Kafka:Topic").Get<string[]>() ?? Array.Empty<string>();
+            _dlqTopics = configuration.GetSection("Kafka:DlqTopic").Get<string[]>() ?? Array.Empty<string>();
             _groupId = configuration["Kafka:GroupId"] ?? "";
+
             _orderRepository = orderRepository;
+
+            // Validate required config values early
+            if (string.IsNullOrWhiteSpace(_bootstrapServer))
+                throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
+
+            if (string.IsNullOrWhiteSpace(_groupId))
+                throw new ArgumentException("Kafka GroupId is missing from configuration.");
+
+            if (_topics.Length == 0)
+                throw new ArgumentException("No Kafka topics specified in configuration.");
 
             // Consumer configuration
             _consumerConfig = new ConsumerConfig()
@@ -74,7 +84,7 @@ namespace OrderServiceGrpc.Services
 
             // Initialize main topic consumer and subscribe
             _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
-            _consumer.Subscribe(_topic);
+            _consumer.Subscribe(_topics);
 
             Console.WriteLine("Initialized consumer service successfully");
         }
@@ -106,7 +116,7 @@ namespace OrderServiceGrpc.Services
                                     break;
 
                                 case "order-update":
-                                    await OrderCreateEvent(result);
+                                    await OrderUpdateEvent(result);
                                     break;
 
                                 default:
@@ -135,11 +145,18 @@ namespace OrderServiceGrpc.Services
                             string dlqTopic = $"{result.Topic}-dlq";
 
                             // Produce failed message to DLQ
-                            await _dlqProducer.ProduceAsync(dlqTopic, new Message<string, string>
+                            try
                             {
-                                Key = result.Message.Key.ToString(),
-                                Value = JsonSerializer.Serialize(dlqMessage)
-                            });
+                                await _dlqProducer.ProduceAsync(dlqTopic, new Message<string, string>
+                                {
+                                    Key = result.Message.Key.ToString(),
+                                    Value = JsonSerializer.Serialize(dlqMessage)
+                                },stoppingToken);
+                            }
+                            catch(Exception ex)
+                            {
+                                Console.WriteLine($"Failed to produce DLQ message for {result.Topic}");
+                            }
 
                             // Still store offset to prevent the poison message from blocking consumption
                             _consumer.StoreOffset(result);
@@ -148,17 +165,28 @@ namespace OrderServiceGrpc.Services
 
                         finally
                         {
-                            // Commit all tracked offsets to Kafka
-                            List<TopicPartitionOffset> offsets = _processedOffsets
-                                .Select(kv => new TopicPartitionOffset(kv.Key, kv.Value))
-                                .ToList();
-
-                            if (offsets.Any())
+                            if (_processedOffsets.Any())
                             {
-                                _consumer.Commit(offsets);
-                                Console.WriteLine("Successfully consumed eventId: " + result.Message.Key);
+                                // Commit all tracked offsets to Kafka
+                                List<TopicPartitionOffset> offsets = _processedOffsets
+                                    .Select(kv => new TopicPartitionOffset(kv.Key, kv.Value))
+                                    .ToList();
+
+                                try
+                                {
+                                    _consumer.Commit(offsets);
+                                    Console.WriteLine("Successfully consumed eventId: " + result.Message.Key);
+                                }
+                                catch(Exception ex2)
+                                {
+                                    Console.WriteLine($"Failed to commit offsets");
+                                }
                             }
                         }
+                    }
+                    catch(ConsumeException cex)
+                    {
+                        Console.WriteLine($"Kafka consume error: {cex.Error.Reason}");
                     }
                     catch (Exception e)
                     {
@@ -177,15 +205,52 @@ namespace OrderServiceGrpc.Services
             }
             finally
             {
-                // Graceful shutdown
-                _consumer.Close();
-                _consumer.Dispose();
-                _dlqProducer.Flush();
-                _dlqProducer.Dispose();
+                try
+                {
+                    _consumer.Close();
+                    _consumer.Dispose();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error closing consumer: {e.Message}");
+                }
+
+                try
+                {
+                    _dlqProducer.Flush(TimeSpan.FromSeconds(10));
+                    _dlqProducer.Dispose();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error closing DLQ producer: {e.Message}");
+                }
+
+                Console.WriteLine("Kafka consumer service stopped gracefully.");
             }
         }
 
         private async Task OrderCreateEvent(ConsumeResult<string, string> eventValue)
+        {
+            try
+            {
+                // Deserialize message into domain event
+                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
+
+                // Validate deserialization
+                if (eventValue != null && model != null)
+                {
+                    // Insert event into repository (DB, etc.)
+                    await _orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log processing exceptions
+                Console.WriteLine(ex.StackTrace);
+            }
+        }
+
+        private async Task OrderUpdateEvent(ConsumeResult<string, string> eventValue)
         {
             try
             {
