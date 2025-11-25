@@ -6,6 +6,7 @@ using ApiGateway.Protos;
 using System.Text;
 using StackExchange.Redis;
 using API_Gateway.Helpers;
+using API_Gateway.Models;
 namespace API_Gateway
 {
     public class Program
@@ -58,6 +59,9 @@ namespace API_Gateway
             builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
 
             builder.Services.AddSingleton<IRedisService, RedisService>();
+
+            //Add AppSettings objects as Options
+            builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSection("KafkaProducerSettings"));
 
             var app = builder.Build();
 

@@ -1,70 +1,114 @@
 ﻿using API_Gateway.Models;
 using Confluent.Kafka;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using System.Text.Json;
 
 namespace API_Gateway.Helpers
 {
     public interface IKafkaEventProducer
     {
-        Task<Tuple<bool, string>> ProduceEventAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default);
-        //Task<bool> PublishOrderEvent();
+        Task<KafkaProducerResult> ProduceEventAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default);
     }
 
-    public class KafkaEventProducer : IKafkaEventProducer
+    public class KafkaEventProducer : IKafkaEventProducer, IAsyncDisposable
     {
-        private readonly string _bootstrapServer;
-        private readonly IConfiguration _config;
-        private readonly ProducerConfig _producerConfig;
+        private readonly KafkaProducerSettings _kafkaProducerSettings;
+
         private readonly IProducer<string, string> _producer;
 
         //For Manual Partitioning support
-        private int _partitionCounter = 0;
-        private readonly object _lock = new object();
-        private readonly int _totalPartitions = 6;
+        private int _partitionCounter = -1;
+
+        public KafkaEventProducer(IOptions<KafkaProducerSettings> options)
+        {
+            _kafkaProducerSettings = options.Value;
+
+            #region KafkaSettings Validation
+            if (_kafkaProducerSettings.BootstrapServer.IsNullOrEmpty()
+                || _kafkaProducerSettings.MessageTimeoutMs <= 0
+                || _kafkaProducerSettings.RetryAfterDelayMs <= 0
+                || _kafkaProducerSettings.MaxNoOfRetries <= 0
+                || _kafkaProducerSettings.TotalPartitions <= 0)
+            {
+                throw new Exception("Kafka settings are not configured correctly.");
+            }
+            #endregion
+
+            ProducerConfig producerConfig = new ProducerConfig
+            {
+                BootstrapServers = _kafkaProducerSettings.BootstrapServer,
+                EnableIdempotence = _kafkaProducerSettings.EnableIdempotence,   // safe retries, no duplicates
+                MessageTimeoutMs = _kafkaProducerSettings.MessageTimeoutMs,
+                Acks = (Acks?)_kafkaProducerSettings.Acks,    // stronger delivery guarantees
+            };
+
+            _producer = new ProducerBuilder<string, string>(producerConfig).Build();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _producer.Flush(TimeSpan.FromSeconds(10));
+            _producer.Dispose();
+        }
+
+        public async Task<KafkaProducerResult> ProduceEventAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default)
+        {
+            //Validate the inputs
+            if (topic.IsNullOrEmpty() || key.IsNullOrEmpty() || payload.IsNullOrEmpty())
+            {
+                return new KafkaProducerResult()
+                {
+                    Status = false,
+                    ErrorMessage = "Topic and message are incorrect"
+                };
+            }
+
+            int attemptNo = 0;
+            string errorMessage = "";
+
+            int selectedPartition = partition ?? GetNextPartition();
+
+            while (attemptNo < Math.Max(1, _kafkaProducerSettings.MaxNoOfRetries))
+            {
+                try
+                {
+                    Message<string, string> messageToSend = new Message<string, string>
+                    { Key = key, Value = payload };
+
+                    TopicPartition target = new TopicPartition(topic, new Partition(selectedPartition));
+
+                    await _producer.ProduceAsync(target, messageToSend, token);
+
+                    return new KafkaProducerResult() { Status = true, ErrorMessage = "Successfully produced message" };
+                }
+                catch (Exception e)
+                {
+                    errorMessage = e.Message;
+                }
+
+                attemptNo++;
+
+                await Task.Delay(_kafkaProducerSettings.RetryAfterDelayMs * attemptNo, token);
+            }
+
+            return new KafkaProducerResult()
+            {
+                Status = false,
+                ErrorMessage = errorMessage,
+                PartitionNumber = selectedPartition,
+                Topic = topic
+            };
+        }
 
         private int GetNextPartition()
         {
-            lock (_lock)
-            {
-                return (_partitionCounter + 1) % _totalPartitions;
-            }
-        }
+            int total = Math.Max(1, _kafkaProducerSettings.TotalPartitions);
+            int nextPartition = Interlocked.Increment(ref _partitionCounter); //Thread-safe incrementing
+            int finalPartition = nextPartition % total;
 
-        public KafkaEventProducer(IConfiguration configuration)
-        {
-            _config = configuration;
-            _bootstrapServer = _config["Kafka:BootstrapServer"] ?? "";
-            _producerConfig = new ProducerConfig
-            {
-                BootstrapServers = _bootstrapServer,
-                Acks = Acks.All,              // stronger delivery guarantees
-                EnableIdempotence = true,     // safe retries, no duplicates
-                MessageTimeoutMs = 5000
-            };
-
-            _producer = new ProducerBuilder<string, string>(_producerConfig).Build();
-        }
-
-        public async Task<Tuple<bool, string>> ProduceEventAsync
-            (string topic, string key, string payload, int? partition = null, CancellationToken token = default)
-        {
-            try
-            {
-                Message<string, string> messageToSend = new Message<string, string>
-                { Key = key, Value = payload };
-
-                int selectedPartition = partition ?? GetNextPartition();
-
-                TopicPartition target = new TopicPartition(topic, new Partition(selectedPartition));
-
-                await _producer.ProduceAsync(target, messageToSend, token);
-
-                return new Tuple<bool, string>(true, "Success");
-            }
-            catch (Exception e)
-            {
-                return new Tuple<bool, string>(false, e.Message);
-            }
+            return finalPartition < 0 ? finalPartition + total : finalPartition;
         }
     }
 }
