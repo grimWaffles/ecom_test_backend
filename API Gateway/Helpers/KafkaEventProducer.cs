@@ -6,7 +6,7 @@ namespace API_Gateway.Helpers
 {
     public interface IKafkaEventProducer
     {
-        Task<Tuple<bool, string>> ProduceEventAsync(string topic, string key, string payload);
+        Task<Tuple<bool, string>> ProduceEventAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default);
         //Task<bool> PublishOrderEvent();
     }
 
@@ -66,44 +66,5 @@ namespace API_Gateway.Helpers
                 return new Tuple<bool, string>(false, e.Message);
             }
         }
-
-        //public async Task<bool> PublishOrderEvent()
-        //{
-        //    var orderEvent = new OrderCreatedEvent
-        //    {
-        //        OrderId = 16969,
-        //        CustomerId = 123,
-        //        Amount = 250.75m,
-        //        CreatedAt = DateTime.UtcNow
-        //    };
-
-        //    string eventJson = JsonSerializer.Serialize(orderEvent);
-
-        //    for (int i = 0; i < 1; i++)
-        //    {
-        //        try
-        //        {
-        //            var result = await _producer.ProduceAsync(
-        //                "order-create",
-        //                new Message<string, string>
-        //                {
-        //                    Key = orderEvent.OrderId.ToString(),
-        //                    Value = eventJson
-        //                });
-
-        //            Console.WriteLine($"Delivered '{result.Value}' to {result.TopicPartitionOffset}");
-        //        }
-        //        catch (ProduceException<string, string> e)
-        //        {
-        //            Console.WriteLine($"Delivery failed: {e.Error.Reason}");
-        //            return false;
-        //        }
-        //    }
-
-        //    // Ensure all outstanding messages are sent before disposing producer
-        //    _producer.Flush(TimeSpan.FromSeconds(10));
-
-        //    return true;
-        //}
     }
 }
