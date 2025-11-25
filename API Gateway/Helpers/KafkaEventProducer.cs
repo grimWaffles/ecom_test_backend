@@ -83,6 +83,37 @@ namespace API_Gateway.Helpers
 
                     return new KafkaProducerResult() { Status = true, ErrorMessage = "Successfully produced message" };
                 }
+
+                catch (OperationCanceledException)
+                {
+                    return new KafkaProducerResult
+                    {
+                        Status = false,
+                        ErrorMessage = "Operation cancelled",
+                        PartitionNumber = selectedPartition,
+                        Topic = topic
+                    };
+                }
+
+                catch (ProduceException<string, string> ex)
+                {
+                    var code = ex.Error.Code;
+
+                    if (IsFatalKafkaError(code))
+                    {
+                        return new KafkaProducerResult
+                        {
+                            Status = false,
+                            ErrorMessage = $"Fatal Kafka error: {ex.Error.Reason}",
+                            PartitionNumber = selectedPartition,
+                            Topic = topic
+                        };
+                    }
+
+                    // Only retriable errors continue the loop
+                    errorMessage = ex.Error.Reason;
+                }
+
                 catch (Exception e)
                 {
                     errorMessage = e.Message;
@@ -109,6 +140,23 @@ namespace API_Gateway.Helpers
             int finalPartition = nextPartition % total;
 
             return finalPartition < 0 ? finalPartition + total : finalPartition;
+        }
+
+        private static bool IsRetriableKafkaError(ErrorCode code)
+        {
+            return code == ErrorCode.BrokerNotAvailable
+                || code == ErrorCode.LeaderNotAvailable
+                || code == ErrorCode.RequestTimedOut
+                || code == ErrorCode.NotEnoughReplicas
+                || code == ErrorCode.NotEnoughReplicasAfterAppend
+                || code == ErrorCode.NetworkException
+                || code == ErrorCode.ClusterAuthorizationFailed;
+        }
+
+        private static bool IsFatalKafkaError(ErrorCode code)
+        {
+            // Anything not retriable is treated as fatal
+            return !IsRetriableKafkaError(code);
         }
     }
 }
