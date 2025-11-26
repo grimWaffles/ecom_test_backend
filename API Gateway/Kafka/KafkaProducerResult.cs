@@ -1,4 +1,4 @@
-﻿namespace API_Gateway.Models
+﻿namespace API_Gateway.Helpers
 {
     public class KafkaProducerResult
     {
@@ -6,5 +6,6 @@
         public string Topic { get; set; } = string.Empty;
         public string? ErrorMessage { get; set; }
         public int? PartitionNumber { get; set; }
+        public long? Offset { get; set; }
     }
 }

@@ -34,7 +34,7 @@ namespace API_Gateway.Helpers
         Task<ProduceResult> ProduceEventAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default);
     }
 
-    public class KafkaEventProducer_v2 : IKafkaEventProducer_v2
+    public class KafkaEventProducerManualDemo : IKafkaEventProducer_v2
     {
         private readonly IProducer<string, string> _producer;
         private readonly ILogger<KafkaEventProducer> _logger;
@@ -43,7 +43,7 @@ namespace API_Gateway.Helpers
         // For manual partitioning (thread-safe counter)
         private int _partitionCounter = -1; // start at -1 so first Interlocked.Increment becomes 0
 
-        public KafkaEventProducer_v2(IOptions<KafkaSettings> settings, ILogger<KafkaEventProducer> logger)
+        public KafkaEventProducerManualDemo(IOptions<KafkaSettings> settings, ILogger<KafkaEventProducer> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));

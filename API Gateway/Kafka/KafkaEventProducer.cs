@@ -1,5 +1,4 @@
-﻿using API_Gateway.Models;
-using Confluent.Kafka;
+﻿using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -9,7 +8,8 @@ namespace API_Gateway.Helpers
 {
     public interface IKafkaEventProducer
     {
-        Task<KafkaProducerResult> ProduceEventAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default);
+        Task<KafkaProducerResult> ProduceEventUsingManualControlsAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default);
+        Task<KafkaProducerResult> ProduceEventAsync(string topic, string key, string payload, CancellationToken token = default);
     }
 
     public class KafkaEventProducer : IKafkaEventProducer, IAsyncDisposable
@@ -41,7 +41,7 @@ namespace API_Gateway.Helpers
                 BootstrapServers = _kafkaProducerSettings.BootstrapServer,
                 EnableIdempotence = _kafkaProducerSettings.EnableIdempotence,   // safe retries, no duplicates
                 MessageTimeoutMs = _kafkaProducerSettings.MessageTimeoutMs,
-                Acks = (Acks?)_kafkaProducerSettings.Acks,    // stronger delivery guarantees
+                Acks = _kafkaProducerSettings.Acks,    // stronger delivery guarantees
             };
 
             _producer = new ProducerBuilder<string, string>(producerConfig).Build();
@@ -53,7 +53,77 @@ namespace API_Gateway.Helpers
             _producer.Dispose();
         }
 
-        public async Task<KafkaProducerResult> ProduceEventAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default)
+        #region using Kafka's Auto mechanisms for message producing
+        /*
+            This version relies on kafka to find:
+            1) the appropriate partition
+            2) if, when and how many times it will retry a message
+            3) the delay between retries
+         */
+        public async Task<KafkaProducerResult> ProduceEventAsync(string topic, string key, string payload, CancellationToken token = default)
+        {
+            //Validate the inputs
+            if (topic.IsNullOrEmpty() || key.IsNullOrEmpty() || payload.IsNullOrEmpty())
+            {
+                return new KafkaProducerResult()
+                {
+                    Status = false,
+                    ErrorMessage = "Topic and message are incorrect"
+                };
+            }
+
+            try
+            {
+                Message<string, string> messageToSend = new Message<string, string>
+                { Key = key, Value = payload };
+
+                DeliveryResult<string, string> result = await _producer.ProduceAsync(topic, messageToSend, token);
+
+                return new KafkaProducerResult() { 
+                    Status = true, 
+                    ErrorMessage = $"Message delivered.{result.Status}", 
+                    PartitionNumber = result.Partition.Value, 
+                    Topic = result.Topic,
+                    Offset = result.TopicPartitionOffset.Offset.Value 
+                };
+            }
+
+            catch (OperationCanceledException)
+            {
+                return new KafkaProducerResult
+                {
+                    Status = false,
+                    ErrorMessage = "Operation cancelled",
+                    Topic = topic
+                };
+            }
+
+            catch (ProduceException<string, string> ex)
+            {
+                return new KafkaProducerResult
+                {
+                    Status = false,
+                    ErrorMessage = $"Fatal Kafka error: {ex.Error.Reason}",
+                    Topic = topic
+                };
+            }
+
+            catch (Exception ex)
+            {
+                // unexpected system-level error (IO, serialization, etc.)
+                return new KafkaProducerResult
+                {
+                    Status = false,
+                    ErrorMessage = $"Unexpected error: {ex.Message}",
+                    Topic = topic
+                };
+            }
+        }
+
+        #endregion
+
+        #region using manual controls for message producing
+        public async Task<KafkaProducerResult> ProduceEventUsingManualControlsAsync(string topic, string key, string payload, int? partition = null, CancellationToken token = default)
         {
             //Validate the inputs
             if (topic.IsNullOrEmpty() || key.IsNullOrEmpty() || payload.IsNullOrEmpty())
@@ -114,14 +184,28 @@ namespace API_Gateway.Helpers
                     errorMessage = ex.Error.Reason;
                 }
 
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    errorMessage = e.Message;
+                    // unexpected system-level error (IO, serialization, etc.)
+                    return new KafkaProducerResult
+                    {
+                        Status = false,
+                        ErrorMessage = $"Unexpected error: {ex.Message}",
+                        PartitionNumber = selectedPartition,
+                        Topic = topic
+                    };
                 }
 
                 attemptNo++;
 
-                await Task.Delay(_kafkaProducerSettings.RetryAfterDelayMs * attemptNo, token);
+                try
+                {
+                    await Task.Delay(_kafkaProducerSettings.RetryAfterDelayMs * attemptNo, token);
+                }
+                catch (OperationCanceledException e)
+                {
+                    break;
+                }
             }
 
             return new KafkaProducerResult()
@@ -158,5 +242,7 @@ namespace API_Gateway.Helpers
             // Anything not retriable is treated as fatal
             return !IsRetriableKafkaError(code);
         }
+
+        #endregion
     }
 }

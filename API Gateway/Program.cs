@@ -6,7 +6,6 @@ using ApiGateway.Protos;
 using System.Text;
 using StackExchange.Redis;
 using API_Gateway.Helpers;
-using API_Gateway.Models;
 namespace API_Gateway
 {
     public class Program
