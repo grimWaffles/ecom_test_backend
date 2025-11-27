@@ -1,6 +1,7 @@
 ﻿using API_Gateway.Helpers;
 using ApiGateway.Protos;
 using Confluent.Kafka;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Net.Client;
 using System.Text.Json;
 namespace API_Gateway.Services
@@ -13,7 +14,11 @@ namespace API_Gateway.Services
         Task<OrderListResponse> GetAllOrdersAsync(OrderListRequest request);
         Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request);
         Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request);
+
+        //Custom Function
+        Task<OrderResponse> GenerateCustomManualOrder();
     }
+
     public class OrderGrpcClient : IOrderGrpcClient
     {
         private readonly OrderGrpcService.OrderGrpcServiceClient _orderClient;
@@ -60,32 +65,98 @@ namespace API_Gateway.Services
         //Kafka Producers
         public async Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request)
         {
-            Tuple<bool, string> result = await _kafkaEventProducer.ProduceEventAsync(
+            KafkaProducerResult result = await _kafkaEventProducer.ProduceEventAsync(
                 order_create_topic,
                 request.Order.Id.ToString(),
                 JsonSerializer.Serialize(request.Order));
 
             return new OrderResponse()
             {
-                Status = result.Item1,
-                Message = result.Item2,
+                Status = result.Status,
+                Message = result.ErrorMessage,
                 Order = request.Order
             };
         }
 
         public async Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request)
         {
-            Tuple<bool, string> result = await _kafkaEventProducer.ProduceEventAsync(
+            KafkaProducerResult result = await _kafkaEventProducer.ProduceEventAsync(
                 order_update_topic,
                 request.Order.Id.ToString(),
                 JsonSerializer.Serialize(request.Order));
 
             return new OrderResponse()
             {
-                Status = result.Item1,
-                Message = result.Item2,
+                Status = result.Status,
+                Message = result.ErrorMessage,
                 Order = request.Order
             };
+        }
+
+        public async Task<OrderResponse> GenerateCustomManualOrder()
+        {
+            CustomConverters converter = new CustomConverters();
+
+            DateTime startDate = DateTime.Parse("2025-02-01");
+            DateTime endDate = DateTime.Parse("2025-02-01");
+
+            OrderListRequest request = new OrderListRequest()
+            {
+                PageNumber = 1,
+                PageSize = 10,
+                StartDate = converter.ConvertDateTimeToGoogleTimeStamp(startDate),
+                EndDate = converter.ConvertDateTimeToGoogleTimeStamp(endDate),
+                UserId = 1
+            };
+
+            OrderListResponse response = new OrderListResponse();
+            List<Order> orderList = new List<Order>();
+
+            try
+            {
+                response = await GetAllOrdersAsync(request);
+                orderList = response.Orders.ToList();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Failed to fetch orders");
+            }
+
+            if (orderList.Count > 0)
+            {
+                await FireAllOrderProduceEvents(orderList);
+            }
+
+            return new OrderResponse()
+            {
+                Status = true,
+                Message = "Order processing",
+                Order = new Order()
+            };
+        }
+
+        private async Task<bool> FireAllOrderProduceEvents(List<Order> orders)
+        {
+            string topic = "order-create";
+            try
+            {
+                List<Task> tasks = new List<Task>();
+
+                foreach (Order order in orders)
+                {
+                    tasks.Add(new Task(async () => {
+                        await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), JsonSerializer.Serialize(order));
+                    }));
+                }
+
+                await Task.WhenAll(tasks);  
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
         }
     }
 }

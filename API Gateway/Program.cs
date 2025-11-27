@@ -59,6 +59,9 @@ namespace API_Gateway
 
             builder.Services.AddSingleton<IRedisService, RedisService>();
 
+            //Add AppSettings objects as Options
+            builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSection("KafkaProducerSettings"));
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
