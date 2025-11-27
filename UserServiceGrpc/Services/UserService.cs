@@ -1,7 +1,6 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Azure;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.IdentityModel.Tokens;

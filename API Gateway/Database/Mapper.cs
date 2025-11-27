@@ -1,5 +1,5 @@
 ﻿// using EfCoreTutorial.Dtos;
-// using EfCoreTutorial.Entity.ECommerceModels;
+// using ProductServiceGrpc.Models;
 // using System;
 // using System.Collections.Generic;
 // using System.Linq;

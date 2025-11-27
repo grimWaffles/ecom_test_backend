@@ -1,9 +1,9 @@
-﻿using EfCoreTutorial.Entity.ECommerceModels;
+﻿using ProductServiceGrpc.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace ProductServiceGrpc.Database
 {
-    public class AppDbContext :DbContext
+    public class AppDbContext : DbContext
     {
         public DbSet<ProductCategoryModel> ProductCategories {get; set;}
         public DbSet<SellerModel> Sellers { get; set; }
