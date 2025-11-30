@@ -1,0 +1,23 @@
+Bash Script:
+---------------------------------------------------
+chmod +x create-topics.sh
+./create-topics.sh
+
+Powershell Script:
+---------------------------------------------------
+docker exec -it kafka_broker /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic order-create --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092
+docker exec -it kafka_broker /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic order-update --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092
+docker exec -it kafka_broker /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic order-delete --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092
+
+# DLQ topics (1 partition each)
+docker exec -it kafka_broker /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic order-create-dlq --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
+docker exec -it kafka_broker /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic order-update-dlq --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
+docker exec -it kafka_broker /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic order-delete-dlq --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
+
+List All Topics:
+---------------------------------------------------
+docker exec -it kafka_broker /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+
+Execute the powershell script
+---------------------------------------------------
+powershell -ExecutionPolicy Bypass -File create-topics.ps1

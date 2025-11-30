@@ -144,12 +144,14 @@ namespace API_Gateway.Services
 
                 foreach (Order order in orders)
                 {
-                    tasks.Add(new Task(async () => {
-                        await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), JsonSerializer.Serialize(order));
-                    }));
+                    //tasks.Add(new Task(async () => {
+                    //    await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), JsonSerializer.Serialize(order));
+                    //}));
+                    string payload = JsonSerializer.Serialize(order);
+                    await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), payload);
                 }
 
-                await Task.WhenAll(tasks);  
+                //await Task.WhenAll(tasks);  
 
                 return true;
             }
