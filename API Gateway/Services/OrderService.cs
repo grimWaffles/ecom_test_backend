@@ -97,13 +97,13 @@ namespace API_Gateway.Services
         {
             CustomConverters converter = new CustomConverters();
 
-            DateTime startDate = DateTime.Parse("2025-02-01");
-            DateTime endDate = DateTime.Parse("2025-02-01");
+            DateTime startDate = DateTime.Parse("2023-01-01");
+            DateTime endDate = DateTime.Parse("2025-11-01");
 
             OrderListRequest request = new OrderListRequest()
             {
                 PageNumber = 1,
-                PageSize = 10,
+                PageSize = 5000,
                 StartDate = converter.ConvertDateTimeToGoogleTimeStamp(startDate),
                 EndDate = converter.ConvertDateTimeToGoogleTimeStamp(endDate),
                 UserId = 1
@@ -122,9 +122,30 @@ namespace API_Gateway.Services
                 Console.WriteLine("Failed to fetch orders");
             }
 
+            TimeSpan seconds;
+
             if (orderList.Count > 0)
             {
-                await FireAllOrderProduceEvents(orderList);
+                List<Order> list1 = orderList.Take(2500).ToList();
+                List<Order> list2 = orderList.Skip(2500).Take(2500).ToList();
+
+                DateTime startTime = DateTime.Now;
+                Task t1 = Task.Run( () =>
+                {
+                     FireAllOrderProduceEvents(list1);
+                });
+
+                Task t2 = Task.Run( () =>
+                {
+                     FireAllOrderProduceEvents(list2);
+                });
+
+                await Task.WhenAll(t1, t2);
+
+                DateTime endtime = DateTime.Now;
+
+                seconds = endDate - startDate;
+
             }
 
             return new OrderResponse()

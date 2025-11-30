@@ -267,8 +267,8 @@ namespace OrderServiceGrpc.Repository
                                     from Orders o 
 									where o.OrderDate >= Convert(date,@StartDate) and o.OrderDate <= Convert(date,@EndDate)
                                     order by o.OrderDate desc
-                                    offset (@pageSize-1)*@PageNumber rows
-                                    fetch next @PageSize rows only
+                                    --offset (@pageSize-1)*@PageNumber rows
+                                    --fetch next @PageSize rows only
 
                                     select @TotalOrders = count(*) from Orders where OrderDate >=  Convert(date,@StartDate) and OrderDate <= Convert(date,@EndDate)
                                     select @TotalPages = (@TotalOrders/@PageSize) + 1
