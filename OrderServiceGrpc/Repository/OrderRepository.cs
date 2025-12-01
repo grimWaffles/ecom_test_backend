@@ -31,7 +31,7 @@ namespace OrderServiceGrpc.Repository
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
         #endregion
 
-        Task<bool> InsertOrderCreateEvent(int orderId);
+        Task<RepoResponseModel> InsertOrderCreateEvent(int orderId);
     }
 
     public class OrderRepository : IOrderRepository
@@ -110,7 +110,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<bool> InsertOrderCreateEvent(int orderId)
+        public async Task<RepoResponseModel> InsertOrderCreateEvent(int orderId)
         {
             string sql = "Insert into OrderEventLogs(OrderId,CreatedAt) values(@OrderId,@CreatedAt)";
             try
@@ -125,12 +125,12 @@ namespace OrderServiceGrpc.Repository
                     iop.Add("@OrderId", orderId);
                     iop.Add("@CreatedAt", DateTime.UtcNow);
 
-                    await conn.ExecuteAsync(sql,iop);
+                    await conn.ExecuteAsync(sql, iop);
 
-                    return true;
+                    return new RepoResponseModel() { Status = true, Message = "Order inserted successfully", StackTrace = "" };
                 }
 
-                catch(Exception e) { Console.WriteLine(e.StackTrace); return false; }
+                catch (Exception e) { Console.WriteLine(e.StackTrace); return new RepoResponseModel() { Status = false, Message = e.Message, StackTrace = e.StackTrace ?? "Stack trace unavailable" }; }
 
                 finally { await conn.CloseAsync(); }
             }
@@ -138,7 +138,7 @@ namespace OrderServiceGrpc.Repository
             {
                 Console.WriteLine(e.StackTrace);
 
-                return false; 
+                return new RepoResponseModel() { Status = false, Message = e.Message, StackTrace = e.StackTrace ?? "Stack trace unavailable" };
             }
         }
 

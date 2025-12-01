@@ -1,3 +1,4 @@
+using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
 
@@ -11,6 +12,8 @@ builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRe
 builder.Services.AddSingleton<IOrderRepository, OrderRepository>();
 
 builder.Services.AddHostedService<OrderEventConsumer>();
+
+builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSection("KafkaConsumerSettings"));
 
 var app = builder.Build();
 

@@ -36,7 +36,7 @@ namespace API_Gateway
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = builder.Configuration["Jwt:validIssuer"],
                         ValidAudience = builder.Configuration["Jwt:validAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"] ?? ""))
                     };
                 });
             builder.Services.AddAuthentication();

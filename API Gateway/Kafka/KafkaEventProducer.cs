@@ -42,6 +42,7 @@ namespace API_Gateway.Helpers
                 EnableIdempotence = _kafkaProducerSettings.EnableIdempotence,   // safe retries, no duplicates
                 MessageTimeoutMs = _kafkaProducerSettings.MessageTimeoutMs,
                 Acks = _kafkaProducerSettings.Acks,    // stronger delivery guarantees
+                MessageSendMaxRetries = _kafkaProducerSettings.MaxNoOfRetries
             };
 
             _producer = new ProducerBuilder<string, string>(producerConfig).Build();
