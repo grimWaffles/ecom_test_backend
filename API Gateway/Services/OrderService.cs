@@ -130,14 +130,14 @@ namespace API_Gateway.Services
                 List<Order> list2 = orderList.Skip(2500).Take(2500).ToList();
 
                 DateTime startTime = DateTime.Now;
-                Task t1 = Task.Run( () =>
+                Task t1 = Task.Run(async () =>
                 {
-                     FireAllOrderProduceEvents(list1);
+                    await FireAllOrderProduceEvents(list1);
                 });
 
-                Task t2 = Task.Run( () =>
+                Task t2 = Task.Run(async () =>
                 {
-                     FireAllOrderProduceEvents(list2);
+                    await FireAllOrderProduceEvents(list2);
                 });
 
                 await Task.WhenAll(t1, t2);
@@ -145,7 +145,6 @@ namespace API_Gateway.Services
                 DateTime endtime = DateTime.Now;
 
                 seconds = endDate - startDate;
-
             }
 
             return new OrderResponse()

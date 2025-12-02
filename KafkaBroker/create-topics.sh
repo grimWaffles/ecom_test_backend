@@ -20,6 +20,9 @@ TOPICS=(
   "order-create-dlq:1"
   "order-update-dlq:1"
   "order-delete-dlq:1"
+
+  #Catch All DLQ
+  "catch-all-dlq"
 )
 # -------------------------
 
