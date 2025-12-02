@@ -1,4 +1,4 @@
-﻿using EfCoreTutorial.Entity.ECommerceModels;
+﻿using ProductServiceGrpc.Models;
 using Microsoft.EntityFrameworkCore;
 using ProductServiceGrpc.Database;
 

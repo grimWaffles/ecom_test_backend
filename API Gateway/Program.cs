@@ -14,16 +14,14 @@ namespace API_Gateway
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            //Add CORS
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("AllowOrigin", builder =>
+                options.AddPolicy("AllowOrigin", policy =>
                 {
-                    builder.WithOrigins().AllowAnyMethod()
-                        .AllowAnyHeader()
-                        .SetIsOriginAllowed(origin => true) // allow any origin
-
-                        .Build();
+                    policy
+                        .AllowAnyOrigin()   // allow requests from any origin
+                        .AllowAnyMethod()   // allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
+                        .AllowAnyHeader();  // allow all headers
                 });
             });
 
@@ -38,7 +36,7 @@ namespace API_Gateway
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = builder.Configuration["Jwt:validIssuer"],
                         ValidAudience = builder.Configuration["Jwt:validAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"] ?? ""))
                     };
                 });
             builder.Services.AddAuthentication();
@@ -60,6 +58,9 @@ namespace API_Gateway
             builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
 
             builder.Services.AddSingleton<IRedisService, RedisService>();
+
+            //Add AppSettings objects as Options
+            builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSection("KafkaProducerSettings"));
 
             var app = builder.Build();
 

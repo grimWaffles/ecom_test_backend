@@ -1,4 +1,4 @@
-﻿using EfCoreTutorial.Entity.ECommerceModels;
+﻿using ProductServiceGrpc.Models;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using ProductServiceGrpc;

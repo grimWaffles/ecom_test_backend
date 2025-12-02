@@ -1,5 +1,6 @@
 ﻿
 using Confluent.Kafka;
+using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Repository;
 using System.Collections.Concurrent;
@@ -11,17 +12,8 @@ namespace OrderServiceGrpc.Services
 {
     public class OrderEventConsumer : BackgroundService
     {
-        // Kafka connection details
-        private readonly string _bootstrapServer;
-
-        // List of topics this consumer subscribes to
-        private readonly string[] _topic;
-
-        // Dead Letter Queue topics (for failed messages)
-        private readonly string[] _dqlTopic;
-
-        // Consumer group ID, used for Kafka offset tracking
-        private readonly string _groupId;
+        //Kafka Consumer Settings
+        private readonly KafkaConsumerSettings _consumerSettings;
 
         // Repository for processing events (e.g., inserting into DB)
         private readonly IOrderRepository _orderRepository;
@@ -41,32 +33,43 @@ namespace OrderServiceGrpc.Services
         // Tracks offsets of successfully processed messages for manual commit
         private readonly ConcurrentDictionary<TopicPartition, Offset> _processedOffsets = new();
 
-        public OrderEventConsumer(IConfiguration configuration, IOrderRepository orderRepository)
+        public OrderEventConsumer(IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOrderRepository orderRepository)
         {
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
-            _bootstrapServer = configuration["Kafka:BootstrapServer"] ?? "";
-            _topic = configuration.GetSection("Kafka:Topic").Get<string[]>() ?? Array.Empty<string>();
-            _dqlTopic = configuration.GetSection("Kafka:DlqTopic").Get<string[]>() ?? Array.Empty<string>();
+            _consumerSettings = kafkaConsumerSettings.Value;
 
-            _groupId = configuration["Kafka:GroupId"] ?? "";
             _orderRepository = orderRepository;
+
+            // Validate required config values early
+            if (string.IsNullOrWhiteSpace(_consumerSettings.BootstrapServer))
+                throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
+
+            if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
+                throw new ArgumentException("Kafka GroupId is missing from configuration.");
+
+            if (_consumerSettings.TopicsToConsume.Length == 0)
+                throw new ArgumentException("No Kafka topics specified in configuration.");
+
+            if (_consumerSettings.DlqTopics.Length == 0)
+                throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
 
             // Consumer configuration
             _consumerConfig = new ConsumerConfig()
             {
-                BootstrapServers = _bootstrapServer,
-                GroupId = _groupId,
-                AutoOffsetReset = AutoOffsetReset.Earliest, // Start from beginning if no committed offsets
-                EnableAutoCommit = false,                   // We'll commit manually after successful processing
-                EnableAutoOffsetStore = false,              // We'll explicitly store offsets after processing
+                BootstrapServers = _consumerSettings.BootstrapServer,
+                GroupId = _consumerSettings.GroupId,
+                AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
+                EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
+                EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing
             };
 
             // Producer configuration for DLQ messages
             _producerConfig = new ProducerConfig()
             {
-                BootstrapServers = _bootstrapServer,
-                Acks = Acks.All,            // Wait for all replicas to acknowledge
-                EnableIdempotence = true    // Ensure no duplicate DLQ messages
+                BootstrapServers = _consumerSettings.BootstrapServer,
+                Acks = _consumerSettings.DlqAcks,            // Wait for all replicas to acknowledge
+                EnableIdempotence = _consumerSettings.DlqIdempotence,  // Ensure no duplicate DLQ messages
+                MessageTimeoutMs = _consumerSettings.DlqMessageTimeoutMs
             };
 
             // Initialize DLQ producer
@@ -74,7 +77,8 @@ namespace OrderServiceGrpc.Services
 
             // Initialize main topic consumer and subscribe
             _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
-            _consumer.Subscribe(_topic);
+
+            _consumer.Subscribe(_consumerSettings.TopicsToConsume);
 
             Console.WriteLine("Initialized consumer service successfully");
         }
@@ -106,7 +110,7 @@ namespace OrderServiceGrpc.Services
                                     break;
 
                                 case "order-update":
-                                    await OrderCreateEvent(result);
+                                    await OrderUpdateEvent(result);
                                     break;
 
                                 default:
@@ -117,17 +121,6 @@ namespace OrderServiceGrpc.Services
                             // After successful processing, store and track offset for manual commit
                             _consumer.StoreOffset(result);
                             _processedOffsets[result.TopicPartition] = result.Offset + 1;
-
-                            // Commit all tracked offsets to Kafka
-                            List<TopicPartitionOffset> offsets = _processedOffsets
-                                .Select(kv => new TopicPartitionOffset(kv.Key, kv.Value))
-                                .ToList();
-
-                            if (offsets.Any())
-                            {
-                                _consumer.Commit(offsets);
-                                Console.WriteLine("Successfully consumed eventId: " + result.Message.Key);
-                            }
                         }
                         catch (Exception e)
                         {
@@ -146,15 +139,48 @@ namespace OrderServiceGrpc.Services
                             string dlqTopic = $"{result.Topic}-dlq";
 
                             // Produce failed message to DLQ
-                            await _dlqProducer.ProduceAsync(dlqTopic, new Message<string, string>
+                            try
                             {
-                                Key = result.Message.Key.ToString(),
-                                Value = JsonSerializer.Serialize(dlqMessage)
-                            });
+                                await _dlqProducer.ProduceAsync(dlqTopic, new Message<string, string>
+                                {
+                                    Key = result.Message.Key.ToString(),
+                                    Value = JsonSerializer.Serialize(dlqMessage)
+                                },stoppingToken);
+                            }
+                            catch(Exception ex)
+                            {
+                                Console.WriteLine($"Failed to produce DLQ message for {result.Topic}");
+                            }
 
                             // Still store offset to prevent the poison message from blocking consumption
                             _consumer.StoreOffset(result);
+                            _processedOffsets[result.TopicPartition] = result.Offset + 1;
                         }
+
+                        finally
+                        {
+                            if (_processedOffsets.Any())
+                            {
+                                // Commit all tracked offsets to Kafka
+                                List<TopicPartitionOffset> offsets = _processedOffsets
+                                    .Select(kv => new TopicPartitionOffset(kv.Key, kv.Value))
+                                    .ToList();
+
+                                try
+                                {
+                                    _consumer.Commit(offsets);
+                                    Console.WriteLine("Successfully consumed eventId: " + result.Message.Key);
+                                }
+                                catch(Exception ex2)
+                                {
+                                    Console.WriteLine($"Failed to commit offsets");
+                                }
+                            }
+                        }
+                    }
+                    catch(ConsumeException cex)
+                    {
+                        Console.WriteLine($"Kafka consume error: {cex.Error.Reason}");
                     }
                     catch (Exception e)
                     {
@@ -173,15 +199,52 @@ namespace OrderServiceGrpc.Services
             }
             finally
             {
-                // Graceful shutdown
-                _consumer.Close();
-                _consumer.Dispose();
-                _dlqProducer.Flush();
-                _dlqProducer.Dispose();
+                try
+                {
+                    _consumer.Close();
+                    _consumer.Dispose();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error closing consumer: {e.Message}");
+                }
+
+                try
+                {
+                    _dlqProducer.Flush(TimeSpan.FromSeconds(10));
+                    _dlqProducer.Dispose();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error closing DLQ producer: {e.Message}");
+                }
+
+                Console.WriteLine("Kafka consumer service stopped gracefully.");
             }
         }
 
         private async Task OrderCreateEvent(ConsumeResult<string, string> eventValue)
+        {
+            try
+            {
+                // Deserialize message into domain event
+                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
+
+                // Validate deserialization
+                if (eventValue != null && model != null)
+                {
+                    // Insert event into repository (DB, etc.)
+                    await _orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log processing exceptions
+                Console.WriteLine(ex.StackTrace);
+            }
+        }
+
+        private async Task OrderUpdateEvent(ConsumeResult<string, string> eventValue)
         {
             try
             {

@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 
-namespace EfCoreTutorial.Entity.ECommerceModels
+namespace ProductServiceGrpc.Models
 {
     [Index(nameof(MobileNo), nameof(Email), IsUnique = true)]
     public class SellerModel
