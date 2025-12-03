@@ -9,11 +9,11 @@ builder.Services.AddGrpc();
 
 //Dependency Injection
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
-builder.Services.AddSingleton<IOrderRepository, OrderRepository>();
-
-builder.Services.AddHostedService<OrderEventConsumer>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSection("KafkaConsumerSettings"));
+
+builder.Services.AddHostedService<KafkaEventConsumer>();
 
 var app = builder.Build();
 

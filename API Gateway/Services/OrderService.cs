@@ -103,7 +103,7 @@ namespace API_Gateway.Services
             OrderListRequest request = new OrderListRequest()
             {
                 PageNumber = 1,
-                PageSize = 5000,
+                PageSize = 2,
                 StartDate = converter.ConvertDateTimeToGoogleTimeStamp(startDate),
                 EndDate = converter.ConvertDateTimeToGoogleTimeStamp(endDate),
                 UserId = 1
@@ -126,8 +126,8 @@ namespace API_Gateway.Services
 
             if (orderList.Count > 0)
             {
-                List<Order> list1 = orderList.Take(2500).ToList();
-                List<Order> list2 = orderList.Skip(2500).Take(2500).ToList();
+                List<Order> list1 = orderList.Take(orderList.Count/2).ToList();
+                List<Order> list2 = orderList.Skip(orderList.Count / 2).Take(orderList.Count / 2).ToList();
 
                 DateTime startTime = DateTime.Now;
                 Task t1 = Task.Run(async () =>
@@ -140,18 +140,14 @@ namespace API_Gateway.Services
                     await FireAllOrderProduceEvents(list2);
                 });
 
-                await Task.WhenAll(t1, t2);
-
-                DateTime endtime = DateTime.Now;
-
-                seconds = endDate - startDate;
+                await Task.WhenAll(t1,t2);
             }
 
             return new OrderResponse()
             {
                 Status = true,
-                Message = "Order processing",
-                Order = new Order()
+                Message = $"Produced messages for {orderList.Count} orders.",
+                Order = null
             };
         }
 
