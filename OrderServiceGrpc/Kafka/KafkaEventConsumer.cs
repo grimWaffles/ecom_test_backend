@@ -6,7 +6,7 @@ using OrderServiceGrpc.Repository;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
-namespace OrderServiceGrpc.Services
+namespace OrderServiceGrpc.Kafka
 {
     public class KafkaEventConsumer : BackgroundService
     {

@@ -1,7 +1,7 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using OrderServiceGrpc.Protos;
 
-namespace OrderServiceGrpc.Models
+namespace OrderServiceGrpc.Models.Entities
 {
     public class OrderModel
     {

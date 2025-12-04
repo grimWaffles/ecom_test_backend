@@ -1,7 +1,7 @@
 ﻿using Confluent.Kafka;
 using System.ComponentModel.DataAnnotations;
 
-namespace OrderServiceGrpc.Models
+namespace OrderServiceGrpc.Kafka
 {
     public class KafkaConsumerSettings
     {

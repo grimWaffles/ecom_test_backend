@@ -1,4 +1,4 @@
-using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Kafka;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
 

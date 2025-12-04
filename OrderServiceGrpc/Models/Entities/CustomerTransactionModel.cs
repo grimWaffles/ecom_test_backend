@@ -1,4 +1,4 @@
-﻿namespace OrderServiceGrpc.Models
+﻿namespace OrderServiceGrpc.Models.Entities
 {
     public class CustomerTransactionModel
     {
