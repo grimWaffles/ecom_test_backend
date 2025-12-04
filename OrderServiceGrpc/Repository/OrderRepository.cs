@@ -132,17 +132,31 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<bool> UpdateOrder(OrderModel request, List<OrderItemModel> addList, List<OrderItemModel> deleteList, List<OrderItemModel> updateList, int userId)
         {
-            const string updateSqlSingle = @"
-                                UPDATE Orders SET
-                                    OrderDate = @OrderDate,
-                                    UserId = @UserId,
-                                    Status = @Status,
-                                    NetAmount = @NetAmount,
-                                    ModifiedBy = @ModifiedBy,
-                                    ModifiedDate = @ModifiedDate
-                                WHERE Id = @Id; 
-                                update OrderItems set IsDeleted = 1, ModifiedBy = @ModifiedBy, ModifiedDate = @ModifiedDate where OrderId = @Id;";
-            
+            const string updateOrderObjectSqlSingle = @"UPDATE Orders SET
+                                                            OrderDate = @OrderDate,
+                                                            UserId = @UserId,
+                                                            Status = @Status,
+                                                            NetAmount = @NetAmount,
+                                                            ModifiedBy = @ModifiedBy,
+                                                            ModifiedDate = @ModifiedDate
+                                                        WHERE Id = @Id; ";
+
+
+            const string deleteOrderItemSingleSql = @"  update o set
+	                                                        o.ModifiedBy = @UserId,
+	                                                        o.ModifiedDate = GETDATE(),
+	                                                        o.IsDeleted = 1
+                                                        from OrderItems o
+                                                        where o.Id = @Id and o.OrderId = @OrderId";
+
+            const string updateOrderItemSingleSql = @"  update o set
+	                                                        o.Quantity = @Quantity,
+	                                                        o.GrossAmount = @GrossAmount,
+	                                                        o.ModifiedBy = @UserId,
+	                                                        o.ModifiedDate = GETDATE()
+                                                        from OrderItems o
+                                                        where o.Id = @Id and o.OrderId = @OrderId";
+
             await using var conn = new SqlConnection(_connectionString);
             await conn.OpenAsync();
 
@@ -150,34 +164,57 @@ namespace OrderServiceGrpc.Repository
 
             try
             {
-                var parameters = new DynamicParameters();
-
-                parameters.Add("@OrderDate", request.OrderDate);
-                parameters.Add("@UserId", request.UserId);
-                parameters.Add("@Status", request.Status);
-                parameters.Add("@NetAmount", request.NetAmount);
-                parameters.Add("@ModifiedBy", userId);
-                parameters.Add("@ModifiedDate", DateTime.UtcNow);
-                parameters.Add("@Id", request.Id);
-
-                await conn.ExecuteAsync(updateSqlSingle, parameters, transaction);
-
-                foreach (var item in request.OrderItems)
+                //Delete List Processing
+                foreach (var item in deleteList)
                 {
-                    item.OrderId = request.Id;
-                    item.CreatedDate = DateTime.UtcNow;
-                    item.CreatedBy = userId;
+                    var deleteParams = new DynamicParameters();
+                    deleteParams.Add("@Id", item.Id);
+                    deleteParams.Add("@UserId", userId);
+                    deleteParams.Add("@OrderId", item.OrderId);
+
+                    await conn.ExecuteAsync(deleteOrderItemSingleSql, deleteParams, transaction);
                 }
 
-                using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)transaction))
+                //AddList Processing
+                if(addList.Count > 0)
                 {
-                    bulkCopy.DestinationTableName = "OrderItems";
+                    using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)transaction))
+                    {
+                        bulkCopy.DestinationTableName = "OrderItems";
 
-                    DataTable dt = DataTableConverter.ToDataTable<OrderItemModel>(request.OrderItems);
+                        DataTable dt = DataTableConverter.ToDataTable<OrderItemModel>(addList);
 
-                    await bulkCopy.WriteToServerAsync(dt);
+                        await bulkCopy.WriteToServerAsync(dt);
+                    }
                 }
 
+                //UpdateList processing
+                foreach (var item in updateList)
+                {
+                    var updateParams = new DynamicParameters();
+                    updateParams.Add("@Id", item.Id);
+                    updateParams.Add("@Quantity", item.Quantity);
+                    updateParams.Add("@GrossAmount", item.GrossAmount);
+                    updateParams.Add("@UserId", userId);
+                    updateParams.Add("@OrderId", item.OrderId);
+
+                    await conn.ExecuteAsync(updateOrderItemSingleSql, updateParams, transaction);
+                }
+
+                //Main order object
+                var orderParams = new DynamicParameters();
+
+                orderParams.Add("@OrderDate", request.OrderDate);
+                orderParams.Add("@UserId", request.UserId);
+                orderParams.Add("@Status", request.Status);
+                orderParams.Add("@NetAmount", request.NetAmount);
+                orderParams.Add("@ModifiedBy", userId);
+                orderParams.Add("@ModifiedDate", DateTime.UtcNow);
+                orderParams.Add("@Id", request.Id);
+
+                await conn.ExecuteAsync(updateOrderObjectSqlSingle, orderParams, transaction);
+
+                //Commit the transaction
                 await transaction.CommitAsync();
 
                 return true;

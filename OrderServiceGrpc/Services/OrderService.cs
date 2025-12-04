@@ -52,7 +52,7 @@ namespace OrderServiceGrpc.Services
             List<OrderItemModel> updateList = new();
 
             //Check for deleted items
-            deleteList = dbModel.OrderItems.Where(d => !requestModel.OrderItems.Any(r => r.Id == d.Id)).Select(x => ChangeDeleteFlagForItem(x, requestModel.Id, userId)).ToList();
+            deleteList = dbModel.OrderItems.Where(d => !requestModel.OrderItems.Any(r => r.Id == d.Id)).Select(x => PrepareItemToDelete(x, requestModel.Id, userId)).ToList();
 
             //Check for added items
             addList = requestModel.OrderItems.Where(i => i.Id == 0).Select(x => PrepareItemToAdd(x, requestModel.Id, userId)).ToList();
@@ -60,7 +60,7 @@ namespace OrderServiceGrpc.Services
             //Check for updated AND existing items
             Dictionary<int, OrderItemModel> dbLookup = dbModel.OrderItems.ToDictionary(i => i.Id);
 
-            foreach (var req in requestModel.OrderItems.Where(i => i.Id != 0))
+            foreach (OrderItemModel req in requestModel.OrderItems.Where(i => i.Id != 0))
             {
                 if (dbLookup.TryGetValue(req.Id, out var db))
                 {
@@ -74,24 +74,6 @@ namespace OrderServiceGrpc.Services
                     }
                 }
             }
-
-            //foreach (OrderItemModel item in requestModel.OrderItems)
-            //{
-            //    OrderItemModel itemFromDbModel = dbModel.OrderItems.FirstOrDefault(i => i.Id == item.Id && item.Id != 0) ?? new();
-
-            //    if (itemFromDbModel != new OrderItemModel())
-            //    {
-            //        if (item.Quantity != itemFromDbModel.Quantity)
-            //        {
-            //            item.GrossAmount = item.Quantity * item.UnitPrice;
-
-            //            item.ModifiedBy = userId;
-            //            item.ModifiedDate = DateTime.Now;
-
-            //            updateList.Add(item);
-            //        }
-            //    }
-            //}
 
             bool orderAdded = await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
 
@@ -120,7 +102,7 @@ namespace OrderServiceGrpc.Services
             return item;
         }
 
-        private OrderItemModel ChangeDeleteFlagForItem(OrderItemModel item, int orderId, int userId)
+        private OrderItemModel PrepareItemToDelete(OrderItemModel item, int orderId, int userId)
         {
             item.IsDeleted = true;
             item.ModifiedBy = userId;
