@@ -8,16 +8,16 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddGrpc();
 
+//Add the configurations from appsettings.json 
+builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
+builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
+builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSection("KafkaConsumerSettings"));
+
 //Dependency Injection
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
-builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSection("KafkaConsumerSettings"));
-
-builder.Services.AddHostedService<KafkaEventConsumer>();
-
-builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
-builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
+//builder.Services.AddHostedService<KafkaEventConsumer>();
 
 
 var app = builder.Build();

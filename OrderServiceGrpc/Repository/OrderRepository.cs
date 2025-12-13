@@ -259,8 +259,9 @@ namespace OrderServiceGrpc.Repository
 
                                     select @TotalPages TotalPages
 									select @TotalOrders TotalOrders";
-                                    
+
             using var conn = GetDatabaseConnection();
+
             try
             {
                 await conn.OpenAsync();
@@ -286,6 +287,7 @@ namespace OrderServiceGrpc.Repository
             }
             finally { await conn.CloseAsync(); }
         }
+
 
         public async Task<OrderModel> GetOrderById(int orderId)
         {
