@@ -1,7 +1,7 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.IdentityModel.Tokens;
-using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
 

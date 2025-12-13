@@ -8,9 +8,9 @@ using System.Diagnostics;
 using System.Text.Json;
 using static Confluent.Kafka.ConfigPropertyNames;
 
-namespace OrderServiceGrpc.Services
+namespace OrderServiceGrpc.Kafka
 {
-    public class OrderEventConsumer : BackgroundService
+    public class OrderEventConsumerBackup : BackgroundService
     {
         //Kafka Consumer Settings
         private readonly KafkaConsumerSettings _consumerSettings;
@@ -33,7 +33,7 @@ namespace OrderServiceGrpc.Services
         // Tracks offsets of successfully processed messages for manual commit
         private readonly ConcurrentDictionary<TopicPartition, Offset> _processedOffsets = new();
 
-        public OrderEventConsumer(IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOrderRepository orderRepository)
+        public OrderEventConsumerBackup(IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOrderRepository orderRepository)
         {
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
             _consumerSettings = kafkaConsumerSettings.Value;

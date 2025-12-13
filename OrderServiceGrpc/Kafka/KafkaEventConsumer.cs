@@ -4,18 +4,14 @@ using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Repository;
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Runtime.ConstrainedExecution;
 using System.Text.Json;
-using Z.BulkOperations;
-using static Confluent.Kafka.ConfigPropertyNames;
 
-namespace OrderServiceGrpc.Services
+namespace OrderServiceGrpc.Kafka
 {
-    public class KafkaOrderConsumer : BackgroundService
+    public class KafkaEventConsumer : BackgroundService
     {
         //ILogger
-        private readonly ILogger<KafkaOrderConsumer> _logger;
+        private readonly ILogger<KafkaEventConsumer> _logger;
 
         //IServiceProvider for the order repo service (A scoped service DI'd into a singleton)
         private readonly IServiceProvider _serviceProvider;
@@ -27,10 +23,10 @@ namespace OrderServiceGrpc.Services
         private readonly KafkaConsumerSettings _consumerSettings;
 
         // Kafka consumer configuration
-        private readonly ConsumerConfig _consumerConfig;
+        private ConsumerConfig _consumerConfig;
 
         // Kafka producer configuration for DLQ
-        private readonly ProducerConfig _dlqProducerConfig;
+        private ProducerConfig _dlqProducerConfig;
 
         // Producer used to send messages to DLQ topics
         private IProducer<string, string> _dlqProducer;
@@ -41,55 +37,72 @@ namespace OrderServiceGrpc.Services
         //Tracker for current message
         private bool _processedMessage = false;
 
-        public KafkaOrderConsumer(ILogger<KafkaOrderConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
+        public KafkaEventConsumer(ILogger<KafkaEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
         {
             _logger = logger;
 
             _serviceProvider = serviceProvider;
 
+            _logger.LogInformation("Kafka consumer constructor started...");
+
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
             _consumerSettings = kafkaConsumerSettings.Value;
 
-            // Validate required config values early
-            if (string.IsNullOrWhiteSpace(_consumerSettings.BootstrapServer))
-                throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
-
-            if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
-                throw new ArgumentException("Kafka GroupId is missing from configuration.");
-
-            if (_consumerSettings.TopicsToConsume.Length == 0)
-                throw new ArgumentException("No Kafka topics specified in configuration.");
-
-            if (_consumerSettings.DlqTopics.Length == 0)
-                throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
-
-            // Consumer configuration
-            _consumerConfig = new ConsumerConfig()
-            {
-                BootstrapServers = _consumerSettings.BootstrapServer,
-                GroupId = _consumerSettings.GroupId,
-                AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
-                EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
-                EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing
-                AutoCommitIntervalMs = _consumerSettings.AutoCommitIntervalInMs
-            };
-
-            // Producer configuration for DLQ messages
-            _dlqProducerConfig = new ProducerConfig()
-            {
-                BootstrapServers = _consumerSettings.BootstrapServer,
-                Acks = _consumerSettings.DlqAcks,            // Wait for all replicas to acknowledge
-                EnableIdempotence = _consumerSettings.DlqIdempotence,  // Ensure no duplicate DLQ messages
-                MessageTimeoutMs = _consumerSettings.DlqMessageTimeoutMs,
-            };
-
-            _logger.LogInformation("Initialized consumer service successfully");
+            _logger.LogInformation("Kafka consumer settings loaded...");
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            ConfigureKafkaSettings();
+
+            _ =Task.Run(() => StartKafkaConsumer(stoppingToken), stoppingToken);
+        }
+
+        public override async Task<Task> StopAsync(CancellationToken cancellationToken)
+        {
+            await CommitOffsets(cancellationToken);
+
+            CloseAndDisposeConsumerAndProducer();
+
+            return base.StopAsync(cancellationToken);
+        }
+
+        private void ConfigureKafkaSettings()
+        {
             try
             {
+                // Validate required config values early
+                if (string.IsNullOrWhiteSpace(_consumerSettings.BootstrapServer))
+                    throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
+
+                if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
+                    throw new ArgumentException("Kafka GroupId is missing from configuration.");
+
+                if (_consumerSettings.TopicsToConsume.Length == 0)
+                    throw new ArgumentException("No Kafka topics specified in configuration.");
+
+                if (_consumerSettings.DlqTopics.Length == 0)
+                    throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
+
+                // Consumer configuration
+                _consumerConfig = new ConsumerConfig()
+                {
+                    BootstrapServers = _consumerSettings.BootstrapServer,
+                    GroupId = _consumerSettings.GroupId,
+                    AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
+                    EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
+                    EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing
+                    AutoCommitIntervalMs = _consumerSettings.AutoCommitIntervalInMs
+                };
+
+                // Producer configuration for DLQ messages
+                _dlqProducerConfig = new ProducerConfig()
+                {
+                    BootstrapServers = _consumerSettings.BootstrapServer,
+                    Acks = _consumerSettings.DlqAcks,            // Wait for all replicas to acknowledge
+                    EnableIdempotence = _consumerSettings.DlqIdempotence,  // Ensure no duplicate DLQ messages
+                    MessageTimeoutMs = _consumerSettings.DlqMessageTimeoutMs,
+                };
                 // Initialize DLQ producer
                 _dlqProducer = new ProducerBuilder<string, string>(_dlqProducerConfig).Build();
 
@@ -97,16 +110,20 @@ namespace OrderServiceGrpc.Services
                 _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
 
                 _consumer.Subscribe(_consumerSettings.TopicsToConsume);
+
+                _logger.LogInformation("Initialized consumer service successfully");
             }
 
             catch (Exception e)
             {
-                _logger.LogCritical($"Failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
+                _logger.LogInformation($"Failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
                 CloseAndDisposeConsumerAndProducer();
-
-                throw;
+                return;
             }
+        }
 
+        private async Task StartKafkaConsumer(CancellationToken stoppingToken)
+        {
             //Commit Interval
             DateTime lastCommitTime = DateTime.UtcNow;
 
@@ -116,13 +133,11 @@ namespace OrderServiceGrpc.Services
                 {
                     _processedMessage = false;
 
-                    ConsumeResult<string, string> result = _consumer.Consume(stoppingToken);
+                    ConsumeResult<string, string> result = _consumer.Consume(TimeSpan.FromMilliseconds(100));
 
                     //If result is null or empty
                     if (result == null)
                     {
-                        _logger.LogInformation("KAFKA ORDER CONSUMER: Empty message received");
-
                         await Task.Delay(100, stoppingToken); // prevent CPU spin
                         continue;
                     }
@@ -150,7 +165,7 @@ namespace OrderServiceGrpc.Services
                     //check whether it is time to commit the offsets
                     if (DateTime.UtcNow - lastCommitTime >= TimeSpan.FromMilliseconds(_consumerSettings.MaxDelayBetweenCommitsInMs) || _processedOffsets.Count() >= _consumerSettings.ConsumerMessageBatchSize)
                     {
-                        CommitOffsets();
+                        await CommitOffsets(stoppingToken);
                         lastCommitTime = DateTime.UtcNow;
                     }
                 }
@@ -165,18 +180,9 @@ namespace OrderServiceGrpc.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"KAFKA ORDER CONSUMER Fatal Error: {ex.Message}");
+                    _logger.LogInformation($"KAFKA ORDER CONSUMER Fatal Error: {ex.Message}");
                 }
             }
-        }
-
-        public override Task StopAsync(CancellationToken cancellationToken)
-        {
-            CommitOffsets();
-
-            CloseAndDisposeConsumerAndProducer();
-
-            return base.StopAsync(cancellationToken);
         }
 
         private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, RepoResponseModel repoResponse, CancellationToken stoppingToken)
@@ -223,12 +229,12 @@ namespace OrderServiceGrpc.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
+                    _logger.LogInformation($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
                 }
             }
             else
             {
-                _logger.LogError($"Failed to process DLQ Message: {result.Topic}. Sending to Catch-All...");
+                _logger.LogInformation($"Failed to process DLQ Message: {result.Topic}. Sending to Catch-All...");
 
                 // Produce failed message to CATCH-ALL-DLQ
                 try
@@ -241,12 +247,12 @@ namespace OrderServiceGrpc.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
+                    _logger.LogInformation($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
                 }
             }
         }
 
-        private void CommitOffsets()
+        private async Task CommitOffsets(CancellationToken token)
         {
             var topicPartitionOffsets = _processedOffsets
             .Select(kv => new TopicPartitionOffset(kv.Key, kv.Value))
@@ -276,16 +282,16 @@ namespace OrderServiceGrpc.Services
                 {
                     _logger.LogWarning($"Attempt {attemptNo + 1}: Failed to commit offsets: {kex.Message}");
 
-
                     if (attemptNo < _consumerSettings.MaxConsumerRetries - 1)
                     {
                         int delayMs = GetExponentialDelay(attemptNo);
                         _logger.LogInformation($"Retrying commit in {delayMs}ms...");
-                        Thread.Sleep(delayMs);
+
+                        await Task.Delay(delayMs,token);
                     }
                     else
                     {
-                        _logger.LogError($"Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts.");
+                        _logger.LogInformation($"Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts.");
                     }
                 }
             }
@@ -302,7 +308,7 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError("KAFKA ORDER CONSUMER: Error closing and shutting down consumer and dlqProducer");
+                _logger.LogInformation("KAFKA ORDER CONSUMER: Error closing and shutting down consumer and dlqProducer");
             }
         }
 
@@ -317,12 +323,11 @@ namespace OrderServiceGrpc.Services
                     if (repoResponse.Status == true)
                     {
                         _processedMessage = true;
-                        _logger.LogInformation("KAFKA ORDER CONSUMER: Processed order successfully.");
-
+                        
                         break;
                     }
 
-                    _logger.LogError($"Error: Processing failed for topic '{result.Topic}'. Retrying...");
+                    _logger.LogInformation($"Error: Processing failed for topic '{result.Topic}'. Retrying...");
 
                     await Task.Delay(GetExponentialDelay(attemptNo), stoppingToken);
                 }

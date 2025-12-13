@@ -1,3 +1,4 @@
+using OrderServiceGrpc.Kafka;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
@@ -9,11 +10,15 @@ builder.Services.AddGrpc();
 
 //Dependency Injection
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
-builder.Services.AddSingleton<IOrderRepository, OrderRepository>();
-
-builder.Services.AddHostedService<OrderEventConsumer>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSection("KafkaConsumerSettings"));
+
+builder.Services.AddHostedService<KafkaEventConsumer>();
+
+builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
+builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
+
 
 var app = builder.Build();
 

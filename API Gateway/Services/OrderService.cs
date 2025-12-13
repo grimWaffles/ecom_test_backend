@@ -103,7 +103,7 @@ namespace API_Gateway.Services
             OrderListRequest request = new OrderListRequest()
             {
                 PageNumber = 1,
-                PageSize = 5000,
+                PageSize = 2,
                 StartDate = converter.ConvertDateTimeToGoogleTimeStamp(startDate),
                 EndDate = converter.ConvertDateTimeToGoogleTimeStamp(endDate),
                 UserId = 1
@@ -116,43 +116,43 @@ namespace API_Gateway.Services
             {
                 response = await GetAllOrdersAsync(request);
                 orderList = response.Orders.ToList();
+
+                if (orderList.Count > 0)
+                {
+                    List<Order> list1 = orderList.Take(orderList.Count / 2).ToList();
+                    List<Order> list2 = orderList.Skip(orderList.Count / 2).Take(orderList.Count / 2).ToList();
+
+                    DateTime startTime = DateTime.Now;
+                    Task t1 = Task.Run(async () =>
+                    {
+                        await FireAllOrderProduceEvents(list1);
+                    });
+
+                    Task t2 = Task.Run(async () =>
+                    {
+                        await FireAllOrderProduceEvents(list2);
+                    });
+
+                    await Task.WhenAll(t1, t2);
+                }
+
+                return new OrderResponse()
+                {
+                    Status = true,
+                    Message = $"Produced messages for {orderList.Count} orders.",
+                    Order = null
+                };
             }
             catch (Exception e)
             {
                 Console.WriteLine("Failed to fetch orders");
-            }
-
-            TimeSpan seconds;
-
-            if (orderList.Count > 0)
-            {
-                List<Order> list1 = orderList.Take(2500).ToList();
-                List<Order> list2 = orderList.Skip(2500).Take(2500).ToList();
-
-                DateTime startTime = DateTime.Now;
-                Task t1 = Task.Run(async () =>
+                return new OrderResponse()
                 {
-                    await FireAllOrderProduceEvents(list1);
-                });
-
-                Task t2 = Task.Run(async () =>
-                {
-                    await FireAllOrderProduceEvents(list2);
-                });
-
-                await Task.WhenAll(t1, t2);
-
-                DateTime endtime = DateTime.Now;
-
-                seconds = endDate - startDate;
+                    Status = false,
+                    Message = $"Failed to fetch orders",
+                    Order = null
+                };
             }
-
-            return new OrderResponse()
-            {
-                Status = true,
-                Message = "Order processing",
-                Order = new Order()
-            };
         }
 
         private async Task<bool> FireAllOrderProduceEvents(List<Order> orders)

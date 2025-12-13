@@ -20,7 +20,7 @@ $topics = @(
     "order-delete-dlq:1"
 
     #Catch All DLQ
-    "catch-all-dlq"
+    "catch-all-dlq:2"
 )
 # -------------------------
 

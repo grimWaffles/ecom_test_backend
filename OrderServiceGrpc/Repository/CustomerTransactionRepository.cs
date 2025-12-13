@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.ObjectPool;
 using OrderServiceGrpc.Helpers.cs;
-using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using System.Collections.Immutable;
 using static Dapper.SqlMapper;
