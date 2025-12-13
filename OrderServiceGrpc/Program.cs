@@ -1,3 +1,4 @@
+using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
 
@@ -10,7 +11,11 @@ builder.Services.AddGrpc();
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
 builder.Services.AddSingleton<IOrderRepository, OrderRepository>();
 
-builder.Services.AddHostedService<OrderEventConsumer>();
+//builder.Services.AddHostedService<OrderEventConsumer>();
+
+builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
+builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
+
 
 var app = builder.Build();
 

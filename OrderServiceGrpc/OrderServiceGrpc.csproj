@@ -17,6 +17,7 @@
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.57.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.2" />
+    <PackageReference Include="MySql.Data" Version="9.5.0" />
     <PackageReference Include="Z.Dapper.Plus" Version="7.6.0" />
   </ItemGroup>
 

@@ -4,9 +4,12 @@ using Google.Protobuf;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
+using MySql.Data.MySqlClient;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Protos;
+using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Transactions;
@@ -37,12 +40,27 @@ namespace OrderServiceGrpc.Repository
     public class OrderRepository : IOrderRepository
     {
         private readonly string _connectionString;
-        private readonly IConfiguration _config;
+        private readonly string _dbType;
 
-        public OrderRepository(IConfiguration configuration)
+        public OrderRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings)
         {
-            _config = configuration;
-            _connectionString = _config.GetSection("ConnectionStrings:DefaultConnection").Get<string>() ?? "";
+            _connectionString = (dbConfig.Value.Database.ToLower(), dbConfig.Value.Mode.ToLower()) switch
+            {
+                ("mysql", "local") => connectionStrings.Value.MySqlConnection,
+                ("mysql", "docker") => connectionStrings.Value.MySqlDockerConnection,
+                ("sqlserver", "local") => connectionStrings.Value.SqlServerConnection,
+                ("sqlserver", "docker") => connectionStrings.Value.SqlServerDockerConnection,
+                _ => ""
+            };
+            _dbType = dbConfig.Value.Database;
+        }
+
+        private DbConnection GetDatabaseConnection()
+        {
+            if (_dbType == "mysql")
+                return new MySqlConnection(_connectionString);
+
+            return new SqlConnection(_connectionString);
         }
 
         public async Task<bool> AddOrder(OrderModel request, int userId)
@@ -56,7 +74,7 @@ namespace OrderServiceGrpc.Repository
 
             try
             {
-                await using SqlConnection conn = new SqlConnection(_connectionString);
+                using var conn = GetDatabaseConnection();
                 await conn.OpenAsync();
                 await using DbTransaction t = await conn.BeginTransactionAsync();
 
@@ -99,7 +117,7 @@ namespace OrderServiceGrpc.Repository
                 }
                 finally
                 {
-                    await t.DisposeAsync();
+                    await conn.CloseAsync();
                 }
 
                 return true;
@@ -115,7 +133,7 @@ namespace OrderServiceGrpc.Repository
             string sql = "Insert into OrderEventLogs(OrderId,CreatedAt) values(@OrderId,@CreatedAt)";
             try
             {
-                await using SqlConnection conn = new SqlConnection(_connectionString);
+                using var conn = GetDatabaseConnection();
                 await conn.OpenAsync();
 
                 try
@@ -125,12 +143,12 @@ namespace OrderServiceGrpc.Repository
                     iop.Add("@OrderId", orderId);
                     iop.Add("@CreatedAt", DateTime.UtcNow);
 
-                    await conn.ExecuteAsync(sql,iop);
+                    await conn.ExecuteAsync(sql, iop);
 
                     return true;
                 }
 
-                catch(Exception e) { Console.WriteLine(e.StackTrace); return false; }
+                catch (Exception e) { Console.WriteLine(e.StackTrace); return false; }
 
                 finally { await conn.CloseAsync(); }
             }
@@ -138,7 +156,7 @@ namespace OrderServiceGrpc.Repository
             {
                 Console.WriteLine(e.StackTrace);
 
-                return false; 
+                return false;
             }
         }
 
@@ -147,11 +165,11 @@ namespace OrderServiceGrpc.Repository
             const string deleteOrderItemsSql = @"update OrderItems set IsDeleted = 1, ModifiedBy = @ModifiedBy, ModifiedDate = @ModifiedDate where OrderId = @OrderId";
             const string deleteOrderSql = @"update Orders set IsDeleted = 1, ModifiedBy = @ModifiedBy, ModifiedDate = @ModifiedDate where Id = @OrderId";
 
-            await using SqlConnection conn = new SqlConnection(_connectionString);
+            using var conn = GetDatabaseConnection();
             await conn.OpenAsync();
 
             DynamicParameters parameters = new DynamicParameters();
-            
+
             parameters.Add("@ModifiedBy", userId);
             parameters.Add("@ModifiedDate", DateTime.Now);
 
@@ -169,6 +187,7 @@ namespace OrderServiceGrpc.Repository
                 await transaction.RollbackAsync();
                 return false;
             }
+            finally { await conn.CloseAsync(); }
 
             return true;
         }
@@ -191,7 +210,7 @@ namespace OrderServiceGrpc.Repository
                                             values (@OrderId, @ProductId, @Quantity, @GrossAmount, @Status, @CreatedBy, @CreatedDate, @IsDeleted)";
             try
             {
-                await using var conn = new SqlConnection(_connectionString);
+                using var conn = GetDatabaseConnection();
                 await conn.OpenAsync();
 
                 await using var transaction = await conn.BeginTransactionAsync();
@@ -236,6 +255,8 @@ namespace OrderServiceGrpc.Repository
                     await transaction.RollbackAsync();
                     return false;
                 }
+                finally { await conn.CloseAsync(); }
+
             }
             catch (Exception ex)
             {
@@ -246,9 +267,9 @@ namespace OrderServiceGrpc.Repository
         public async Task<List<OrderModel>> GetAllOrders(OrderListRequest request)
         {
             string sql = @"select * from Orders order by OrderDate desc";
+            using var conn = GetDatabaseConnection();
             try
             {
-                await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
 
                 return (List<OrderModel>)await conn.QueryAsync<OrderModel>(sql);
@@ -257,6 +278,8 @@ namespace OrderServiceGrpc.Repository
             {
                 return null;
             }
+            finally { await conn.CloseAsync(); }
+
         }
 
         public async Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(OrderListRequest request)
@@ -275,9 +298,10 @@ namespace OrderServiceGrpc.Repository
 
                                     select @TotalPages TotalPages
 									select @TotalOrders TotalOrders";
+                                    
+            using var conn = GetDatabaseConnection();
             try
             {
-                await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
 
                 var parameters = new DynamicParameters();
@@ -293,12 +317,13 @@ namespace OrderServiceGrpc.Repository
                 int totalPages = reader.ReadSingle<int>();
                 int totalOrders = reader.ReadSingle<int>();
 
-                return Tuple.Create<int, int, List<OrderModel>>(totalPages,totalOrders, orders);
+                return Tuple.Create<int, int, List<OrderModel>>(totalPages, totalOrders, orders);
             }
             catch (Exception e)
             {
                 return null;
             }
+            finally { await conn.CloseAsync(); }
         }
 
         public async Task<OrderModel> GetOrderById(OrderIdRequest request)
@@ -306,9 +331,10 @@ namespace OrderServiceGrpc.Repository
             const string fetchOrderSql = @"select * from Orders where Id = @OrderId;
                                             select * from OrderItems where OrderId = @OrderId and IsDeleted = 0;";
 
+            using var conn = GetDatabaseConnection();
+
             try
             {
-                await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
 
                 DynamicParameters parameters = new DynamicParameters();
@@ -326,6 +352,7 @@ namespace OrderServiceGrpc.Repository
             {
                 return null;
             }
+            finally { await conn.CloseAsync(); }
         }
 
         public async Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId)
@@ -335,7 +362,7 @@ namespace OrderServiceGrpc.Repository
             dynamicParameters.Add("@Id", orderId);
             try
             {
-                using (SqlConnection conn = new SqlConnection(_connectionString))
+                using (var conn = GetDatabaseConnection())
                 {
                     await conn.OpenAsync();
 
@@ -353,7 +380,7 @@ namespace OrderServiceGrpc.Repository
             string sql = @"select Count(*) from Orders";
             try
             {
-                await using SqlConnection conn = new SqlConnection(_connectionString);
+                using var conn = GetDatabaseConnection();
                 await conn.OpenAsync();
 
                 return await conn.ExecuteScalarAsync<int>(sql);
