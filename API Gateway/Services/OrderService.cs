@@ -97,13 +97,13 @@ namespace API_Gateway.Services
         {
             CustomConverters converter = new CustomConverters();
 
-            DateTime startDate = DateTime.Parse("2025-02-01");
-            DateTime endDate = DateTime.Parse("2025-02-01");
+            DateTime startDate = DateTime.Parse("2023-01-01");
+            DateTime endDate = DateTime.Parse("2025-11-01");
 
             OrderListRequest request = new OrderListRequest()
             {
                 PageNumber = 1,
-                PageSize = 10,
+                PageSize = 2,
                 StartDate = converter.ConvertDateTimeToGoogleTimeStamp(startDate),
                 EndDate = converter.ConvertDateTimeToGoogleTimeStamp(endDate),
                 UserId = 1
@@ -116,23 +116,43 @@ namespace API_Gateway.Services
             {
                 response = await GetAllOrdersAsync(request);
                 orderList = response.Orders.ToList();
+
+                if (orderList.Count > 0)
+                {
+                    List<Order> list1 = orderList.Take(orderList.Count / 2).ToList();
+                    List<Order> list2 = orderList.Skip(orderList.Count / 2).Take(orderList.Count / 2).ToList();
+
+                    DateTime startTime = DateTime.Now;
+                    Task t1 = Task.Run(async () =>
+                    {
+                        await FireAllOrderProduceEvents(list1);
+                    });
+
+                    Task t2 = Task.Run(async () =>
+                    {
+                        await FireAllOrderProduceEvents(list2);
+                    });
+
+                    await Task.WhenAll(t1, t2);
+                }
+
+                return new OrderResponse()
+                {
+                    Status = true,
+                    Message = $"Produced messages for {orderList.Count} orders.",
+                    Order = null
+                };
             }
             catch (Exception e)
             {
                 Console.WriteLine("Failed to fetch orders");
+                return new OrderResponse()
+                {
+                    Status = false,
+                    Message = $"Failed to fetch orders",
+                    Order = null
+                };
             }
-
-            if (orderList.Count > 0)
-            {
-                await FireAllOrderProduceEvents(orderList);
-            }
-
-            return new OrderResponse()
-            {
-                Status = true,
-                Message = "Order processing",
-                Order = new Order()
-            };
         }
 
         private async Task<bool> FireAllOrderProduceEvents(List<Order> orders)
@@ -144,12 +164,14 @@ namespace API_Gateway.Services
 
                 foreach (Order order in orders)
                 {
-                    tasks.Add(new Task(async () => {
-                        await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), JsonSerializer.Serialize(order));
-                    }));
+                    //tasks.Add(new Task(async () => {
+                    //    await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), JsonSerializer.Serialize(order));
+                    //}));
+                    string payload = JsonSerializer.Serialize(order);
+                    await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), payload);
                 }
 
-                await Task.WhenAll(tasks);  
+                //await Task.WhenAll(tasks);  
 
                 return true;
             }

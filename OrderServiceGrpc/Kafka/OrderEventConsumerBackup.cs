@@ -1,5 +1,6 @@
 ﻿
 using Confluent.Kafka;
+using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Repository;
 using System.Collections.Concurrent;
@@ -7,21 +8,12 @@ using System.Diagnostics;
 using System.Text.Json;
 using static Confluent.Kafka.ConfigPropertyNames;
 
-namespace OrderServiceGrpc.Services
+namespace OrderServiceGrpc.Kafka
 {
-    public class OrderEventConsumer : BackgroundService
+    public class OrderEventConsumerBackup : BackgroundService
     {
-        // Kafka connection details
-        private readonly string _bootstrapServer;
-
-        // List of topics this consumer subscribes to
-        private readonly string[] _topics;
-
-        // Dead Letter Queue topics (for failed messages)
-        private readonly string[] _dlqTopics;
-
-        // Consumer group ID, used for Kafka offset tracking
-        private readonly string _groupId;
+        //Kafka Consumer Settings
+        private readonly KafkaConsumerSettings _consumerSettings;
 
         // Repository for processing events (e.g., inserting into DB)
         private readonly IOrderRepository _orderRepository;
@@ -41,42 +33,43 @@ namespace OrderServiceGrpc.Services
         // Tracks offsets of successfully processed messages for manual commit
         private readonly ConcurrentDictionary<TopicPartition, Offset> _processedOffsets = new();
 
-        public OrderEventConsumer(IConfiguration configuration, IOrderRepository orderRepository)
+        public OrderEventConsumerBackup(IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOrderRepository orderRepository)
         {
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
-            _bootstrapServer = configuration["Kafka:BootstrapServer"] ?? "";
-            _topics = configuration.GetSection("Kafka:Topic").Get<string[]>() ?? Array.Empty<string>();
-            _dlqTopics = configuration.GetSection("Kafka:DlqTopic").Get<string[]>() ?? Array.Empty<string>();
-            _groupId = configuration["Kafka:GroupId"] ?? "";
+            _consumerSettings = kafkaConsumerSettings.Value;
 
             _orderRepository = orderRepository;
 
             // Validate required config values early
-            if (string.IsNullOrWhiteSpace(_bootstrapServer))
+            if (string.IsNullOrWhiteSpace(_consumerSettings.BootstrapServer))
                 throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
 
-            if (string.IsNullOrWhiteSpace(_groupId))
+            if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
                 throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
-            if (_topics.Length == 0)
+            if (_consumerSettings.TopicsToConsume.Length == 0)
                 throw new ArgumentException("No Kafka topics specified in configuration.");
+
+            if (_consumerSettings.DlqTopics.Length == 0)
+                throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
 
             // Consumer configuration
             _consumerConfig = new ConsumerConfig()
             {
-                BootstrapServers = _bootstrapServer,
-                GroupId = _groupId,
-                AutoOffsetReset = AutoOffsetReset.Earliest, // Start from beginning if no committed offsets
-                EnableAutoCommit = false,                   // We'll commit manually after successful processing
-                EnableAutoOffsetStore = false,              // We'll explicitly store offsets after processing
+                BootstrapServers = _consumerSettings.BootstrapServer,
+                GroupId = _consumerSettings.GroupId,
+                AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
+                EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
+                EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing
             };
 
             // Producer configuration for DLQ messages
             _producerConfig = new ProducerConfig()
             {
-                BootstrapServers = _bootstrapServer,
-                Acks = Acks.All,            // Wait for all replicas to acknowledge
-                EnableIdempotence = true    // Ensure no duplicate DLQ messages
+                BootstrapServers = _consumerSettings.BootstrapServer,
+                Acks = _consumerSettings.DlqAcks,            // Wait for all replicas to acknowledge
+                EnableIdempotence = _consumerSettings.DlqIdempotence,  // Ensure no duplicate DLQ messages
+                MessageTimeoutMs = _consumerSettings.DlqMessageTimeoutMs
             };
 
             // Initialize DLQ producer
@@ -84,7 +77,8 @@ namespace OrderServiceGrpc.Services
 
             // Initialize main topic consumer and subscribe
             _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
-            _consumer.Subscribe(_topics);
+
+            _consumer.Subscribe(_consumerSettings.TopicsToConsume);
 
             Console.WriteLine("Initialized consumer service successfully");
         }
