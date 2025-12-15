@@ -34,9 +34,6 @@ namespace OrderServiceGrpc.Kafka
         // Kafka consumer for main topics
         private IConsumer<string, string> _consumer;
 
-        //Tracker for current message
-        private bool _processedMessage = false;
-
         public KafkaEventConsumer(ILogger<KafkaEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
         {
             _logger = logger;
@@ -62,12 +59,12 @@ namespace OrderServiceGrpc.Kafka
         {
             await CommitOffsets(cancellationToken);
 
-            CloseAndDisposeConsumerAndProducer();
+            await CloseAndDisposeConsumerAndProducer();
 
             return base.StopAsync(cancellationToken);
         }
 
-        private void ConfigureKafkaSettings()
+        private async Task ConfigureKafkaSettings()
         {
             try
             {
@@ -117,7 +114,7 @@ namespace OrderServiceGrpc.Kafka
             catch (Exception e)
             {
                 _logger.LogInformation($"Failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
-                CloseAndDisposeConsumerAndProducer();
+                await CloseAndDisposeConsumerAndProducer();
                 return;
             }
         }
@@ -126,12 +123,12 @@ namespace OrderServiceGrpc.Kafka
         {
             //Commit Interval
             DateTime lastCommitTime = DateTime.UtcNow;
-
+            
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    _processedMessage = false;
+                    bool processedMessage = false;
 
                     ConsumeResult<string, string> result = _consumer.Consume(TimeSpan.FromMilliseconds(100));
 
@@ -150,11 +147,11 @@ namespace OrderServiceGrpc.Kafka
                     //Implementing Max Retries if valid topic
                     if (topicExists)
                     {
-                        await ProcessMessageResult(result, stoppingToken);
+                        processedMessage = await ProcessMessageResult(result, stoppingToken);
                     }
 
                     //DLQ Processing
-                    if (!_processedMessage || !topicExists)
+                    if (!processedMessage || !topicExists)
                     {
                         await SendToDlq(result, topicExists, repoResponse, stoppingToken);
                     }
@@ -297,10 +294,11 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private void CloseAndDisposeConsumerAndProducer()
+        private async Task CloseAndDisposeConsumerAndProducer()
         {
             try
             {
+                await CommitOffsets(CancellationToken.None);
                 _consumer.Close();
                 _consumer.Dispose();
                 _dlqProducer.Flush();
@@ -312,7 +310,7 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private async Task ProcessMessageResult(ConsumeResult<string, string> result, CancellationToken stoppingToken)
+        private async Task<bool> ProcessMessageResult(ConsumeResult<string, string> result, CancellationToken stoppingToken)
         {
             for (int attemptNo = 0; attemptNo < _consumerSettings.MaxConsumerRetries; attemptNo++)
             {
@@ -322,9 +320,7 @@ namespace OrderServiceGrpc.Kafka
 
                     if (repoResponse.Status == true)
                     {
-                        _processedMessage = true;
-                        
-                        break;
+                        return true;
                     }
 
                     _logger.LogInformation($"Error: Processing failed for topic '{result.Topic}'. Retrying...");
@@ -344,6 +340,7 @@ namespace OrderServiceGrpc.Kafka
                     }
                 }
             }
+            return false;
         }
 
         private async Task<RepoResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)

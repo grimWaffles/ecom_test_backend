@@ -340,37 +340,48 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<RepoResponseModel> InsertOrderCreateEvent(int orderId)
         {
-            string sql = "Insert into OrderEventLogs(OrderId,CreatedAt) values(@OrderId,@CreatedAt)";
+            const string sql = @"INSERT INTO OrderEventLogs (OrderId, CreatedAt) VALUES (@OrderId, @CreatedAt);";
+
             try
             {
-                await using SqlConnection conn = new SqlConnection(_connectionString);
+                await using var conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@OrderId", orderId);
+                parameters.Add("@CreatedAt", DateTime.UtcNow);
 
                 try
                 {
-                    DynamicParameters iop = new DynamicParameters();
+                    await conn.ExecuteAsync(sql, parameters);
 
-                    iop.Add("@OrderId", orderId);
-                    iop.Add("@CreatedAt", DateTime.UtcNow);
-
-                    await conn.ExecuteAsync(sql, iop);
-
-                    Console.WriteLine($"Inserted OrderID:{orderId} successfully");
-
-                    return new RepoResponseModel() { Status = true, Message = "Order inserted successfully", StackTrace = "" };
+                    return new RepoResponseModel
+                    {
+                        Status = true,
+                        Message = "Order inserted successfully"
+                    };
                 }
-
-                catch (Exception e) { Console.WriteLine(e.StackTrace); return new RepoResponseModel() { Status = false, Message = e.Message, StackTrace = e.StackTrace ?? "Stack trace unavailable" }; }
-
-                finally { await conn.CloseAsync(); }
+                catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
+                {
+                    // UNIQUE constraint violation → duplicate Kafka message
+                    return new RepoResponseModel
+                    {
+                        Status = true,
+                        Message = "Order already exists (idempotent)"
+                    };
+                }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Console.WriteLine(e.StackTrace);
-
-                return new RepoResponseModel() { Status = false, Message = e.Message, StackTrace = e.StackTrace ?? "Stack trace unavailable" };
+                return new RepoResponseModel
+                {
+                    Status = false,
+                    Message = ex.Message,
+                    StackTrace = ex.StackTrace ?? "Stack trace unavailable"
+                };
             }
         }
+
 
         public async Task<int> GetOrderCount()
         {
