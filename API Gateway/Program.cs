@@ -45,8 +45,8 @@ namespace API_Gateway
             builder.Services.AddControllers();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            //builder.Services.AddEndpointsApiExplorer();
+            //builder.Services.AddSwaggerGen();
 
             //Add Dependency Injection
             builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
@@ -67,8 +67,8 @@ namespace API_Gateway
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                //app.UseSwagger();
+                //app.UseSwaggerUI();
             }
 
             app.UseCors("AllowOrigin");

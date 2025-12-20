@@ -17,7 +17,7 @@ builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSecti
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
-//builder.Services.AddHostedService<KafkaEventConsumer>();
+builder.Services.AddHostedService<KafkaEventConsumer>();
 
 
 var app = builder.Build();
