@@ -193,7 +193,7 @@ namespace OrderServiceGrpc.Repository
                 }
 
                 //AddList Processing
-                if(addList.Count > 0)
+                if (addList.Count > 0)
                 {
                     using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)transaction))
                     {
@@ -245,49 +245,110 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(OrderListRequest request)
         {
-            const string sql = @"   declare @TotalOrders int, @TotalPages int
-                                    select
-	                                    o.*
-                                    from Orders o 
-									where o.OrderDate >= Convert(date,@StartDate) and o.OrderDate <= Convert(date,@EndDate)
-                                    order by o.OrderDate desc
-									OFFSET (@PageNumber - 1) * @PageSize ROWS
-                                    fetch next @PageSize rows only
-
-                                    select @TotalOrders = count(*) from Orders where OrderDate >=  Convert(date,@StartDate) and OrderDate <= Convert(date,@EndDate)
-                                    select @TotalPages = CEILING(CAST(@TotalOrders as float)/ @PageSize)
-
-                                    select @TotalPages TotalPages
-									select @TotalOrders TotalOrders";
-
             using var conn = GetDatabaseConnection();
-
             try
             {
+                if (_dbType == "sqlserver")
+                {
+                    return await AllOrdersSqlServerPaginationMode(conn, request);
+                }
+                else
+                {
+                    return await AllOrdersMySqlPaginationMode(conn, request);
+                }
+            }
+            catch (Exception e)
+            {
+                // Optionally log e.Message
+                return null;
+            }
+            finally
+            {
+                await conn.CloseAsync();
+            }
+        }
+
+        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersMySqlPaginationMode(DbConnection conn, OrderListRequest request)
+        {
+            // Common parameters
+            var parameters = new DynamicParameters();
+            parameters.Add("@StartDate", DateTimeHelper.ConvertTimestampToDateTime(request.StartDate).Date);
+            parameters.Add("@EndDate", DateTimeHelper.ConvertTimestampToDateTime(request.EndDate).Date);
+            parameters.Add("@PageSize", request.PageSize);
+            parameters.Add("@Offset",(request.PageNumber - 1) * request.PageSize);
+            try
+            {
+                const string MY_SQL_QUERY = @"select 
+                            Id, OrderDate, OrderCounter, UserId, Status	, NetAmount, CreatedBy, CreatedDate, IsDeleted, ModifiedBy, ModifiedDate
+                        from Orders 
+                        
+                        order by 
+                            OrderDate desc, OrderCounter desc
+                        limit @Offset, @PageSize;
+                    ";
+
+                const string MY_SQL_COUNT = @"
+                        SELECT COUNT(*) 
+                        FROM Orders o
+                    ";
+
                 await conn.OpenAsync();
 
-                var parameters = new DynamicParameters();
+                List<OrderModel> orderList = (await conn.QueryAsync<OrderModel>(MY_SQL_QUERY, parameters)).ToList();
+                int totalOrders = Convert.ToInt32(await conn.ExecuteScalarAsync<long>(MY_SQL_COUNT, parameters));
+                int totalPages = Convert.ToInt32(System.Math.Ceiling((decimal)totalOrders / request.PageSize));
 
-                parameters.Add("PageNumber", request.PageNumber);
-                parameters.Add("PageSize", request.PageSize);
-                parameters.Add("StartDate", DateTimeHelper.ConvertTimestampToDateTime(request.StartDate));
-                parameters.Add("EndDate", DateTimeHelper.ConvertTimestampToDateTime(request.EndDate));
-
-                GridReader reader = await conn.QueryMultipleAsync(sql, parameters);
-
-                List<OrderModel> orders = reader.Read<OrderModel>().ToList();
-                int totalPages = reader.ReadSingle<int>();
-                int totalOrders = reader.ReadSingle<int>();
-
-                return Tuple.Create<int, int, List<OrderModel>>(totalPages, totalOrders, orders);
+                return Tuple.Create(totalPages, totalOrders, orderList);
             }
             catch (Exception e)
             {
                 return null;
             }
-            finally { await conn.CloseAsync(); }
         }
 
+        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersSqlServerPaginationMode(DbConnection conn, OrderListRequest request)
+        {
+
+            // Common parameters
+            var parameters = new DynamicParameters();
+
+            parameters.Add("@StartDate", DateTimeHelper.ConvertTimestampToDateTime(request.StartDate));
+            parameters.Add("@EndDate", DateTimeHelper.ConvertTimestampToDateTime(request.EndDate));
+
+            parameters.Add("@PageNumber", request.PageNumber);
+            parameters.Add("@PageSize", request.PageSize);
+
+            const string SQL_SERVER_QUERY = @"
+                        DECLARE @TotalOrders INT, @TotalPages INT;
+
+                        SELECT o.*
+                        FROM Orders o
+                        WHERE o.OrderDate >= CONVERT(DATE, @StartDate) 
+                        AND o.OrderDate <= CONVERT(DATE, @EndDate)
+                        ORDER BY o.OrderDate DESC
+                        OFFSET (@PageNumber - 1) * @PageSize ROWS
+                        FETCH NEXT @PageSize ROWS ONLY;
+
+                        SELECT @TotalOrders = COUNT(*)
+                        FROM Orders
+                        WHERE OrderDate >= CONVERT(DATE, @StartDate) 
+                        AND OrderDate <= CONVERT(DATE, @EndDate);
+
+                        SELECT @TotalPages = CEILING(CAST(@TotalOrders AS FLOAT) / @PageSize);
+
+                        SELECT @TotalPages AS TotalPages;
+                        SELECT @TotalOrders AS TotalOrders;
+                    ";
+
+            await conn.OpenAsync();
+            var reader = await conn.QueryMultipleAsync(SQL_SERVER_QUERY, parameters);
+
+            List<OrderModel> orders = reader.Read<OrderModel>().ToList();
+            int totalPages = reader.ReadSingle<int>();
+            int totalOrders = reader.ReadSingle<int>();
+
+            return Tuple.Create(totalPages, totalOrders, orders);
+        }
 
         public async Task<OrderModel> GetOrderById(int orderId)
         {
@@ -307,9 +368,13 @@ namespace OrderServiceGrpc.Repository
 
                 OrderModel model = reader.Read<OrderModel>().First();
 
-                model.OrderItems = reader.Read<OrderItemModel>().ToList() ;
+                model.OrderItems = reader.Read<OrderItemModel>().ToList();
 
                 return model;
+            }
+            catch (SqlException se)
+            {
+                return null;
             }
             catch (Exception e)
             {
