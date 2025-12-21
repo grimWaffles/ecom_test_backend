@@ -13,6 +13,8 @@ namespace UserServiceGrpc.Repository
         Task<int> UpdateUser(UserModel user);
         Task<int> DeleteUser(UserModel user);
         Task<UserModel> GetUserByUsername(string username);
+
+        Task<List<RoleAccess>> GetRolesAccessAsync();
     }
 
     public class UserRepository : IUserRepository
@@ -113,6 +115,18 @@ namespace UserServiceGrpc.Repository
                 FirstAsync();
 
                 return user;
+            }
+            catch(Exception e)
+            {
+                return null;
+            }
+        }
+
+        public async Task<List<RoleAccess>> GetRolesAccessAsync()
+        {
+            try
+            {
+                return await _db.RoleAccesses.AsNoTracking().ToListAsync();
             }
             catch(Exception e)
             {
