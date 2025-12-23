@@ -2,7 +2,9 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Repository;
+using OrderServiceGrpc.Services;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
@@ -52,7 +54,7 @@ namespace OrderServiceGrpc.Kafka
         {
             ConfigureKafkaSettings();
 
-            _ =Task.Run(() => StartKafkaConsumer(stoppingToken), stoppingToken);
+            _ = Task.Run(() => StartKafkaConsumer(stoppingToken), stoppingToken);
         }
 
         public override async Task<Task> StopAsync(CancellationToken cancellationToken)
@@ -123,7 +125,7 @@ namespace OrderServiceGrpc.Kafka
         {
             //Commit Interval
             DateTime lastCommitTime = DateTime.UtcNow;
-            
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
@@ -139,7 +141,7 @@ namespace OrderServiceGrpc.Kafka
                         continue;
                     }
 
-                    RepoResponseModel repoResponse = new RepoResponseModel();
+                    ProcessorResponseModel repoResponse = new ProcessorResponseModel();
 
                     //Validate message topic
                     bool topicExists = Array.Exists(_consumerSettings.TopicsToConsume, x => x == result.Topic);
@@ -182,7 +184,7 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, RepoResponseModel repoResponse, CancellationToken stoppingToken)
+        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, ProcessorResponseModel repoResponse, CancellationToken stoppingToken)
         {
             string dlqTopic = ""; bool produceDlq = false;
 
@@ -272,7 +274,7 @@ namespace OrderServiceGrpc.Kafka
                     }
 
                     _logger.LogInformation($"Committed {topicPartitionOffsets.Count} offset(s) successfully.");
-                    
+
                     break;
                 }
                 catch (KafkaException kex)
@@ -284,7 +286,7 @@ namespace OrderServiceGrpc.Kafka
                         int delayMs = GetExponentialDelay(attemptNo);
                         _logger.LogInformation($"Retrying commit in {delayMs}ms...");
 
-                        await Task.Delay(delayMs,token);
+                        await Task.Delay(delayMs, token);
                     }
                     else
                     {
@@ -316,7 +318,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    RepoResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    ProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
@@ -343,88 +345,37 @@ namespace OrderServiceGrpc.Kafka
             return false;
         }
 
-        private async Task<RepoResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<ProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
         {
-            RepoResponseModel repoResponse = new RepoResponseModel();
-
-            using (var scope = _serviceProvider.CreateScope())
+            try
             {
-                IOrderRepository orderRepository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+                OrderModel model = JsonSerializer.Deserialize<OrderModel>(result.Message.Value);
 
-                repoResponse = (result.Topic) switch
+                using (var scope = _serviceProvider.CreateScope())
                 {
-                    "order-create" => await OrderCreateEvent(result, orderRepository),
-                    "order-update" => await OrderUpdateEvent(result, orderRepository),
-                    "order-delete" => await OrderDeleteEvent(result, orderRepository),
-                    _ => new RepoResponseModel()
+                    IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+
+                    ProcessorResponseModel repoResponse = (result.Topic) switch
                     {
-                        Status = false,
-                        Message = $"Error: Invalid topic provided in message={result.Topic}"
-                    }
-                };
+                        "order-create" => await processorService.CreateOrder(model, 1),
+                        "order-update" => await processorService.UpdateOrder(model, 1),
+                        "order-delete" => await processorService.DeleteOrder(model.Id, 1),
+                        _ => new ProcessorResponseModel()
+                        {
+                            Status = false,
+                            Message = $"Error: Invalid topic provided in message={result.Topic}"
+                        }
+                    };
+
+                    return repoResponse;
+                }
             }
-
-            return repoResponse;
-        }
-
-        private async Task<RepoResponseModel> OrderCreateEvent(ConsumeResult<string, string> eventValue, IOrderRepository orderRepository)
-        {
-            try
+            catch (Exception e)
             {
-                // Deserialize message into domain event
-                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
-
-                return await orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
-            }
-            catch (Exception ex)
-            {
-                return new RepoResponseModel()
+                return new ProcessorResponseModel()
                 {
                     Status = false,
-                    Message = ex.Message,
-                    StackTrace = ex.StackTrace ?? ""
-                };
-            }
-        }
-
-        private async Task<RepoResponseModel> OrderUpdateEvent(ConsumeResult<string, string> eventValue, IOrderRepository orderRepository)
-        {
-            try
-            {
-                // Deserialize message into domain event
-                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
-
-                //Place holder function. Fix later.
-                return await orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
-            }
-            catch (Exception ex)
-            {
-                return new RepoResponseModel()
-                {
-                    Status = false,
-                    Message = ex.Message,
-                    StackTrace = ex.StackTrace ?? ""
-                };
-            }
-        }
-
-        private async Task<RepoResponseModel> OrderDeleteEvent(ConsumeResult<string, string> eventValue, IOrderRepository orderRepository)
-        {
-            try
-            {
-                // Deserialize message into domain event
-                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
-
-                //Place holder function. Fix later.
-                return await orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
-            }
-            catch (Exception ex)
-            {
-                return new RepoResponseModel()
-                {
-                    Status = false,
-                    Message = ex.Message,
-                    StackTrace = ex.StackTrace ?? ""
+                    Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"
                 };
             }
         }

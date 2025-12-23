@@ -26,9 +26,9 @@ namespace OrderServiceGrpc.Repository
         Task<bool> UpdateOrder(OrderModel request, List<OrderItemModel> addList, List<OrderItemModel> deleteList, List<OrderItemModel> updateList, int userId);
         Task<bool> DeleteOrder(int requestId, int userId);
         Task<int> GetOrderCount();
-        Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(OrderListRequest request);
+        Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
-        Task<RepoResponseModel> InsertOrderCreateEvent(int orderId);
+        Task<ProcessorResponseModel> InsertOrderCreateEvent(int orderId);
     }
 
     public class OrderRepository : IOrderRepository
@@ -243,18 +243,18 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(OrderListRequest request)
+        public async Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
             using var conn = GetDatabaseConnection();
             try
             {
                 if (_dbType == "sqlserver")
                 {
-                    return await AllOrdersSqlServerPaginationMode(conn, request);
+                    return await AllOrdersSqlServerPaginationMode(conn, startDate, endDate, pageSize, pageNumber);
                 }
                 else
                 {
-                    return await AllOrdersMySqlPaginationMode(conn, request);
+                    return await AllOrdersMySqlPaginationMode(conn, startDate, endDate, pageSize, pageNumber);
                 }
             }
             catch (Exception e)
@@ -268,14 +268,14 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersMySqlPaginationMode(DbConnection conn, OrderListRequest request)
+        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
             // Common parameters
             var parameters = new DynamicParameters();
-            parameters.Add("@StartDate", DateTimeHelper.ConvertTimestampToDateTime(request.StartDate).Date);
-            parameters.Add("@EndDate", DateTimeHelper.ConvertTimestampToDateTime(request.EndDate).Date);
-            parameters.Add("@PageSize", request.PageSize);
-            parameters.Add("@Offset",(request.PageNumber - 1) * request.PageSize);
+            parameters.Add("@StartDate", startDate.Date);
+            parameters.Add("@EndDate", endDate.Date);
+            parameters.Add("@PageSize", pageSize);
+            parameters.Add("@Offset", (pageNumber - 1) * pageSize);
             try
             {
                 const string MY_SQL_QUERY = @"select 
@@ -296,7 +296,7 @@ namespace OrderServiceGrpc.Repository
 
                 List<OrderModel> orderList = (await conn.QueryAsync<OrderModel>(MY_SQL_QUERY, parameters)).ToList();
                 int totalOrders = Convert.ToInt32(await conn.ExecuteScalarAsync<long>(MY_SQL_COUNT, parameters));
-                int totalPages = Convert.ToInt32(System.Math.Ceiling((decimal)totalOrders / request.PageSize));
+                int totalPages = Convert.ToInt32(System.Math.Ceiling((decimal)totalOrders / pageSize));
 
                 return Tuple.Create(totalPages, totalOrders, orderList);
             }
@@ -306,17 +306,17 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersSqlServerPaginationMode(DbConnection conn, OrderListRequest request)
+        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
 
             // Common parameters
             var parameters = new DynamicParameters();
 
-            parameters.Add("@StartDate", DateTimeHelper.ConvertTimestampToDateTime(request.StartDate));
-            parameters.Add("@EndDate", DateTimeHelper.ConvertTimestampToDateTime(request.EndDate));
+            parameters.Add("@StartDate", startDate);
+            parameters.Add("@EndDate", endDate);
 
-            parameters.Add("@PageNumber", request.PageNumber);
-            parameters.Add("@PageSize", request.PageSize);
+            parameters.Add("@PageNumber", pageNumber);
+            parameters.Add("@PageSize", pageSize);
 
             const string SQL_SERVER_QUERY = @"
                         DECLARE @TotalOrders INT, @TotalPages INT;
@@ -403,7 +403,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<RepoResponseModel> InsertOrderCreateEvent(int orderId)
+        public async Task<ProcessorResponseModel> InsertOrderCreateEvent(int orderId)
         {
             const string sql = @"INSERT INTO OrderEventLogs (OrderId, CreatedAt) VALUES (@OrderId, @CreatedAt);";
 
@@ -420,7 +420,7 @@ namespace OrderServiceGrpc.Repository
                 {
                     await conn.ExecuteAsync(sql, parameters);
 
-                    return new RepoResponseModel
+                    return new ProcessorResponseModel
                     {
                         Status = true,
                         Message = "Order inserted successfully"
@@ -429,7 +429,7 @@ namespace OrderServiceGrpc.Repository
                 catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
                 {
                     // UNIQUE constraint violation → duplicate Kafka message
-                    return new RepoResponseModel
+                    return new ProcessorResponseModel
                     {
                         Status = true,
                         Message = "Order already exists (idempotent)"
@@ -438,7 +438,7 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception ex)
             {
-                return new RepoResponseModel
+                return new ProcessorResponseModel
                 {
                     Status = false,
                     Message = ex.Message,
