@@ -1,8 +1,10 @@
 ﻿
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
+using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.Entities;
+using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
 using System.Collections.Concurrent;
@@ -349,7 +351,9 @@ namespace OrderServiceGrpc.Kafka
         {
             try
             {
-                OrderModel model = JsonSerializer.Deserialize<OrderModel>(result.Message.Value);
+                CreateOrderRequest request = JsonSerializer.Deserialize<CreateOrderRequest>(result.Message.Value);
+                OrderModel orderModel = OrderMessageModelConverter.ToModel(request.Order);
+                int userId = request.UserId;
 
                 using (var scope = _serviceProvider.CreateScope())
                 {
@@ -357,9 +361,9 @@ namespace OrderServiceGrpc.Kafka
 
                     ProcessorResponseModel repoResponse = (result.Topic) switch
                     {
-                        "order-create" => await processorService.CreateOrder(model, 1),
-                        "order-update" => await processorService.UpdateOrder(model, 1),
-                        "order-delete" => await processorService.DeleteOrder(model.Id, 1),
+                        "order-create" => await processorService.CreateOrder(orderModel, userId),
+                        "order-update" => await processorService.UpdateOrder(orderModel, userId),
+                        "order-delete" => await processorService.DeleteOrder(orderModel.Id, userId),
                         _ => new ProcessorResponseModel()
                         {
                             Status = false,

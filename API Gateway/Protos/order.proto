@@ -54,14 +54,17 @@ message UserIdRequest {
 
 message CreateOrderRequest {
   Order order = 1;
+  int32 userId = 2;
 }
 
 message UpdateOrderRequest {
   Order order = 1;
+  int32 userId = 2;
 }
 
 message DeleteOrderRequest {
   int32 id = 1;
+  int32 userId = 2;
 }
 
 message OrderResponse {
