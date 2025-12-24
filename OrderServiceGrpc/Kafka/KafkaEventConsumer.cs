@@ -54,7 +54,7 @@ namespace OrderServiceGrpc.Kafka
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            ConfigureKafkaSettings();
+            await ConfigureKafkaSettings();
 
             _ = Task.Run(() => StartKafkaConsumer(stoppingToken), stoppingToken);
         }
@@ -352,27 +352,37 @@ namespace OrderServiceGrpc.Kafka
             try
             {
                 CreateOrderRequest request = JsonSerializer.Deserialize<CreateOrderRequest>(result.Message.Value);
-                OrderModel orderModel = OrderMessageModelConverter.ToModel(request.Order);
-                int userId = request.UserId;
 
-                using (var scope = _serviceProvider.CreateScope())
+                if (request.Order != null && request.Order.Items.Count()>0)
                 {
-                    IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+                    OrderModel orderModel = OrderMessageModelConverter.ToModel(request.Order);
+                    int userId = request.UserId;
 
-                    ProcessorResponseModel repoResponse = (result.Topic) switch
+                    using (var scope = _serviceProvider.CreateScope())
                     {
-                        "order-create" => await processorService.CreateOrder(orderModel, userId),
-                        "order-update" => await processorService.UpdateOrder(orderModel, userId),
-                        "order-delete" => await processorService.DeleteOrder(orderModel.Id, userId),
-                        _ => new ProcessorResponseModel()
-                        {
-                            Status = false,
-                            Message = $"Error: Invalid topic provided in message={result.Topic}"
-                        }
-                    };
+                        IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
 
-                    return repoResponse;
+                        ProcessorResponseModel repoResponse = (result.Topic) switch
+                        {
+                            "order-create" => await processorService.CreateOrder(orderModel, userId),
+                            "order-update" => await processorService.UpdateOrder(orderModel, userId),
+                            "order-delete" => await processorService.DeleteOrder(orderModel.Id, userId),
+                            _ => new ProcessorResponseModel()
+                            {
+                                Status = false,
+                                Message = $"Error: Invalid topic provided in message={result.Topic}"
+                            }
+                        };
+
+                        return repoResponse;
+                    }
                 }
+
+                return new ProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = $"Error: Invalid message provided topic:{result.Topic}"
+                };
             }
             catch (Exception e)
             {

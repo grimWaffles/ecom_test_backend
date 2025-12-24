@@ -321,13 +321,27 @@ namespace OrderServiceGrpc.Repository
             const string SQL_SERVER_QUERY = @"
                         DECLARE @TotalOrders INT, @TotalPages INT;
 
-                        SELECT o.*
+                        drop table if exists #OrderIds
+                        create table #OrderIds(OrderId int)
+
+                        insert into #OrderIds(OrderId)
+                        SELECT o.Id
                         FROM Orders o
                         WHERE o.OrderDate >= CONVERT(DATE, @StartDate) 
                         AND o.OrderDate <= CONVERT(DATE, @EndDate)
+                        AND o.IsDeleted = 0
                         ORDER BY o.OrderDate DESC
                         OFFSET (@PageNumber - 1) * @PageSize ROWS
                         FETCH NEXT @PageSize ROWS ONLY;
+
+                        select 
+	                        *
+                        from Orders
+                        where Id in (select OrderId from #OrderIds)
+
+                        select oi.*
+                        from OrderItems oi
+                        where oi.OrderId in (select OrderId from #OrderIds)
 
                         SELECT @TotalOrders = COUNT(*)
                         FROM Orders
@@ -338,12 +352,21 @@ namespace OrderServiceGrpc.Repository
 
                         SELECT @TotalPages AS TotalPages;
                         SELECT @TotalOrders AS TotalOrders;
+
+                        drop table if exists #OrderIds
                     ";
 
             await conn.OpenAsync();
             var reader = await conn.QueryMultipleAsync(SQL_SERVER_QUERY, parameters);
 
             List<OrderModel> orders = reader.Read<OrderModel>().ToList();
+            List<OrderItemModel> itemList = reader.Read<OrderItemModel>().ToList();
+
+            foreach(var order in orders)
+            {
+                order.OrderItems = itemList.Where(x=>x.OrderId == order.Id).ToList();
+            }
+
             int totalPages = reader.ReadSingle<int>();
             int totalOrders = reader.ReadSingle<int>();
 

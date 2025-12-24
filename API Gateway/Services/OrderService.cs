@@ -101,7 +101,7 @@ namespace API_Gateway.Services
             OrderListRequest request = new OrderListRequest()
             {
                 PageNumber = 1,
-                PageSize = 100,
+                PageSize = 1,
                 StartDate = CustomConverters.ConvertDateTimeToGoogleTimeStamp(startDate),
                 EndDate = CustomConverters.ConvertDateTimeToGoogleTimeStamp(endDate),
                 UserId = 1
@@ -117,21 +117,34 @@ namespace API_Gateway.Services
 
                 if (orderList.Count > 0)
                 {
-                    List<Order> list1 = orderList.Take(orderList.Count / 2).ToList();
-                    List<Order> list2 = orderList.Skip(orderList.Count / 2).Take(orderList.Count / 2).ToList();
+                    #region Multiple Order Inserting
+                    //List<Order> list1 = orderList.Take(orderList.Count / 2).ToList();
+                    //List<Order> list2 = orderList.Skip(orderList.Count / 2).Take(orderList.Count / 2).ToList();
 
+                    //DateTime startTime = DateTime.Now;
+                    //Task t1 = Task.Run(async () =>
+                    //{
+                    //    await FireAllOrderProduceEvents(list1);
+                    //});
+
+                    //Task t2 = Task.Run(async () =>
+                    //{
+                    //    await FireAllOrderProduceEvents(list2);
+                    //});
+
+                    //await Task.WhenAll(t1, t2);
+                    #endregion
+
+                    #region Multiple Order Inserting
                     DateTime startTime = DateTime.Now;
+
                     Task t1 = Task.Run(async () =>
                     {
-                        await FireAllOrderProduceEvents(list1);
+                        await FireAllOrderProduceEvents(orderList);
                     });
 
-                    Task t2 = Task.Run(async () =>
-                    {
-                        await FireAllOrderProduceEvents(list2);
-                    });
-
-                    await Task.WhenAll(t1, t2);
+                    await Task.WhenAll(t1);
+                    #endregion
                 }
 
                 return new OrderResponse()
@@ -158,14 +171,16 @@ namespace API_Gateway.Services
             string topic = "order-create";
             try
             {
-                List<Task> tasks = new List<Task>();
+                //List<Task> tasks = new List<Task>();
 
                 foreach (Order order in orders)
                 {
                     //tasks.Add(new Task(async () => {
                     //    await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), JsonSerializer.Serialize(order));
                     //}));
-                    string payload = JsonSerializer.Serialize(order);
+                    CreateOrderRequest request = new CreateOrderRequest() { Order = order, UserId = 1 };
+                    string payload = JsonSerializer.Serialize(request);
+
                     await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), payload);
                 }
 

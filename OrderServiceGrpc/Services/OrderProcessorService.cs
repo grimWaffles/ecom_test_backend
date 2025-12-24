@@ -55,18 +55,17 @@ namespace OrderServiceGrpc.Services
 
             if (result == null) { return new ProcessorResponseModel() { Message = "Failed to get orders", Status = false }; }
 
-            ProcessorResponseModel response = new ProcessorResponseModel()
-            {
-                Status = true,
-                Message = "Success",
-                TotalPages = result.Item1,
-                TotalOrders = result.Item2
-            };
-
             try
             {
-                List<OrderModel> orders = result.Item3.ToList();
-                response.ListOfOrders.AddRange(orders);
+                ProcessorResponseModel response = new ProcessorResponseModel()
+                {
+                    Status = true,
+                    Message = "Success",
+                    TotalPages = result.Item1,
+                    TotalOrders = result.Item2,
+                    ListOfOrders = result.Item3
+                };
+
                 return response;
             }
             catch (Exception e)
