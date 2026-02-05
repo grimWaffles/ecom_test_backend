@@ -70,7 +70,7 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception e)
             {
-                return new ProcessorResponseModel() { Message = "Failed to get orders", Status = false, StackTrace = e.StackTrace };
+                return new ProcessorResponseModel() { Message = "Failed to get orders", Status = false, StackTrace = e.StackTrace ?? e.Message };
             }
         }
 
