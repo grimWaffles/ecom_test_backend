@@ -16,9 +16,9 @@ public class Program
         ConfigureDatabase(builder.Services,builder.Configuration);
 
         //Add Database to the server
-        builder.Services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-        );
+        // builder.Services.AddDbContext<AppDbContext>(options =>
+        //     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+        // );
 
         //Add Dependency Injections
         builder.Services.AddScoped<ISellerRepository, SellerRepository>();

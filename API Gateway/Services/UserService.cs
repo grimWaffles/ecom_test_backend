@@ -3,6 +3,8 @@ using ApiGateway.Protos;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.AspNetCore.Identity;
+using API_Gateway.Models;
+using Microsoft.Extensions.Options;
 namespace API_Gateway.Services
 {
     public interface IUserServiceClient
@@ -19,16 +21,14 @@ namespace API_Gateway.Services
     }
     public class UserServiceClient : IUserServiceClient
     {
-        private readonly IConfiguration _configuration;
         private readonly User.UserClient _client;
-        private readonly string userServiceAddress;
+        private readonly MicroServiceUrl _urls;
 
-        public UserServiceClient(IConfiguration configuration)
+        public UserServiceClient(IOptions<MicroServiceUrl> microserviceUrls)
         {
-            _configuration = configuration;
-            string grpcServerAddress = configuration["Microservices:userService"];
+            _urls = microserviceUrls.Value;
 
-            var channel = GrpcChannel.ForAddress(grpcServerAddress);
+            GrpcChannel channel = GrpcChannel.ForAddress(_urls.GetUserServiceUrl());
             _client = new User.UserClient(channel);
         }
 

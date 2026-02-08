@@ -1,6 +1,8 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿using System;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.IdentityModel.Tokens;
@@ -26,79 +28,50 @@ namespace UserServiceGrpc.Services
         {
             TestResponse response = new TestResponse();
             response.ServiceStatus = "Service is running.";
+            
+            //for easy script testing
+            string accessScope = await CreateOAuthScopeStringForRole();
+            response.ServiceStatus = accessScope != null && accessScope != "" ? accessScope : response.ServiceStatus;
 
             return await Task.FromResult(response);
         }
 
-        //Private functions
-        private UserModel ConvertRequestToModel(CreateUserRequest r)
+        private async Task<string> CreateOAuthScopeStringForRole()
         {
-            return new UserModel
+            List<RoleAccess> list = await _repo.GetRolesAccessAsync();
+
+            if (list == null)
             {
-                Id = r.Id,
-                Username = r.Username,
-                Email = r.Email,
-                Password = r.Password,
-                MobileNo = r.MobileNo,
-                RoleId = r.RoleId,
-                IsDeleted = Convert.ToBoolean(r.IsDeleted)
-            };
-        }
-
-        private CreateUserRequest ConvertModelToRequest(UserModel r)
-        {
-            return new CreateUserRequest
-            {
-                Id = r.Id,
-                Username = r.Username,
-                Email = r.Email,
-                Password = r.Password,
-                MobileNo = r.MobileNo,
-                RoleId = r.RoleId,
-                IsDeleted = Convert.ToInt32(r.IsDeleted)
-            };
-        }
-
-        private string GenerateJwtToken(UserModel user)
-        {
-            //Generate a GUID for the token and save it for later
-            string guID = Guid.NewGuid().ToString();
-
-            //Add the necessary claims to the token
-            var claims = new[]{
-                new Claim("UserId", Convert.ToString(user.Id)),
-                new Claim("RoleId", Convert.ToString(user.RoleId)),
-                new Claim("Username", Convert.ToString(user.Username)),
-                new Claim(ClaimTypes.Role,user.Role.Name.ToString()),
-                new Claim(JwtRegisteredClaimNames.Jti, guID)
-            };
-
-            //Generate Key
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:signingKey"]));
-
-            //Generate the credentials
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            //Issue the token
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:validIssuer"],
-                audience: _configuration["Jwt:validAudience"],
-                claims: claims,
-                expires: DateTime.Now.AddHours(24),
-                signingCredentials: creds
-            );
-
-            try
-            {
-                string newToken = new JwtSecurityTokenHandler().WriteToken(token);
-                return new JwtSecurityTokenHandler().WriteToken(token);
+                Console.WriteLine($"Failed to fetch access list");
+                return null;
             }
-            catch (Exception e)
+
+            list = list.Where(ra => ra.RoleId == 1 && string.Equals(ra.ModuleName, "admin",StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var scopes = list.SelectMany(ra => BuildScopes(ra)).Distinct();
+
+            return string.Join(' ', scopes);
+        }
+
+        private static IEnumerable<string> BuildScopes(RoleAccess r)
+        {
+            if (r.ViewPermission)
             {
-                return "";
+                yield return $"{r.FrmDetail}.View ";
+            }
+            if (r.AddPermission)
+            {
+                yield return $"{r.FrmDetail}.Add ";
+            }
+            if (r.EditPermission)
+            {
+                yield return $"{r.FrmDetail}.Edit ";
+            }
+            if (r.DeletePermission)
+            {
+                yield return $"{r.FrmDetail}.Delete ";
             }
         }
-
         //CRUD Operations
         public override async Task<UserCrudResponse> CreateUser(CreateUserRequest request, ServerCallContext context)
         {
@@ -279,6 +252,75 @@ namespace UserServiceGrpc.Services
 
             return response;
         }
-        
+
+
+        //Private functions
+        private UserModel ConvertRequestToModel(CreateUserRequest r)
+        {
+            return new UserModel
+            {
+                Id = r.Id,
+                Username = r.Username,
+                Email = r.Email,
+                Password = r.Password,
+                MobileNo = r.MobileNo,
+                RoleId = r.RoleId,
+                IsDeleted = Convert.ToBoolean(r.IsDeleted)
+            };
+        }
+
+        private CreateUserRequest ConvertModelToRequest(UserModel r)
+        {
+            return new CreateUserRequest
+            {
+                Id = r.Id,
+                Username = r.Username,
+                Email = r.Email,
+                Password = r.Password,
+                MobileNo = r.MobileNo,
+                RoleId = r.RoleId,
+                IsDeleted = Convert.ToInt32(r.IsDeleted)
+            };
+        }
+
+        private string GenerateJwtToken(UserModel user)
+        {
+            //Generate a GUID for the token and save it for later
+            string guID = Guid.NewGuid().ToString();
+
+            //Add the necessary claims to the token
+            var claims = new[]{
+                new Claim("UserId", Convert.ToString(user.Id)),
+                new Claim("RoleId", Convert.ToString(user.RoleId)),
+                new Claim("Username", Convert.ToString(user.Username)),
+                new Claim(ClaimTypes.Role,user.Role.Name.ToString()),
+                new Claim(JwtRegisteredClaimNames.Jti, guID)
+            };
+
+            //Generate Key
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:signingKey"]));
+
+            //Generate the credentials
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            //Issue the token
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:validIssuer"],
+                audience: _configuration["Jwt:validAudience"],
+                claims: claims,
+                expires: DateTime.Now.AddHours(24),
+                signingCredentials: creds
+            );
+
+            try
+            {
+                string newToken = new JwtSecurityTokenHandler().WriteToken(token);
+                return new JwtSecurityTokenHandler().WriteToken(token);
+            }
+            catch (Exception e)
+            {
+                return "";
+            }
+        }
     }
 }

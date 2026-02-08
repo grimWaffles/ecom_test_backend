@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "GatewayAndOrder",
+    "Projects": [
+      {
+        "Path": "API Gateway\\API Gateway.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      },
+      {
+        "Path": "OrderServiceGrpc\\OrderServiceGrpc.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      }
+    ]
+  }
+]

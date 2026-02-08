@@ -33,16 +33,24 @@ namespace OrderServiceGrpc.Kafka
         // Tracks offsets of successfully processed messages for manual commit
         private readonly ConcurrentDictionary<TopicPartition, Offset> _processedOffsets = new();
 
-        public OrderEventConsumerBackup(IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOrderRepository orderRepository)
+        //Global Kafka settings
+        private readonly KafkaSettings _kafkaSettings;
+
+        public OrderEventConsumerBackup(IOptions<KafkaSettings> kafkaSettings,IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOrderRepository orderRepository)
         {
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
             _consumerSettings = kafkaConsumerSettings.Value;
 
             _orderRepository = orderRepository;
 
+            _kafkaSettings = kafkaSettings.Value;
+
             // Validate required config values early
-            if (string.IsNullOrWhiteSpace(_consumerSettings.BootstrapServer))
-                throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
+            if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerDocker))
+                throw new ArgumentException("Kafka BootstrapServer for docker is missing from configuration.");
+
+            if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerLocal))
+                throw new ArgumentException("Kafka BootstrapServer for dev is missing from configuration.");
 
             if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
                 throw new ArgumentException("Kafka GroupId is missing from configuration.");
@@ -52,11 +60,13 @@ namespace OrderServiceGrpc.Kafka
 
             if (_consumerSettings.DlqTopics.Length == 0)
                 throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
+            
+            string kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
 
             // Consumer configuration
             _consumerConfig = new ConsumerConfig()
             {
-                BootstrapServers = _consumerSettings.BootstrapServer,
+                BootstrapServers = kafkaBootstrapServer,
                 GroupId = _consumerSettings.GroupId,
                 AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
                 EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
@@ -66,7 +76,7 @@ namespace OrderServiceGrpc.Kafka
             // Producer configuration for DLQ messages
             _producerConfig = new ProducerConfig()
             {
-                BootstrapServers = _consumerSettings.BootstrapServer,
+                BootstrapServers = kafkaBootstrapServer,
                 Acks = _consumerSettings.DlqAcks,            // Wait for all replicas to acknowledge
                 EnableIdempotence = _consumerSettings.DlqIdempotence,  // Ensure no duplicate DLQ messages
                 MessageTimeoutMs = _consumerSettings.DlqMessageTimeoutMs

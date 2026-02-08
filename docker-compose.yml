@@ -27,7 +27,7 @@
 
 #Network Configuration
 networks:
-    default:
-        external: true
-        name: ecom_services
+  default:
+    external: false
+    name: ecom_services
     

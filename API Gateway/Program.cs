@@ -1,11 +1,13 @@
 
+using API_Gateway.Helpers;
+using API_Gateway.Kafka;
+using API_Gateway.Models;
 using API_Gateway.Services;
+using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using ApiGateway.Protos;
-using System.Text;
 using StackExchange.Redis;
-using API_Gateway.Helpers;
+using System.Text;
 namespace API_Gateway
 {
     public class Program
@@ -45,8 +47,8 @@ namespace API_Gateway
             builder.Services.AddControllers();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            //builder.Services.AddEndpointsApiExplorer();
+            //builder.Services.AddSwaggerGen();
 
             //Add Dependency Injection
             builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
@@ -61,14 +63,16 @@ namespace API_Gateway
 
             //Add AppSettings objects as Options
             builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSection("KafkaProducerSettings"));
+            builder.Services.Configure<KafkaGlobalSetting>(builder.Configuration.GetSection("Kafka"));
+            builder.Services.Configure<MicroServiceUrl>(builder.Configuration.GetSection("MicroServiceUrls"));
 
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                //app.UseSwagger();
+                //app.UseSwaggerUI();
             }
 
             app.UseCors("AllowOrigin");

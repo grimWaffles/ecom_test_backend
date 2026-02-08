@@ -7,8 +7,6 @@ namespace OrderServiceGrpc.Kafka
     {
         //Main Consumer
         [Required]
-        public string BootstrapServer { get; set; } = null!;
-        [Required]
         public string GroupId { get; set; } = null!;
 
         public bool EnableAutoCommit { get; set; } = true;

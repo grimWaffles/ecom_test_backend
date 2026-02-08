@@ -1,9 +1,11 @@
-﻿using System;
+﻿using API_Gateway.Models;
+using ApiGateway.Protos;
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Net.Client;
+using Microsoft.Extensions.Options;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Grpc.Net.Client;
-using Google.Protobuf.WellKnownTypes;
-using ApiGateway.Protos;
 
 namespace API_Gateway.Services
 {
@@ -18,11 +20,13 @@ namespace API_Gateway.Services
     public class ProductGrpcClient : IProductGrpcClient
     {
         private readonly ProductService.ProductServiceClient _client;
+        private readonly MicroServiceUrl _urls;
 
-        public ProductGrpcClient(IConfiguration configuration)
+        public ProductGrpcClient(IOptions<MicroServiceUrl> microserviceUrls)
         {
-            string serviceUrl = configuration["Microservices:productService"];
-            if (string.IsNullOrEmpty(serviceUrl))
+            _urls = microserviceUrls.Value;
+
+            if (string.IsNullOrEmpty(_urls.GetProductServiceUrl()))
             {
                 throw new ArgumentException("gRPC service URL not configured in appsettings.json");
             }
@@ -33,7 +37,7 @@ namespace API_Gateway.Services
                 ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
             };
 
-            var channel = GrpcChannel.ForAddress(serviceUrl, new GrpcChannelOptions
+            var channel = GrpcChannel.ForAddress(_urls.GetProductServiceUrl(), new GrpcChannelOptions
             {
                 HttpHandler = httpHandler
             });

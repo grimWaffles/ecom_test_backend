@@ -1,8 +1,12 @@
 ﻿
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
+using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Entities;
+using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
+using OrderServiceGrpc.Services;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
@@ -34,10 +38,10 @@ namespace OrderServiceGrpc.Kafka
         // Kafka consumer for main topics
         private IConsumer<string, string> _consumer;
 
-        //Tracker for current message
-        private bool _processedMessage = false;
+        //Global Kafka Settings
+        private KafkaSettings _kafkaSettings;
 
-        public KafkaEventConsumer(ILogger<KafkaEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
+        public KafkaEventConsumer(ILogger<KafkaEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
         {
             _logger = logger;
 
@@ -49,31 +53,37 @@ namespace OrderServiceGrpc.Kafka
             _consumerSettings = kafkaConsumerSettings.Value;
 
             _logger.LogInformation("Kafka consumer settings loaded...");
+
+            _kafkaSettings = kafkaSettings.Value;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            ConfigureKafkaSettings();
+            await ConfigureKafkaSettings();
 
-            _ =Task.Run(() => StartKafkaConsumer(stoppingToken), stoppingToken);
+            _ = Task.Run(() => StartKafkaConsumer(stoppingToken), stoppingToken);
         }
 
         public override async Task<Task> StopAsync(CancellationToken cancellationToken)
         {
             await CommitOffsets(cancellationToken);
 
-            CloseAndDisposeConsumerAndProducer();
+            await CloseAndDisposeConsumerAndProducer();
 
             return base.StopAsync(cancellationToken);
         }
 
-        private void ConfigureKafkaSettings()
+        private async Task ConfigureKafkaSettings()
         {
+            //Checks for the kafka server are done from the global kafka settings
             try
             {
                 // Validate required config values early
-                if (string.IsNullOrWhiteSpace(_consumerSettings.BootstrapServer))
-                    throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
+                if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerDocker))
+                    throw new ArgumentException("Kafka BootstrapServer for docker is missing from configuration.");
+
+                if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerLocal))
+                    throw new ArgumentException("Kafka BootstrapServer for dev is missing from configuration.");
 
                 if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
                     throw new ArgumentException("Kafka GroupId is missing from configuration.");
@@ -84,10 +94,12 @@ namespace OrderServiceGrpc.Kafka
                 if (_consumerSettings.DlqTopics.Length == 0)
                     throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
 
+                string kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
+
                 // Consumer configuration
                 _consumerConfig = new ConsumerConfig()
                 {
-                    BootstrapServers = _consumerSettings.BootstrapServer,
+                    BootstrapServers = kafkaBootstrapServer,
                     GroupId = _consumerSettings.GroupId,
                     AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
                     EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
@@ -98,7 +110,7 @@ namespace OrderServiceGrpc.Kafka
                 // Producer configuration for DLQ messages
                 _dlqProducerConfig = new ProducerConfig()
                 {
-                    BootstrapServers = _consumerSettings.BootstrapServer,
+                    BootstrapServers = kafkaBootstrapServer,
                     Acks = _consumerSettings.DlqAcks,            // Wait for all replicas to acknowledge
                     EnableIdempotence = _consumerSettings.DlqIdempotence,  // Ensure no duplicate DLQ messages
                     MessageTimeoutMs = _consumerSettings.DlqMessageTimeoutMs,
@@ -117,7 +129,7 @@ namespace OrderServiceGrpc.Kafka
             catch (Exception e)
             {
                 _logger.LogInformation($"Failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
-                CloseAndDisposeConsumerAndProducer();
+                await CloseAndDisposeConsumerAndProducer();
                 return;
             }
         }
@@ -131,7 +143,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    _processedMessage = false;
+                    bool processedMessage = false;
 
                     ConsumeResult<string, string> result = _consumer.Consume(TimeSpan.FromMilliseconds(100));
 
@@ -142,7 +154,7 @@ namespace OrderServiceGrpc.Kafka
                         continue;
                     }
 
-                    RepoResponseModel repoResponse = new RepoResponseModel();
+                    ProcessorResponseModel repoResponse = new ProcessorResponseModel();
 
                     //Validate message topic
                     bool topicExists = Array.Exists(_consumerSettings.TopicsToConsume, x => x == result.Topic);
@@ -150,11 +162,11 @@ namespace OrderServiceGrpc.Kafka
                     //Implementing Max Retries if valid topic
                     if (topicExists)
                     {
-                        await ProcessMessageResult(result, stoppingToken);
+                        processedMessage = await ProcessMessageResult(result, stoppingToken);
                     }
 
                     //DLQ Processing
-                    if (!_processedMessage || !topicExists)
+                    if (!processedMessage || !topicExists)
                     {
                         await SendToDlq(result, topicExists, repoResponse, stoppingToken);
                     }
@@ -185,7 +197,7 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, RepoResponseModel repoResponse, CancellationToken stoppingToken)
+        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, ProcessorResponseModel repoResponse, CancellationToken stoppingToken)
         {
             string dlqTopic = ""; bool produceDlq = false;
 
@@ -275,7 +287,7 @@ namespace OrderServiceGrpc.Kafka
                     }
 
                     _logger.LogInformation($"Committed {topicPartitionOffsets.Count} offset(s) successfully.");
-                    
+
                     break;
                 }
                 catch (KafkaException kex)
@@ -287,7 +299,7 @@ namespace OrderServiceGrpc.Kafka
                         int delayMs = GetExponentialDelay(attemptNo);
                         _logger.LogInformation($"Retrying commit in {delayMs}ms...");
 
-                        await Task.Delay(delayMs,token);
+                        await Task.Delay(delayMs, token);
                     }
                     else
                     {
@@ -297,10 +309,11 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private void CloseAndDisposeConsumerAndProducer()
+        private async Task CloseAndDisposeConsumerAndProducer()
         {
             try
             {
+                await CommitOffsets(CancellationToken.None);
                 _consumer.Close();
                 _consumer.Dispose();
                 _dlqProducer.Flush();
@@ -312,19 +325,17 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private async Task ProcessMessageResult(ConsumeResult<string, string> result, CancellationToken stoppingToken)
+        private async Task<bool> ProcessMessageResult(ConsumeResult<string, string> result, CancellationToken stoppingToken)
         {
             for (int attemptNo = 0; attemptNo < _consumerSettings.MaxConsumerRetries; attemptNo++)
             {
                 try
                 {
-                    RepoResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    ProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
-                        _processedMessage = true;
-                        
-                        break;
+                        return true;
                     }
 
                     _logger.LogInformation($"Error: Processing failed for topic '{result.Topic}'. Retrying...");
@@ -344,90 +355,52 @@ namespace OrderServiceGrpc.Kafka
                     }
                 }
             }
+            return false;
         }
 
-        private async Task<RepoResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<ProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
         {
-            RepoResponseModel repoResponse = new RepoResponseModel();
-
-            using (var scope = _serviceProvider.CreateScope())
+            try
             {
-                IOrderRepository orderRepository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+                CreateOrderRequest request = JsonSerializer.Deserialize<CreateOrderRequest>(result.Message.Value);
 
-                repoResponse = (result.Topic) switch
+                if (request.Order != null && request.Order.Items.Count()>0)
                 {
-                    "order-create" => await OrderCreateEvent(result, orderRepository),
-                    "order-update" => await OrderUpdateEvent(result, orderRepository),
-                    "order-delete" => await OrderDeleteEvent(result, orderRepository),
-                    _ => new RepoResponseModel()
+                    OrderModel orderModel = OrderMessageModelConverter.ToModel(request.Order);
+                    int userId = request.UserId;
+
+                    using (var scope = _serviceProvider.CreateScope())
                     {
-                        Status = false,
-                        Message = $"Error: Invalid topic provided in message={result.Topic}"
+                        IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+
+                        ProcessorResponseModel repoResponse = (result.Topic) switch
+                        {
+                            "order-create" => await processorService.CreateOrder(orderModel, userId),
+                            "order-update" => await processorService.UpdateOrder(orderModel, userId),
+                            "order-delete" => await processorService.DeleteOrder(orderModel.Id, userId),
+                            _ => new ProcessorResponseModel()
+                            {
+                                Status = false,
+                                Message = $"Error: Invalid topic provided in message={result.Topic}"
+                            }
+                        };
+
+                        return repoResponse;
                     }
-                };
-            }
+                }
 
-            return repoResponse;
-        }
-
-        private async Task<RepoResponseModel> OrderCreateEvent(ConsumeResult<string, string> eventValue, IOrderRepository orderRepository)
-        {
-            try
-            {
-                // Deserialize message into domain event
-                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
-
-                return await orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
-            }
-            catch (Exception ex)
-            {
-                return new RepoResponseModel()
+                return new ProcessorResponseModel()
                 {
                     Status = false,
-                    Message = ex.Message,
-                    StackTrace = ex.StackTrace ?? ""
+                    Message = $"Error: Invalid message provided topic:{result.Topic}"
                 };
             }
-        }
-
-        private async Task<RepoResponseModel> OrderUpdateEvent(ConsumeResult<string, string> eventValue, IOrderRepository orderRepository)
-        {
-            try
+            catch (Exception e)
             {
-                // Deserialize message into domain event
-                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
-
-                //Place holder function. Fix later.
-                return await orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
-            }
-            catch (Exception ex)
-            {
-                return new RepoResponseModel()
+                return new ProcessorResponseModel()
                 {
                     Status = false,
-                    Message = ex.Message,
-                    StackTrace = ex.StackTrace ?? ""
-                };
-            }
-        }
-
-        private async Task<RepoResponseModel> OrderDeleteEvent(ConsumeResult<string, string> eventValue, IOrderRepository orderRepository)
-        {
-            try
-            {
-                // Deserialize message into domain event
-                var model = JsonSerializer.Deserialize<OrderCreatedEvent>(eventValue.Message.Value);
-
-                //Place holder function. Fix later.
-                return await orderRepository.InsertOrderCreateEvent(Convert.ToInt32(eventValue.Message.Key));
-            }
-            catch (Exception ex)
-            {
-                return new RepoResponseModel()
-                {
-                    Status = false,
-                    Message = ex.Message,
-                    StackTrace = ex.StackTrace ?? ""
+                    Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"
                 };
             }
         }
