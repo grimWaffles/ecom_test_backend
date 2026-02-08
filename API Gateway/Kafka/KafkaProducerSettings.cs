@@ -4,7 +4,6 @@ namespace API_Gateway.Helpers
 {
     public class KafkaProducerSettings
     {
-        public string BootstrapServer { get; set; } = "";
         public int MessageTimeoutMs { get; set; }
         public int RetryAfterDelayMs { get; set; }
         public int MaxNoOfRetries { get; set; }

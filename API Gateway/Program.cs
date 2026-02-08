@@ -1,11 +1,13 @@
 
+using API_Gateway.Helpers;
+using API_Gateway.Kafka;
+using API_Gateway.Models;
 using API_Gateway.Services;
+using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using ApiGateway.Protos;
-using System.Text;
 using StackExchange.Redis;
-using API_Gateway.Helpers;
+using System.Text;
 namespace API_Gateway
 {
     public class Program
@@ -61,6 +63,8 @@ namespace API_Gateway
 
             //Add AppSettings objects as Options
             builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSection("KafkaProducerSettings"));
+            builder.Services.Configure<KafkaGlobalSetting>(builder.Configuration.GetSection("Kafka"));
+            builder.Services.Configure<MicroServiceUrl>(builder.Configuration.GetSection("MicroServiceUrls"));
 
             var app = builder.Build();
 

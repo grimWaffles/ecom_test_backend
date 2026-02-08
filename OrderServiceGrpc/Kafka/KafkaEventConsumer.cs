@@ -38,7 +38,10 @@ namespace OrderServiceGrpc.Kafka
         // Kafka consumer for main topics
         private IConsumer<string, string> _consumer;
 
-        public KafkaEventConsumer(ILogger<KafkaEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
+        //Global Kafka Settings
+        private KafkaSettings _kafkaSettings;
+
+        public KafkaEventConsumer(ILogger<KafkaEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
         {
             _logger = logger;
 
@@ -50,6 +53,8 @@ namespace OrderServiceGrpc.Kafka
             _consumerSettings = kafkaConsumerSettings.Value;
 
             _logger.LogInformation("Kafka consumer settings loaded...");
+
+            _kafkaSettings = kafkaSettings.Value;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -70,11 +75,15 @@ namespace OrderServiceGrpc.Kafka
 
         private async Task ConfigureKafkaSettings()
         {
+            //Checks for the kafka server are done from the global kafka settings
             try
             {
                 // Validate required config values early
-                if (string.IsNullOrWhiteSpace(_consumerSettings.BootstrapServer))
-                    throw new ArgumentException("Kafka BootstrapServer is missing from configuration.");
+                if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerDocker))
+                    throw new ArgumentException("Kafka BootstrapServer for docker is missing from configuration.");
+
+                if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerLocal))
+                    throw new ArgumentException("Kafka BootstrapServer for dev is missing from configuration.");
 
                 if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
                     throw new ArgumentException("Kafka GroupId is missing from configuration.");
@@ -85,10 +94,12 @@ namespace OrderServiceGrpc.Kafka
                 if (_consumerSettings.DlqTopics.Length == 0)
                     throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
 
+                string kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
+
                 // Consumer configuration
                 _consumerConfig = new ConsumerConfig()
                 {
-                    BootstrapServers = _consumerSettings.BootstrapServer,
+                    BootstrapServers = kafkaBootstrapServer,
                     GroupId = _consumerSettings.GroupId,
                     AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
                     EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
@@ -99,7 +110,7 @@ namespace OrderServiceGrpc.Kafka
                 // Producer configuration for DLQ messages
                 _dlqProducerConfig = new ProducerConfig()
                 {
-                    BootstrapServers = _consumerSettings.BootstrapServer,
+                    BootstrapServers = kafkaBootstrapServer,
                     Acks = _consumerSettings.DlqAcks,            // Wait for all replicas to acknowledge
                     EnableIdempotence = _consumerSettings.DlqIdempotence,  // Ensure no duplicate DLQ messages
                     MessageTimeoutMs = _consumerSettings.DlqMessageTimeoutMs,

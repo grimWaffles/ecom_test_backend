@@ -1,8 +1,10 @@
 ﻿using API_Gateway.Helpers;
+using API_Gateway.Models;
 using ApiGateway.Protos;
 using Confluent.Kafka;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Net.Client;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 namespace API_Gateway.Services
 {
@@ -27,10 +29,12 @@ namespace API_Gateway.Services
         private readonly string order_create_topic = "order-create";
         private readonly string order_update_topic = "order-update";
 
-        public OrderGrpcClient(IConfiguration configuration, IKafkaEventProducer kafkaEventProducer)
+        private readonly MicroServiceUrl _urls;
+
+        public OrderGrpcClient(IOptions<MicroServiceUrl> microserviceUrls, IKafkaEventProducer kafkaEventProducer)
         {
             //gRPC 
-            string serviceUrl = configuration["Microservices:orderService"] ?? "";
+            _urls = microserviceUrls.Value;
 
             var httpHandler = new HttpClientHandler
             {
@@ -38,7 +42,7 @@ namespace API_Gateway.Services
                 ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
             };
 
-            var channel = GrpcChannel.ForAddress(serviceUrl, new GrpcChannelOptions
+            var channel = GrpcChannel.ForAddress(_urls.GetProductServiceUrl(), new GrpcChannelOptions
             {
                 HttpHandler = httpHandler
             });

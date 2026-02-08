@@ -11,6 +11,8 @@ builder.Services.AddGrpc();
 //Add the configurations from appsettings.json 
 builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
 builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
+
+builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("Kafka"));
 builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSection("KafkaConsumerSettings"));
 
 //Dependency Injection

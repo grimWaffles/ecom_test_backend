@@ -1,4 +1,5 @@
-﻿using Confluent.Kafka;
+﻿using API_Gateway.Kafka;
+using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -15,18 +16,21 @@ namespace API_Gateway.Helpers
     public class KafkaEventProducer : IKafkaEventProducer, IAsyncDisposable
     {
         private readonly KafkaProducerSettings _kafkaProducerSettings;
+        private readonly KafkaGlobalSetting _kafkaSettings;
 
         private readonly IProducer<string, string> _producer;
 
         //For Manual Partitioning support
         private int _partitionCounter = -1;
 
-        public KafkaEventProducer(IOptions<KafkaProducerSettings> options)
+        public KafkaEventProducer(IOptions<KafkaGlobalSetting> kafkaSetttings, IOptions<KafkaProducerSettings> options)
         {
             _kafkaProducerSettings = options.Value;
+            _kafkaSettings = kafkaSetttings.Value;
 
             #region KafkaSettings Validation
-            if (_kafkaProducerSettings.BootstrapServer.IsNullOrEmpty()
+            if (_kafkaSettings.BootstrapServerDocker.IsNullOrEmpty()
+                || _kafkaSettings.BootstrapServerLocal.IsNullOrEmpty()
                 || _kafkaProducerSettings.MessageTimeoutMs <= 0
                 || _kafkaProducerSettings.RetryAfterDelayMs <= 0
                 || _kafkaProducerSettings.MaxNoOfRetries <= 0
@@ -36,9 +40,11 @@ namespace API_Gateway.Helpers
             }
             #endregion
 
+            string kafkaServerUrl = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
+
             ProducerConfig producerConfig = new ProducerConfig
             {
-                BootstrapServers = _kafkaProducerSettings.BootstrapServer,
+                BootstrapServers = kafkaServerUrl,
                 EnableIdempotence = _kafkaProducerSettings.EnableIdempotence,   // safe retries, no duplicates
                 MessageTimeoutMs = _kafkaProducerSettings.MessageTimeoutMs,
                 Acks = _kafkaProducerSettings.Acks,    // stronger delivery guarantees
@@ -80,12 +86,13 @@ namespace API_Gateway.Helpers
 
                 DeliveryResult<string, string> result = await _producer.ProduceAsync(topic, messageToSend, token);
 
-                return new KafkaProducerResult() { 
-                    Status = true, 
-                    ErrorMessage = $"Message delivered.{result.Status}", 
-                    PartitionNumber = result.Partition.Value, 
+                return new KafkaProducerResult()
+                {
+                    Status = true,
+                    ErrorMessage = $"Message delivered.{result.Status}",
+                    PartitionNumber = result.Partition.Value,
                     Topic = result.Topic,
-                    Offset = result.TopicPartitionOffset.Offset.Value 
+                    Offset = result.TopicPartitionOffset.Offset.Value
                 };
             }
 
