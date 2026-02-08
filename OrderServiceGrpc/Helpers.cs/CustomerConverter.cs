@@ -1,15 +1,16 @@
 ﻿using Google.Protobuf.WellKnownTypes;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 
 namespace OrderServiceGrpc.Helpers.cs
 {
-    public static class OrderMessageModelConverter
+    public static class CustomerConverter
     {
         // -----------------------------
         //  MESSAGE → MODEL CONVERTERS
         // -----------------------------
-        public static OrderModel ToModel(Order message)
+        public static OrderModel MessageToModel(Order message)
         {
             if (message == null) return null;
 
@@ -39,12 +40,12 @@ namespace OrderServiceGrpc.Helpers.cs
                 IsDeleted = message.IsDeleted,
 
                 OrderItems = (message.Items != null && message.Items.Count > 0)
-                    ? message.Items.Select(ToModel).ToList()
+                    ? message.Items.Select(ItemMessageToItemModel).ToList()
                     : new List<OrderItemModel>()
             };
         }
 
-        public static OrderItemModel ToModel(OrderItem message)
+        public static OrderItemModel ItemMessageToItemModel(OrderItem message)
         {
             if (message == null) return null;
 
@@ -74,7 +75,7 @@ namespace OrderServiceGrpc.Helpers.cs
         // -----------------------------
         //  MODEL → MESSAGE CONVERTERS
         // -----------------------------
-        public static Order ToMessage(OrderModel model)
+        public static Order ModelToMessage(OrderModel model)
         {
             if (model == null) return null;
 
@@ -100,14 +101,14 @@ namespace OrderServiceGrpc.Helpers.cs
             {
                 foreach (var item in model.OrderItems)
                 {
-                    message.Items.Add(ToMessage(item));
+                    message.Items.Add(ModelItemToItemMessage(item));
                 }
             }
 
             return message;
         }
 
-        public static OrderItem ToMessage(OrderItemModel model)
+        public static OrderItem ModelItemToItemMessage(OrderItemModel model)
         {
             if (model == null) return null;
 

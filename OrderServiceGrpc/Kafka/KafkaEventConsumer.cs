@@ -1,8 +1,10 @@
 ﻿
 using Confluent.Kafka;
+using Google.Protobuf;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
@@ -362,11 +364,12 @@ namespace OrderServiceGrpc.Kafka
         {
             try
             {
-                CreateOrderRequest request = JsonSerializer.Deserialize<CreateOrderRequest>(result.Message.Value);
+                //CreateOrderRequest request = JsonParser.Default.Parse<CreateOrderRequest>(result.Message.Value);
+                CreateOrderRequestDto request = JsonSerializer.Deserialize<CreateOrderRequestDto>(result.Message.Value);
 
-                if (request.Order != null && request.Order.Items.Count()>0)
+                if (request.Order != null && request.Order.Items.Count() > 0)
                 {
-                    OrderModel orderModel = OrderMessageModelConverter.ToModel(request.Order);
+                    OrderModel orderModel = OrderMapper.ToEntity(request.Order);
                     int userId = request.UserId;
 
                     using (var scope = _serviceProvider.CreateScope())

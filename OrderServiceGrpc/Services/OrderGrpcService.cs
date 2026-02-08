@@ -28,13 +28,13 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
             
-            ProcessorResponseModel response = await _service.CreateOrder(OrderMessageModelConverter.ToModel(request.Order), userId);
+            ProcessorResponseModel response = await _service.CreateOrder(CustomerConverter.MessageToModel(request.Order), userId);
 
             return new OrderResponse()
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = OrderMessageModelConverter.ToMessage(response.Order ?? new OrderModel())
+                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
             };
         }
 
@@ -47,13 +47,13 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
 
-            ProcessorResponseModel response = await _service.UpdateOrder(OrderMessageModelConverter.ToModel(request.Order), userId);
+            ProcessorResponseModel response = await _service.UpdateOrder(CustomerConverter.MessageToModel(request.Order), userId);
 
             return new OrderResponse()
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = OrderMessageModelConverter.ToMessage(response.Order ?? new OrderModel())
+                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
             };
         }
 
@@ -72,7 +72,7 @@ namespace OrderServiceGrpc.Services
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = OrderMessageModelConverter.ToMessage(response.Order ?? new OrderModel())
+                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
             };
         }
 
@@ -90,7 +90,7 @@ namespace OrderServiceGrpc.Services
                 TotalPages = response.TotalPages
             };
 
-            orderListResponse.Orders.AddRange(response.ListOfOrders.Select(m=>OrderMessageModelConverter.ToMessage(m)).ToList());
+            orderListResponse.Orders.AddRange(response.ListOfOrders.Select(m=>CustomerConverter.ModelToMessage(m)).ToList());
 
             return orderListResponse;
         }
@@ -103,7 +103,7 @@ namespace OrderServiceGrpc.Services
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = OrderMessageModelConverter.ToMessage(response.Order ?? new OrderModel())
+                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
             };
         }
 
