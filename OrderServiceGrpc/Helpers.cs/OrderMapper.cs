@@ -1,5 +1,6 @@
 ﻿using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
+using OrderServiceGrpc.Protos;
 
 namespace OrderServiceGrpc.Helpers.cs
 {
@@ -7,15 +8,15 @@ namespace OrderServiceGrpc.Helpers.cs
     {
         // ===== DTO to Entity =====
 
-        public static OrderModel ToEntity(CreateOrderRequestDto dto)
+        public static OrderModel DtoToEntity(CreateOrderRequestDto dto)
         {
             if (dto?.Order == null)
                 throw new ArgumentNullException(nameof(dto));
 
-            return ToEntity(dto.Order);
+            return DtoToEntity(dto.Order);
         }
 
-        public static OrderModel ToEntity(OrderDto dto)
+        public static OrderModel DtoToEntity(OrderDto dto)
         {
             if (dto == null)
                 throw new ArgumentNullException(nameof(dto));
@@ -33,11 +34,11 @@ namespace OrderServiceGrpc.Helpers.cs
                 ModifiedBy = dto.ModifiedBy,
                 ModifiedDate = ConvertToDateTime(dto.ModifiedDate),
                 IsDeleted = dto.IsDeleted,
-                OrderItems = dto.Items?.Select(ToEntity).ToList() ?? new List<OrderItemModel>()
+                OrderItems = dto.Items?.Select(ItemDtoToItemEntity).ToList() ?? new List<OrderItemModel>()
             };
         }
 
-        public static OrderItemModel ToEntity(OrderItemDto dto)
+        public static OrderItemModel ItemDtoToItemEntity(OrderItemDto dto)
         {
             if (dto == null)
                 throw new ArgumentNullException(nameof(dto));
@@ -61,19 +62,19 @@ namespace OrderServiceGrpc.Helpers.cs
 
         // ===== Entity to DTO =====
 
-        public static CreateOrderRequestDto ToDto(OrderModel entity, int userId)
+        public static CreateOrderRequestDto ItemEntityToItemDto(OrderModel entity, int userId)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
 
             return new CreateOrderRequestDto
             {
-                Order = ToOrderDto(entity),
+                Order = EntityToOrderDto(entity),
                 UserId = userId
             };
         }
 
-        public static OrderDto ToOrderDto(OrderModel entity)
+        public static OrderDto EntityToOrderDto(OrderModel entity)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -91,11 +92,11 @@ namespace OrderServiceGrpc.Helpers.cs
                 ModifiedBy = entity.ModifiedBy,
                 ModifiedDate = ConvertToTimestampDto(entity.ModifiedDate),
                 IsDeleted = entity.IsDeleted,
-                Items = entity.OrderItems?.Select(ToDto).ToList() ?? new List<OrderItemDto>()
+                Items = entity.OrderItems?.Select(ItemEntityToItemDto).ToList() ?? new List<OrderItemDto>()
             };
         }
 
-        public static OrderItemDto ToDto(OrderItemModel entity)
+        public static OrderItemDto ItemEntityToItemDto(OrderItemModel entity)
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -114,6 +115,127 @@ namespace OrderServiceGrpc.Helpers.cs
                 ModifiedDate = ConvertToTimestampDto(entity.ModifiedDate),
                 IsDeleted = entity.IsDeleted,
                 UnitPrice = (double) entity.UnitPrice
+            };
+        }
+
+        // ===== Proto to Entity =====
+
+        public static OrderModel MessageToEntity(Order message)
+        {
+            if (message == null) return null;
+
+            return new OrderModel
+            {
+                Id = message.Id,
+
+                OrderDate = message.OrderDate != null
+                    ? DateTimeHelper.ConvertTimestampToDateTime(message.OrderDate)
+                    : DateTime.MinValue,
+
+                OrderCounter = message.OrderCounter,
+                UserId = message.UserId,
+                Status = message.Status,
+                NetAmount = (decimal)message.NetAmount,
+
+                CreatedBy = message.CreatedBy,
+                CreatedDate = message.CreatedDate != null
+                    ? DateTimeHelper.ConvertTimestampToDateTime(message.CreatedDate)
+                    : DateTime.MinValue,
+
+                ModifiedBy = message.ModifiedBy,
+                ModifiedDate = message.ModifiedDate != null
+                    ? DateTimeHelper.ConvertTimestampToDateTime(message.ModifiedDate)
+                    : DateTime.MinValue,
+
+                IsDeleted = message.IsDeleted,
+
+                OrderItems = (message.Items != null && message.Items.Count > 0)
+                    ? message.Items.Select(ItemMessageToItemEntity).ToList()
+                    : new List<OrderItemModel>()
+            };
+        }
+
+        public static OrderItemModel ItemMessageToItemEntity(OrderItem message)
+        {
+            if (message == null) return null;
+
+            return new OrderItemModel
+            {
+                Id = message.Id,
+                OrderId = message.OrderId,
+                ProductId = message.ProductId,
+                Quantity = message.Quantity,
+                UnitPrice = (decimal)message.GrossAmount,
+                Status = message.Status,
+
+                CreatedBy = message.CreatedBy,
+                CreatedDate = message.CreatedDate != null
+                    ? DateTimeHelper.ConvertTimestampToDateTime(message.CreatedDate)
+                    : DateTime.MinValue,
+
+                ModifiedBy = message.ModifiedBy,
+                ModifiedDate = message.ModifiedDate != null
+                    ? DateTimeHelper.ConvertTimestampToDateTime(message.ModifiedDate)
+                    : DateTime.MinValue,
+
+                IsDeleted = message.IsDeleted
+            };
+        }
+
+        // ===== Entity to Proto =====
+
+        public static Order EntityToMessage(OrderModel model)
+        {
+            if (model == null) return null;
+
+            var message = new Order
+            {
+                Id = model.Id,
+                OrderDate = DateTimeHelper.ConvertDateTimeToTimestamp(model.OrderDate),
+                OrderCounter = model.OrderCounter,
+                UserId = model.UserId,
+                Status = model.Status,
+                NetAmount = (double)model.NetAmount,
+
+                CreatedBy = model.CreatedBy,
+                CreatedDate = DateTimeHelper.ConvertDateTimeToTimestamp(model.CreatedDate),
+                ModifiedBy = model.ModifiedBy,
+                ModifiedDate = DateTimeHelper.ConvertDateTimeToTimestamp(model.ModifiedDate),
+
+                IsDeleted = model.IsDeleted
+            };
+
+            // Add items only if available
+            if (model.OrderItems != null && model.OrderItems.Count > 0)
+            {
+                foreach (var item in model.OrderItems)
+                {
+                    message.Items.Add(ItemEntityToItemMessage(item));
+                }
+            }
+
+            return message;
+        }
+
+        public static OrderItem ItemEntityToItemMessage(OrderItemModel model)
+        {
+            if (model == null) return null;
+
+            return new OrderItem
+            {
+                Id = model.Id,
+                OrderId = model.OrderId,
+                ProductId = model.ProductId,
+                Quantity = model.Quantity,
+                GrossAmount = (double)model.UnitPrice,
+                Status = model.Status,
+
+                CreatedBy = model.CreatedBy,
+                CreatedDate = DateTimeHelper.ConvertDateTimeToTimestamp(model.CreatedDate),
+                ModifiedBy = model.ModifiedBy,
+                ModifiedDate = DateTimeHelper.ConvertDateTimeToTimestamp(model.ModifiedDate),
+
+                IsDeleted = model.IsDeleted
             };
         }
 

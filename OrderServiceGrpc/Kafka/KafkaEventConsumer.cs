@@ -369,7 +369,7 @@ namespace OrderServiceGrpc.Kafka
 
                 if (request.Order != null && request.Order.Items.Count() > 0)
                 {
-                    OrderModel orderModel = OrderMapper.ToEntity(request.Order);
+                    OrderModel orderModel = OrderMapper.DtoToEntity(request.Order);
                     int userId = request.UserId;
 
                     using (var scope = _serviceProvider.CreateScope())

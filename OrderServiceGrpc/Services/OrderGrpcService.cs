@@ -28,7 +28,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
             
-            ProcessorResponseModel response = await _service.CreateOrder(CustomerConverter.MessageToModel(request.Order), userId);
+            ProcessorResponseModel response = await _service.CreateOrder(OrderMapper.MessageToEntity(request.Order), userId);
 
             return new OrderResponse()
             {
