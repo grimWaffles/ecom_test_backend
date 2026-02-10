@@ -28,13 +28,13 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
             
-            ProcessorResponseModel response = await _service.CreateOrder(OrderMapper.MessageToEntity(request.Order), userId);
+            ProcessorResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), userId);
 
             return new OrderResponse()
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
+                Order = OrderMapper.dto
             };
         }
 

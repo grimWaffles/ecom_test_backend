@@ -1,5 +1,6 @@
 ﻿using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
@@ -9,8 +10,8 @@ namespace OrderServiceGrpc.Services
 {
     public interface IOrderProcessorService
     {
-        Task<ProcessorResponseModel> CreateOrder(OrderModel model, int userId);
-        Task<ProcessorResponseModel> UpdateOrder(OrderModel model, int userId);
+        Task<ProcessorResponseModel> CreateOrder(OrderDto dto, int userId);
+        Task<ProcessorResponseModel> UpdateOrder(OrderDto model, int userId);
         Task<ProcessorResponseModel> DeleteOrder(int orderId, int userId);
         Task<ProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
         Task<ProcessorResponseModel> GetOrderById(int orderId);
@@ -24,22 +25,40 @@ namespace OrderServiceGrpc.Services
             _repo = orderRepository;
         }
 
-        public async Task<ProcessorResponseModel> CreateOrder(OrderModel model, int userId)
+        public async Task<ProcessorResponseModel> CreateOrder(OrderDto dto, int userId)
         {
-            await _repo.InsertOrderCreateEvent(model.Id);
-
-            bool orderAdded = await _repo.AddOrder(model, userId);
-
-            return new ProcessorResponseModel()
+            try
             {
-                Status = orderAdded,
-                Message = orderAdded ? "Added successfully" : "Failed to add"
-            };
+                ProcessorResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
+
+                if (!eventLogResponse.Status)
+                {
+                    return eventLogResponse;
+                }
+
+                OrderModel model = OrderMapper.DtoToEntity(dto);
+
+                bool orderAdded = await _repo.AddOrder(model, userId);
+
+                return new ProcessorResponseModel()
+                {
+                    Status = orderAdded,
+                    Message = orderAdded ? "Added successfully" : "Failed to add"
+                };
+            }
+            catch(Exception ex)
+            {
+                return new ProcessorResponseModel
+                {
+                    Status = false,
+                    Message = ex.Message,
+                    StackTrace = ex.StackTrace ?? "Stack trace unavailable"
+                };
+            }
         }
 
         public async Task<ProcessorResponseModel> DeleteOrder(int orderId, int userId)
         {
-            await _repo.InsertOrderCreateEvent(orderId);
             bool orderAdded = await _repo.DeleteOrder(orderId, userId);
 
             return new ProcessorResponseModel()
@@ -51,7 +70,7 @@ namespace OrderServiceGrpc.Services
 
         public async Task<ProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
-            Tuple<int, int, List<OrderModel>> result = await _repo.GetAllOrdersWithPagination(startDate, endDate, pageSize, pageNumber);
+            PagedOrderListModel result = await _repo.GetAllOrdersWithPagination(startDate, endDate, pageSize, pageNumber);
 
             if (result == null) { return new ProcessorResponseModel() { Message = "Failed to get orders", Status = false }; }
 
@@ -61,9 +80,9 @@ namespace OrderServiceGrpc.Services
                 {
                     Status = true,
                     Message = "Success",
-                    TotalPages = result.Item1,
-                    TotalOrders = result.Item2,
-                    ListOfOrders = result.Item3
+                    TotalPages = result.TotalPages,
+                    TotalOrders = result.TotalOrders,
+                    ListOfOrders = result.OrderList.Select(OrderMapper.EntityToOrderDto).ToList()
                 };
 
                 return response;
@@ -84,13 +103,20 @@ namespace OrderServiceGrpc.Services
             {
                 Status = true,
                 Message = "Success",
-                Order = model
+                Order = OrderMapper.EntityToOrderDto(model)
             };
         }
 
-        public async Task<ProcessorResponseModel> UpdateOrder(OrderModel requestModel, int userId)
+        public async Task<ProcessorResponseModel> UpdateOrder(OrderDto dto, int userId)
         {
-            await _repo.InsertOrderCreateEvent(requestModel.Id);
+            ProcessorResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
+
+            if (!eventLogResponse.Status)
+            {
+                return eventLogResponse;
+            }
+
+            OrderModel requestModel = OrderMapper.DtoToEntity(dto);
 
             OrderModel dbModel = await _repo.GetOrderById(requestModel.Id);
 

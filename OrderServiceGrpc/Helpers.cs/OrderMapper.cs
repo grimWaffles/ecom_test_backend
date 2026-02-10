@@ -239,6 +239,63 @@ namespace OrderServiceGrpc.Helpers.cs
             };
         }
 
+        // ===== Proto to DTO =====
+
+        public static CreateOrderRequestDto CreateOrderRequestToDto(CreateOrderRequest proto)
+        {
+            if (proto == null)
+                throw new ArgumentNullException(nameof(proto));
+
+            return new CreateOrderRequestDto
+            {
+                Order = ProtoToDto(proto.Order),
+                UserId = proto.UserId
+            };
+        }
+
+        public static OrderDto ProtoToDto(Order proto)
+        {
+            if (proto == null)
+                throw new ArgumentNullException(nameof(proto));
+
+            return new OrderDto
+            {
+                Id = proto.Id,
+                OrderDate = TimestampProtoToDto(proto.OrderDate),
+                OrderCounter = proto.OrderCounter,
+                UserId = proto.UserId,
+                Status = proto.Status ?? "",
+                NetAmount = proto.NetAmount,
+                CreatedBy = proto.CreatedBy,
+                CreatedDate = TimestampProtoToDto(proto.CreatedDate),
+                ModifiedBy = proto.ModifiedBy,
+                ModifiedDate = TimestampProtoToDto(proto.ModifiedDate),
+                IsDeleted = proto.IsDeleted,
+                Items = proto.Items?.Select(ItemProtoToDto).ToList() ?? new List<OrderItemDto>()
+            };
+        }
+
+        public static OrderItemDto ItemProtoToDto(OrderItem proto)
+        {
+            if (proto == null)
+                throw new ArgumentNullException(nameof(proto));
+
+            return new OrderItemDto
+            {
+                Id = proto.Id,
+                OrderId = proto.OrderId,
+                ProductId = proto.ProductId,
+                Quantity = proto.Quantity,
+                GrossAmount = proto.GrossAmount,
+                Status = proto.Status ?? "",
+                CreatedBy = proto.CreatedBy,
+                CreatedDate = TimestampProtoToDto(proto.CreatedDate),
+                ModifiedBy = proto.ModifiedBy,
+                ModifiedDate = TimestampProtoToDto(proto.ModifiedDate),
+                IsDeleted = proto.IsDeleted
+            };
+        }
+
         // ===== Helper Methods =====
 
         private static DateTime ConvertToDateTime(TimestampDto timestamp)
@@ -259,6 +316,18 @@ namespace OrderServiceGrpc.Helpers.cs
             {
                 Seconds = (long)timeSpan.TotalSeconds,
                 Nanos = (int)((timeSpan.Ticks % TimeSpan.TicksPerSecond) * 100)
+            };
+        }
+
+        private static TimestampDto TimestampProtoToDto(Google.Protobuf.WellKnownTypes.Timestamp proto)
+        {
+            if (proto == null)
+                return new TimestampDto();
+
+            return new TimestampDto
+            {
+                Seconds = proto.Seconds,
+                Nanos = proto.Nanos
             };
         }
     }

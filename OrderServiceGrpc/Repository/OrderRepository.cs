@@ -26,7 +26,7 @@ namespace OrderServiceGrpc.Repository
         Task<bool> UpdateOrder(OrderModel request, List<OrderItemModel> addList, List<OrderItemModel> deleteList, List<OrderItemModel> updateList, int userId);
         Task<bool> DeleteOrder(int requestId, int userId);
         Task<int> GetOrderCount();
-        Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
+        Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
         Task<ProcessorResponseModel> InsertOrderCreateEvent(int orderId);
     }
@@ -243,7 +243,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        public async Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
             using var conn = GetDatabaseConnection();
             try
@@ -268,7 +268,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        private async Task<PagedOrderListModel> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
             // Common parameters
             var parameters = new DynamicParameters();
@@ -298,7 +298,12 @@ namespace OrderServiceGrpc.Repository
                 int totalOrders = Convert.ToInt32(await conn.ExecuteScalarAsync<long>(MY_SQL_COUNT, parameters));
                 int totalPages = Convert.ToInt32(System.Math.Ceiling((decimal)totalOrders / pageSize));
 
-                return Tuple.Create(totalPages, totalOrders, orderList);
+                return new PagedOrderListModel()
+                {
+                    TotalOrders = totalOrders,
+                    TotalPages = totalPages,
+                    OrderList = orderList
+                };
             }
             catch (Exception e)
             {
@@ -306,7 +311,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        private async Task<PagedOrderListModel> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
 
             // Common parameters
@@ -370,7 +375,12 @@ namespace OrderServiceGrpc.Repository
             int totalPages = reader.ReadSingle<int>();
             int totalOrders = reader.ReadSingle<int>();
 
-            return Tuple.Create(totalPages, totalOrders, orders);
+            return new PagedOrderListModel()
+            {
+                TotalOrders = totalOrders,
+                TotalPages = totalPages,
+                OrderList = orders
+            };
         }
 
         public async Task<OrderModel> GetOrderById(int orderId)
@@ -469,7 +479,6 @@ namespace OrderServiceGrpc.Repository
                 };
             }
         }
-
 
         public async Task<int> GetOrderCount()
         {
