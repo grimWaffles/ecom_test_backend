@@ -34,26 +34,25 @@ namespace OrderServiceGrpc.Services
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = OrderMapper.dto
+                Order = OrderMapper.DtoToProto(response.Order)
             };
         }
 
         public override async Task<OrderResponse> UpdateOrder(UpdateOrderRequest request, ServerCallContext context)
         {
-            int userId = 1;
 
             if (!ValidateGrpcRequests())
             {
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
 
-            ProcessorResponseModel response = await _service.UpdateOrder(CustomerConverter.MessageToModel(request.Order), userId);
+            ProcessorResponseModel response = await _service.UpdateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
 
             return new OrderResponse()
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
+                Order = OrderMapper.DtoToProto(response.Order)
             };
         }
 
@@ -72,7 +71,7 @@ namespace OrderServiceGrpc.Services
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
+                Order = new Order()
             };
         }
 
@@ -90,7 +89,7 @@ namespace OrderServiceGrpc.Services
                 TotalPages = response.TotalPages
             };
 
-            orderListResponse.Orders.AddRange(response.ListOfOrders.Select(m=>CustomerConverter.ModelToMessage(m)).ToList());
+            orderListResponse.Orders.AddRange(response.ListOfOrders.Select(m=>OrderMapper.DtoToProto(m)).ToList());
 
             return orderListResponse;
         }
@@ -103,7 +102,7 @@ namespace OrderServiceGrpc.Services
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = CustomerConverter.ModelToMessage(response.Order ?? new OrderModel())
+                Order = OrderMapper.DtoToProto(response.Order)
             };
         }
 

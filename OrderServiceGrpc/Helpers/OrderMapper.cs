@@ -114,7 +114,7 @@ namespace OrderServiceGrpc.Helpers.cs
                 ModifiedBy = entity.ModifiedBy,
                 ModifiedDate = ConvertToTimestampDto(entity.ModifiedDate),
                 IsDeleted = entity.IsDeleted,
-                UnitPrice = (double) entity.UnitPrice
+                UnitPrice = (double)entity.UnitPrice
             };
         }
 
@@ -296,8 +296,71 @@ namespace OrderServiceGrpc.Helpers.cs
             };
         }
 
-        // ===== Helper Methods =====
+        // ===== DTO to Proto =====
 
+        public static Order DtoToProto(OrderDto dto)
+        {
+            if (dto == null)
+                throw new ArgumentNullException(nameof(dto));
+
+            var order = new Order
+            {
+                Id = dto.Id,
+                OrderDate = DtoTimestampToProto(dto.OrderDate),
+                OrderCounter = dto.OrderCounter,
+                UserId = dto.UserId,
+                Status = dto.Status ?? "",
+                NetAmount = dto.NetAmount,
+                CreatedBy = dto.CreatedBy,
+                CreatedDate = DtoTimestampToProto(dto.CreatedDate),
+                ModifiedBy = dto.ModifiedBy,
+                ModifiedDate = DtoTimestampToProto(dto.ModifiedDate),
+                IsDeleted = dto.IsDeleted
+            };
+
+            // Add items to the repeated field
+            if (dto.Items != null)
+            {
+                order.Items.AddRange(dto.Items.Select(ItemDtoToProto));
+            }
+
+            return order;
+        }
+
+        public static OrderItem ItemDtoToProto(OrderItemDto dto)
+        {
+            if (dto == null)
+                throw new ArgumentNullException(nameof(dto));
+
+            return new OrderItem
+            {
+                Id = dto.Id,
+                OrderId = dto.OrderId,
+                ProductId = dto.ProductId,
+                Quantity = dto.Quantity,
+                GrossAmount = dto.GrossAmount,
+                Status = dto.Status ?? "",
+                CreatedBy = dto.CreatedBy,
+                CreatedDate = DtoTimestampToProto(dto.CreatedDate),
+                ModifiedBy = dto.ModifiedBy,
+                ModifiedDate = DtoTimestampToProto(dto.ModifiedDate),
+                IsDeleted = dto.IsDeleted,
+                UnitPrice = (double)dto.UnitPrice
+            };
+        }
+
+        // ===== Helper Methods =====
+        private static Google.Protobuf.WellKnownTypes.Timestamp DtoTimestampToProto(TimestampDto dto)
+        {
+            if (dto == null)
+                return new Google.Protobuf.WellKnownTypes.Timestamp();
+
+            return new Google.Protobuf.WellKnownTypes.Timestamp
+            {
+                Seconds = dto.Seconds,
+                Nanos = dto.Nanos
+            };
+        }
         private static DateTime ConvertToDateTime(TimestampDto timestamp)
         {
             if (timestamp == null)
@@ -306,7 +369,6 @@ namespace OrderServiceGrpc.Helpers.cs
             var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             return epoch.AddSeconds(timestamp.Seconds).AddTicks(timestamp.Nanos / 100);
         }
-
         private static TimestampDto ConvertToTimestampDto(DateTime dateTime)
         {
             var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -318,7 +380,6 @@ namespace OrderServiceGrpc.Helpers.cs
                 Nanos = (int)((timeSpan.Ticks % TimeSpan.TicksPerSecond) * 100)
             };
         }
-
         private static TimestampDto TimestampProtoToDto(Google.Protobuf.WellKnownTypes.Timestamp proto)
         {
             if (proto == null)

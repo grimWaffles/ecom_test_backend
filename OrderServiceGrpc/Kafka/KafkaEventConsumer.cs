@@ -378,9 +378,9 @@ namespace OrderServiceGrpc.Kafka
 
                         ProcessorResponseModel repoResponse = (result.Topic) switch
                         {
-                            "order-create" => await processorService.CreateOrder(orderModel, userId),
-                            "order-update" => await processorService.UpdateOrder(orderModel, userId),
-                            "order-delete" => await processorService.DeleteOrder(orderModel.Id, userId),
+                            "order-create" => await processorService.CreateOrder(request.Order, userId),
+                            "order-update" => await processorService.UpdateOrder(request.Order, userId),
+                            "order-delete" => await processorService.DeleteOrder(request.Order.Id, userId),
                             _ => new ProcessorResponseModel()
                             {
                                 Status = false,
