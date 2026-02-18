@@ -3,7 +3,7 @@ using OrderServiceGrpc.Models.Entities;
 
 namespace OrderServiceGrpc.Models
 {
-    public class ProcessorResponseModel
+    public class OrderProcessorResponseModel
     {
         public string Message { get; set; }
         public bool Status { get; set; }
@@ -12,5 +12,6 @@ namespace OrderServiceGrpc.Models
         public int TotalPages { get; set; }
         public int TotalOrders { get; set; }
         public List<OrderDto> ListOfOrders { get; set; }
+        public int InsertedOrderId { get; set; }
     }
 }

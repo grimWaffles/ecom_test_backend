@@ -90,4 +90,5 @@ service OrderGrpcService {
   rpc GetAllOrders (OrderListRequest) returns (OrderListResponse);
   rpc UpdateOrder (UpdateOrderRequest) returns (OrderResponse);
   rpc DeleteOrder (DeleteOrderRequest) returns (OrderResponse);
+  rpc TestOrderGrpcService(google.protobuf.Empty) returns (OrderResponse);
 }

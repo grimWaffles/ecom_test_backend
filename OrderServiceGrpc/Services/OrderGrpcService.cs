@@ -28,7 +28,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
             
-            ProcessorResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), userId);
+            OrderProcessorResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), userId);
 
             return new OrderResponse()
             {
@@ -46,7 +46,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
 
-            ProcessorResponseModel response = await _service.UpdateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
+            OrderProcessorResponseModel response = await _service.UpdateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
 
             return new OrderResponse()
             {
@@ -65,7 +65,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse() { Message = "Failed to validate", Status = false };
             }
 
-            ProcessorResponseModel response = await _service.DeleteOrder(request.Id, userId);
+            OrderProcessorResponseModel response = await _service.DeleteOrder(request.Id, userId);
 
             return new OrderResponse()
             {
@@ -80,7 +80,7 @@ namespace OrderServiceGrpc.Services
             DateTime startDate = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
             DateTime endDate = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
 
-            ProcessorResponseModel response = await _service.GetAllOrders(startDate, endDate, request.PageSize, request.PageNumber);
+            OrderProcessorResponseModel response = await _service.GetAllOrders(startDate, endDate, request.PageSize, request.PageNumber);
             OrderListResponse orderListResponse = new OrderListResponse()
             {
                 Status = response.Status,
@@ -96,7 +96,7 @@ namespace OrderServiceGrpc.Services
 
         public override async Task<OrderResponse> GetOrderById(OrderIdRequest request, ServerCallContext context)
         {
-            ProcessorResponseModel response = await _service.GetOrderById(request.Id);
+            OrderProcessorResponseModel response = await _service.GetOrderById(request.Id);
 
             return new OrderResponse()
             {
@@ -114,6 +114,17 @@ namespace OrderServiceGrpc.Services
         private bool ValidateGrpcRequests()
         {
             return true;
+        }
+
+        public override async Task<OrderResponse> TestOrderGrpcService(Empty request, ServerCallContext context)
+        {
+            OrderProcessorResponseModel response = await _service.TestOrderProcessorService();
+
+            return new OrderResponse()
+            {
+                Status = response.Status,
+                Message = response.Message
+            };
         }
     }
 }
