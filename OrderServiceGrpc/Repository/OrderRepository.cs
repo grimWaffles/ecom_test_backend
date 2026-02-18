@@ -22,13 +22,13 @@ namespace OrderServiceGrpc.Repository
     public interface IOrderRepository
     {
         Task<OrderModel> GetOrderById(int orderId);
-        Task<bool> AddOrder(OrderModel request, int userId);
+        Task<int> AddSingleOrder(OrderModel request, int userId);
         Task<bool> UpdateOrder(OrderModel request, List<OrderItemModel> addList, List<OrderItemModel> deleteList, List<OrderItemModel> updateList, int userId);
-        Task<bool> DeleteOrder(int requestId, int userId);
+        Task<bool> DeleteSingleOrder(int requestId, int userId);
         Task<int> GetOrderCount();
-        Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
+        Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
-        Task<ProcessorResponseModel> InsertOrderCreateEvent(int orderId);
+        Task<OrderProcessorResponseModel> InsertOrderCreateEvent(int orderId);
     }
 
     public class OrderRepository : IOrderRepository
@@ -57,11 +57,12 @@ namespace OrderServiceGrpc.Repository
             return new SqlConnection(_connectionString);
         }
 
-        public async Task<bool> AddOrder(OrderModel request, int userId)
+        public async Task<int> AddSingleOrder(OrderModel request, int userId)
         {
+            int insertedOrderId = 0;
             const string insertOrderSql = @" INSERT INTO [dbo].[Orders]
-                                   ([OrderDate] ,[OrderCounter] ,[UserId]  ,[Status] ,[NetAmount] ,[CreatedBy] ,[CreatedDate] ,[IsDeleted])
-                             VALUES (@OrderDate,  @OrderCounter, @UserId, @Status, @NetAmount, @CreatedBy,  @CreatedDate, @IsDeleted ); select Convert(int,SCOPE_IDENTITY())";
+                                   ([OrderDate] ,[OrderCounter] ,[UserId]  ,[Status] ,[NetAmount] ,[CreatedBy] ,[CreatedDate] ,[IsDeleted],[ModifiedDate],[ModifiedBy])
+                             VALUES (@OrderDate,  @OrderCounter, @UserId, @Status, @NetAmount, @CreatedBy,  @CreatedDate, @IsDeleted, @ModifiedDate,@ModifiedBy ); select Convert(int,SCOPE_IDENTITY())";
 
             await using SqlConnection conn = new SqlConnection(_connectionString);
             await conn.OpenAsync();
@@ -76,25 +77,28 @@ namespace OrderServiceGrpc.Repository
                 iop.Add("@UserId", request.UserId);
                 iop.Add("@Status", request.Status);
                 iop.Add("@NetAmount", request.NetAmount);
-
+                iop.Add("@ModifiedDate", DateTime.UtcNow);
+                iop.Add("@ModifiedBy", userId);
                 iop.Add("@CreatedBy", userId);
                 iop.Add("@CreatedDate", DateTime.UtcNow);
                 iop.Add("@IsDeleted", false);
 
-                int insertedOrderId = await conn.ExecuteScalarAsync<int>(insertOrderSql, iop, t);
+                insertedOrderId = await conn.ExecuteScalarAsync<int>(insertOrderSql, iop, t);
 
                 foreach (var item in request.OrderItems)
                 {
                     item.OrderId = insertedOrderId;
                     item.CreatedDate = DateTime.UtcNow;
                     item.CreatedBy = userId;
+                    item.ModifiedDate = DateTime.UtcNow;
+                    item.ModifiedBy = userId;
                 }
 
                 using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)t))
                 {
                     bulkCopy.DestinationTableName = "OrderItems";
 
-                    DataTable dt = DataTableConverter.ToDataTable<OrderItemModel>(request.OrderItems);
+                    DataTable dt = DataTableConverter.OrderItemsToDataTable(request.OrderItems);
 
                     await bulkCopy.WriteToServerAsync(dt);
                 }
@@ -104,14 +108,14 @@ namespace OrderServiceGrpc.Repository
             catch (Exception e)
             {
                 await t.RollbackAsync();
-                return false;
+                return 0;
             }
             finally { await conn.CloseAsync(); }
 
-            return true;
+            return insertedOrderId;
         }
 
-        public async Task<bool> DeleteOrder(int request, int userId)
+        public async Task<bool> DeleteSingleOrder(int request, int userId)
         {
             try
             {
@@ -159,12 +163,12 @@ namespace OrderServiceGrpc.Repository
                                                         WHERE Id = @Id; ";
 
 
-            const string deleteOrderItemSingleSql = @"  update o set
+            string deleteOrderItemMultipleSql = @"  update o set
 	                                                        o.ModifiedBy = @UserId,
 	                                                        o.ModifiedDate = GETDATE(),
 	                                                        o.IsDeleted = 1
                                                         from OrderItems o
-                                                        where o.Id = @Id and o.OrderId = @OrderId";
+                                                        where o.OrderId = @OrderId and o.Id in ";
 
             const string updateOrderItemSingleSql = @"  update o set
 	                                                        o.Quantity = @Quantity,
@@ -182,28 +186,40 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 //Delete List Processing
-                foreach (var item in deleteList)
-                {
-                    var deleteParams = new DynamicParameters();
-                    deleteParams.Add("@Id", item.Id);
-                    deleteParams.Add("@UserId", userId);
-                    deleteParams.Add("@OrderId", item.OrderId);
+                #region Deleting order items in bulk
+                string listOfIdsToDelete = "(" + string.Join(",", deleteList.Select(x => x.Id)) + ")";
 
-                    await conn.ExecuteAsync(deleteOrderItemSingleSql, deleteParams, transaction);
-                }
+                deleteOrderItemMultipleSql = deleteOrderItemMultipleSql + listOfIdsToDelete;
+
+                var deleteParams = new DynamicParameters();
+                deleteParams.Add("@UserId", userId);
+                deleteParams.Add("@OrderId", request.Id);
+
+                await conn.ExecuteAsync(deleteOrderItemMultipleSql, deleteParams, transaction);
+                #endregion
 
                 //AddList Processing
+                #region Bulk Insert all order items to add
                 if (addList.Count > 0)
                 {
+                    foreach (var item in addList)
+                    {
+                        item.CreatedDate = DateTime.UtcNow;
+                        item.CreatedBy = userId;
+                        item.ModifiedDate = DateTime.UtcNow;
+                        item.ModifiedBy = userId;
+                    }
+
                     using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)transaction))
                     {
                         bulkCopy.DestinationTableName = "OrderItems";
 
-                        DataTable dt = DataTableConverter.ToDataTable<OrderItemModel>(addList);
+                        DataTable dt = DataTableConverter.OrderItemsToDataTable(addList);
 
                         await bulkCopy.WriteToServerAsync(dt);
                     }
                 }
+                #endregion
 
                 //UpdateList processing
                 foreach (var item in updateList)
@@ -243,7 +259,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<Tuple<int, int, List<OrderModel>>> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        public async Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
             using var conn = GetDatabaseConnection();
             try
@@ -268,7 +284,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        private async Task<PagedOrderListModel> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
             // Common parameters
             var parameters = new DynamicParameters();
@@ -298,7 +314,12 @@ namespace OrderServiceGrpc.Repository
                 int totalOrders = Convert.ToInt32(await conn.ExecuteScalarAsync<long>(MY_SQL_COUNT, parameters));
                 int totalPages = Convert.ToInt32(System.Math.Ceiling((decimal)totalOrders / pageSize));
 
-                return Tuple.Create(totalPages, totalOrders, orderList);
+                return new PagedOrderListModel()
+                {
+                    TotalOrders = totalOrders,
+                    TotalPages = totalPages,
+                    OrderList = orderList
+                };
             }
             catch (Exception e)
             {
@@ -306,7 +327,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<Tuple<int, int, List<OrderModel>>> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        private async Task<PagedOrderListModel> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
 
             // Common parameters
@@ -370,7 +391,12 @@ namespace OrderServiceGrpc.Repository
             int totalPages = reader.ReadSingle<int>();
             int totalOrders = reader.ReadSingle<int>();
 
-            return Tuple.Create(totalPages, totalOrders, orders);
+            return new PagedOrderListModel()
+            {
+                TotalOrders = totalOrders,
+                TotalPages = totalPages,
+                OrderList = orders
+            };
         }
 
         public async Task<OrderModel> GetOrderById(int orderId)
@@ -426,7 +452,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<ProcessorResponseModel> InsertOrderCreateEvent(int orderId)
+        public async Task<OrderProcessorResponseModel> InsertOrderCreateEvent(int orderId)
         {
             const string sql = @"INSERT INTO OrderEventLogs (OrderId, CreatedAt) VALUES (@OrderId, @CreatedAt);";
 
@@ -443,7 +469,7 @@ namespace OrderServiceGrpc.Repository
                 {
                     await conn.ExecuteAsync(sql, parameters);
 
-                    return new ProcessorResponseModel
+                    return new OrderProcessorResponseModel
                     {
                         Status = true,
                         Message = "Order inserted successfully"
@@ -452,7 +478,7 @@ namespace OrderServiceGrpc.Repository
                 catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
                 {
                     // UNIQUE constraint violation → duplicate Kafka message
-                    return new ProcessorResponseModel
+                    return new OrderProcessorResponseModel
                     {
                         Status = true,
                         Message = "Order already exists (idempotent)"
@@ -461,7 +487,7 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception ex)
             {
-                return new ProcessorResponseModel
+                return new OrderProcessorResponseModel
                 {
                     Status = false,
                     Message = ex.Message,
@@ -469,7 +495,6 @@ namespace OrderServiceGrpc.Repository
                 };
             }
         }
-
 
         public async Task<int> GetOrderCount()
         {

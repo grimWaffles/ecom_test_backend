@@ -1,8 +1,10 @@
 ﻿
 using Confluent.Kafka;
+using Google.Protobuf;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
@@ -154,7 +156,7 @@ namespace OrderServiceGrpc.Kafka
                         continue;
                     }
 
-                    ProcessorResponseModel repoResponse = new ProcessorResponseModel();
+                    OrderProcessorResponseModel repoResponse = new OrderProcessorResponseModel();
 
                     //Validate message topic
                     bool topicExists = Array.Exists(_consumerSettings.TopicsToConsume, x => x == result.Topic);
@@ -197,7 +199,7 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, ProcessorResponseModel repoResponse, CancellationToken stoppingToken)
+        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, OrderProcessorResponseModel repoResponse, CancellationToken stoppingToken)
         {
             string dlqTopic = ""; bool produceDlq = false;
 
@@ -331,7 +333,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    ProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    OrderProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
@@ -358,27 +360,28 @@ namespace OrderServiceGrpc.Kafka
             return false;
         }
 
-        private async Task<ProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<OrderProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
         {
             try
             {
-                CreateOrderRequest request = JsonSerializer.Deserialize<CreateOrderRequest>(result.Message.Value);
+                //CreateOrderRequest request = JsonParser.Default.Parse<CreateOrderRequest>(result.Message.Value);
+                CreateOrderRequestDto request = JsonSerializer.Deserialize<CreateOrderRequestDto>(result.Message.Value);
 
-                if (request.Order != null && request.Order.Items.Count()>0)
+                if (request.Order != null && request.Order.Items.Count() > 0)
                 {
-                    OrderModel orderModel = OrderMessageModelConverter.ToModel(request.Order);
+                    OrderModel orderModel = OrderMapper.DtoToEntity(request.Order);
                     int userId = request.UserId;
 
                     using (var scope = _serviceProvider.CreateScope())
                     {
                         IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
 
-                        ProcessorResponseModel repoResponse = (result.Topic) switch
+                        OrderProcessorResponseModel repoResponse = (result.Topic) switch
                         {
-                            "order-create" => await processorService.CreateOrder(orderModel, userId),
-                            "order-update" => await processorService.UpdateOrder(orderModel, userId),
-                            "order-delete" => await processorService.DeleteOrder(orderModel.Id, userId),
-                            _ => new ProcessorResponseModel()
+                            "order-create" => await processorService.CreateOrder(request.Order, userId),
+                            "order-update" => await processorService.UpdateOrder(request.Order, userId),
+                            "order-delete" => await processorService.DeleteOrder(request.Order.Id, userId),
+                            _ => new OrderProcessorResponseModel()
                             {
                                 Status = false,
                                 Message = $"Error: Invalid topic provided in message={result.Topic}"
@@ -389,7 +392,7 @@ namespace OrderServiceGrpc.Kafka
                     }
                 }
 
-                return new ProcessorResponseModel()
+                return new OrderProcessorResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid message provided topic:{result.Topic}"
@@ -397,7 +400,7 @@ namespace OrderServiceGrpc.Kafka
             }
             catch (Exception e)
             {
-                return new ProcessorResponseModel()
+                return new OrderProcessorResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"

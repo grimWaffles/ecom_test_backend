@@ -1,19 +1,22 @@
 ﻿using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
 using System.ComponentModel;
+using System.Text;
 
 namespace OrderServiceGrpc.Services
 {
     public interface IOrderProcessorService
     {
-        Task<ProcessorResponseModel> CreateOrder(OrderModel model, int userId);
-        Task<ProcessorResponseModel> UpdateOrder(OrderModel model, int userId);
-        Task<ProcessorResponseModel> DeleteOrder(int orderId, int userId);
-        Task<ProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
-        Task<ProcessorResponseModel> GetOrderById(int orderId);
+        Task<OrderProcessorResponseModel> CreateOrder(OrderDto dto, int userId);
+        Task<OrderProcessorResponseModel> UpdateOrder(OrderDto model, int userId);
+        Task<OrderProcessorResponseModel> DeleteOrder(int orderId, int userId);
+        Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
+        Task<OrderProcessorResponseModel> GetOrderById(int orderId);
+        Task<OrderProcessorResponseModel> TestOrderProcessorService();
     }
     public class OrderProcessorService : IOrderProcessorService
     {
@@ -24,111 +27,160 @@ namespace OrderServiceGrpc.Services
             _repo = orderRepository;
         }
 
-        public async Task<ProcessorResponseModel> CreateOrder(OrderModel model, int userId)
+        public async Task<OrderProcessorResponseModel> CreateOrder(OrderDto dto, int userId)
         {
-            await _repo.InsertOrderCreateEvent(model.Id);
-
-            bool orderAdded = await _repo.AddOrder(model, userId);
-
-            return new ProcessorResponseModel()
+            try
             {
-                Status = orderAdded,
-                Message = orderAdded ? "Added successfully" : "Failed to add"
-            };
+                OrderProcessorResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
+
+                if (!eventLogResponse.Status)
+                {
+                    return eventLogResponse;
+                }
+
+                OrderModel model = OrderMapper.DtoToEntity(dto);
+
+                int insertedOrderId = await _repo.AddSingleOrder(model, userId);
+
+                return new OrderProcessorResponseModel()
+                {
+                    Status = insertedOrderId == 0 ? false : true,
+                    Message = insertedOrderId>0 ? "Added successfully" : "Failed to add",
+                    InsertedOrderId = insertedOrderId
+                };
+            }
+            catch(Exception ex)
+            {
+                return new OrderProcessorResponseModel
+                {
+                    Status = false,
+                    Message = ex.Message,
+                    StackTrace = ex.StackTrace ?? "Stack trace unavailable"
+                };
+            }
         }
 
-        public async Task<ProcessorResponseModel> DeleteOrder(int orderId, int userId)
+        public async Task<OrderProcessorResponseModel> DeleteOrder(int orderId, int userId)
         {
-            await _repo.InsertOrderCreateEvent(orderId);
-            bool orderAdded = await _repo.DeleteOrder(orderId, userId);
+            bool orderAdded = await _repo.DeleteSingleOrder(orderId, userId);
 
-            return new ProcessorResponseModel()
+            return new OrderProcessorResponseModel()
             {
                 Status = orderAdded,
                 Message = orderAdded ? "Deleted successfully" : "Failed to delete"
             };
         }
 
-        public async Task<ProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        public async Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
         {
-            Tuple<int, int, List<OrderModel>> result = await _repo.GetAllOrdersWithPagination(startDate, endDate, pageSize, pageNumber);
+            PagedOrderListModel result = await _repo.GetAllOrdersWithPagination(startDate, endDate, pageSize, pageNumber);
 
-            if (result == null) { return new ProcessorResponseModel() { Message = "Failed to get orders", Status = false }; }
+            if (result == null) { return new OrderProcessorResponseModel() { Message = "Failed to get orders", Status = false }; }
 
             try
             {
-                ProcessorResponseModel response = new ProcessorResponseModel()
+                OrderProcessorResponseModel response = new OrderProcessorResponseModel()
                 {
                     Status = true,
                     Message = "Success",
-                    TotalPages = result.Item1,
-                    TotalOrders = result.Item2,
-                    ListOfOrders = result.Item3
+                    TotalPages = result.TotalPages,
+                    TotalOrders = result.TotalOrders,
+                    ListOfOrders = result.OrderList.Select(OrderMapper.EntityToOrderDto).ToList()
                 };
 
                 return response;
             }
             catch (Exception e)
             {
-                return new ProcessorResponseModel() { Message = "Failed to get orders", Status = false, StackTrace = e.StackTrace ?? e.Message };
+                return new OrderProcessorResponseModel() { Message = "Failed to get orders", Status = false, StackTrace = e.StackTrace ?? e.Message };
             }
         }
 
-        public async Task<ProcessorResponseModel> GetOrderById(int orderId)
+        public async Task<OrderProcessorResponseModel> GetOrderById(int orderId)
         {
             OrderModel model = await _repo.GetOrderById(orderId);
 
-            if (model == null) { return new ProcessorResponseModel() { Message = "Failed to get order", Status = false }; }
+            if (model == null) { return new OrderProcessorResponseModel() { Message = "Failed to get order", Status = false }; }
 
-            return new ProcessorResponseModel()
+            return new OrderProcessorResponseModel()
             {
                 Status = true,
                 Message = "Success",
-                Order = model
+                Order = OrderMapper.EntityToOrderDto(model)
             };
         }
 
-        public async Task<ProcessorResponseModel> UpdateOrder(OrderModel requestModel, int userId)
+        public async Task<OrderProcessorResponseModel> UpdateOrder(OrderDto dto, int userId)
         {
-            await _repo.InsertOrderCreateEvent(requestModel.Id);
-
-            OrderModel dbModel = await _repo.GetOrderById(requestModel.Id);
-
-            List<OrderItemModel> deleteList = new();
-            List<OrderItemModel> addList = new();
-            List<OrderItemModel> updateList = new();
-
-            //Check for deleted items
-            deleteList = dbModel.OrderItems.Where(d => !requestModel.OrderItems.Any(r => r.Id == d.Id)).Select(x => PrepareItemToDelete(x, requestModel.Id, userId)).ToList();
-
-            //Check for added items
-            addList = requestModel.OrderItems.Where(i => i.Id == 0).Select(x => PrepareItemToAdd(x, requestModel.Id, userId)).ToList();
-
-            //Check for updated AND existing items
-            Dictionary<int, OrderItemModel> dbLookup = dbModel.OrderItems.ToDictionary(i => i.Id);
-
-            foreach (OrderItemModel req in requestModel.OrderItems.Where(i => i.Id != 0))
+            try
             {
-                if (dbLookup.TryGetValue(req.Id, out var db))
-                {
-                    if (HasChanges(req, db))
-                    {
-                        req.GrossAmount = req.Quantity * req.UnitPrice;
-                        req.ModifiedBy = userId;
-                        req.ModifiedDate = DateTime.Now;
+                OrderProcessorResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
 
-                        updateList.Add(req);
+                if (!eventLogResponse.Status)
+                {
+                    return eventLogResponse;
+                }
+
+                OrderModel requestModel = OrderMapper.DtoToEntity(dto);
+
+                OrderModel dbModel = await _repo.GetOrderById(requestModel.Id);
+
+                if(requestModel.Id!= 0 && dbModel != null)
+                {
+                    List<OrderItemModel> deleteList = new();
+                    List<OrderItemModel> addList = new();
+                    List<OrderItemModel> updateList = new();
+
+                    //Check for deleted items
+                    deleteList = dbModel.OrderItems.Where(d => !requestModel.OrderItems.Any(r => r.Id == d.Id)).Select(x => PrepareItemToDelete(x, requestModel.Id, userId)).ToList();
+
+                    //Check for added items
+                    addList = requestModel.OrderItems.Where(i => i.Id == 0).Select(x => PrepareItemToAdd(x, requestModel.Id, userId)).ToList();
+
+                    //Check for updated AND existing items
+                    Dictionary<int, OrderItemModel> dbLookup = dbModel.OrderItems.ToDictionary(i => i.Id);
+
+                    foreach (OrderItemModel req in requestModel.OrderItems.Where(i => i.Id != 0))
+                    {
+                        if (dbLookup.TryGetValue(req.Id, out var db))
+                        {
+                            if (HasChanges(req, db))
+                            {
+                                req.GrossAmount = req.Quantity * req.UnitPrice;
+                                req.ModifiedBy = userId;
+                                req.ModifiedDate = DateTime.Now;
+
+                                updateList.Add(req);
+                            }
+                        }
                     }
+
+                    bool orderUpdated = await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
+
+                    return new OrderProcessorResponseModel()
+                    {
+                        Status = orderUpdated,
+                        Message = orderUpdated ? "Updated successfully" : "Failed to update"
+                    };
+                }
+                else
+                {
+                    return new OrderProcessorResponseModel()
+                    {
+                        Status = false,
+                        Message = "Failed to update"
+                    };
                 }
             }
-
-            bool orderAdded = await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
-
-            return new ProcessorResponseModel()
+            catch(Exception e)
             {
-                Status = orderAdded,
-                Message = orderAdded ? "Updated successfully" : "Failed to updated"
-            };
+                return new OrderProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = e.Message,
+                    StackTrace = e.StackTrace
+                };
+            }
         }
 
         //Helper Functions
@@ -156,6 +208,154 @@ namespace OrderServiceGrpc.Services
             item.ModifiedBy = userId;
             item.ModifiedDate = DateTime.UtcNow;
             return item;
+        }
+
+        //Test Method
+        public async Task<OrderProcessorResponseModel> TestOrderProcessorService()
+        {
+            /*** Test Process for OrderGrpcService
+             * 1) Get list of orders
+             * 2) Select 1 Id and fetch the single order using the function
+             * 3) Insert the order and check if the Insert is successful
+             * 4) Update the new order and check if the Update is successful
+             * 5) Delete the order and check if the delete is successful
+             */
+
+            StringBuilder testLog = new StringBuilder();
+
+            DateTime startDate = new DateTime(2021,01,01), endDate = new DateTime(2026,12,31);
+            int pageSize = 10, pageNumber = 1;
+
+            //Step 1
+            OrderProcessorResponseModel response = await GetAllOrders(startDate,endDate,pageSize,pageNumber);
+
+            if(response.ListOfOrders.Count()>0 && response.TotalOrders>0 && response.TotalPages> 0)
+            {
+                testLog.AppendLine("Step 1: GetAllOrders - Passed");
+            }
+            else
+            {
+                testLog.AppendLine("Step 1: GetAllOrders - Failed");
+                return new OrderProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = testLog.ToString(),
+                    StackTrace = response.StackTrace,
+                };
+            }
+
+            //Step 2 
+            int orderId = response.ListOfOrders.Where(x=> x.Items.Count>2).First().Id;
+            
+            if (orderId == 0)
+            {
+                return new OrderProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = testLog.ToString(),
+                    StackTrace = "Failed to get order with more than 2 items",
+                };
+            }
+
+            OrderProcessorResponseModel singleOrderResponse = await GetOrderById(orderId);
+
+            if (singleOrderResponse.Order != null && singleOrderResponse.Order.Id == orderId)
+            {
+                testLog.AppendLine("Step 2: GetOrderById - Passed");
+            }
+            else
+            {
+                testLog.AppendLine("Step 2: GetOrderById - Failed");
+                return new OrderProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = testLog.ToString(),
+                    StackTrace = singleOrderResponse.StackTrace,
+                };
+            }
+
+            //Step 3
+            OrderDto dto = singleOrderResponse.Order;
+            OrderModel model = OrderMapper.DtoToEntity(dto);
+
+            model.Id = 0;
+            model.OrderDate = DateTime.Now;
+
+            OrderProcessorResponseModel orderAddedResponse = await CreateOrder(OrderMapper.EntityToOrderDto(model), 1);
+
+            if (orderAddedResponse.Status == true && orderAddedResponse.InsertedOrderId > 0)
+            {
+                testLog.AppendLine("Step 3: CreateOrder - Passed");
+            }
+            else
+            {
+                testLog.AppendLine("Step 3: CreateOrder - Failed");
+                return new OrderProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = testLog.ToString(),
+                    StackTrace = orderAddedResponse.StackTrace,
+                };
+            }
+
+            //Step 4
+            OrderProcessorResponseModel insertedDto = await GetOrderById(orderAddedResponse.InsertedOrderId);
+            
+            OrderDto dtoToUpdate = insertedDto.Order;
+
+            OrderModel modelToUpdate = OrderMapper.DtoToEntity(dtoToUpdate);
+
+            OrderItemModel firstitem = modelToUpdate.OrderItems[0];
+            firstitem.Quantity += 12; firstitem.Id = 0; firstitem.OrderId = dtoToUpdate.Id;
+
+            modelToUpdate.OrderItems = modelToUpdate.OrderItems.Where(x => x.Id != firstitem.Id).ToList();
+
+            modelToUpdate.OrderItems.ForEach(x => x.Quantity += 10);
+
+            modelToUpdate.OrderItems.Add(firstitem);
+
+            modelToUpdate.RecalculateNetAmount();
+
+            OrderProcessorResponseModel updateOrderResponse = await UpdateOrder(OrderMapper.EntityToOrderDto(modelToUpdate), 1);
+
+            if (updateOrderResponse.Status == true)
+            {
+                testLog.AppendLine("Step 4: UpdateOrder - Passed");
+            }
+            else
+            {
+                testLog.AppendLine("Step 4: UpdateOrder - Failed");
+                return new OrderProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = testLog.ToString(),
+                    StackTrace = updateOrderResponse.StackTrace,
+                };
+            }
+
+            //Step 5
+            OrderProcessorResponseModel deleteOrderResponse = await DeleteOrder(orderAddedResponse.InsertedOrderId, 1);
+
+            if (deleteOrderResponse.Status == true)
+            {
+                testLog.AppendLine("Step 5: DeleteOrder - Passed");
+            }
+            else
+            {
+                testLog.AppendLine("Step 5: DeleteOrder - Failed");
+                return new OrderProcessorResponseModel()
+                {
+                    Status = false,
+                    Message = testLog.ToString(),
+                    StackTrace = deleteOrderResponse.StackTrace,
+                };
+            }
+
+            return new OrderProcessorResponseModel()
+            {
+                Status = true,
+                Message = testLog.ToString()
+            };
         }
     }
 }

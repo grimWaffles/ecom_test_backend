@@ -36,13 +36,18 @@ namespace API_Gateway.Services
             //gRPC 
             _urls = microserviceUrls.Value;
 
+            if (string.IsNullOrEmpty(_urls.GetOrderServiceUrl()))
+            {
+                throw new ArgumentException("gRPC service URL not configured in appsettings.json");
+            }
+
             var httpHandler = new HttpClientHandler
             {
                 // This is optional and should be used only in development for insecure certs
                 ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
             };
 
-            var channel = GrpcChannel.ForAddress(_urls.GetProductServiceUrl(), new GrpcChannelOptions
+            var channel = GrpcChannel.ForAddress(_urls.GetOrderServiceUrl(), new GrpcChannelOptions
             {
                 HttpHandler = httpHandler
             });
@@ -121,7 +126,7 @@ namespace API_Gateway.Services
 
                 if (orderList.Count > 0)
                 {
-                    #region Multiple Order Inserting
+                    #region Multiple Order Inserting Using Threads & Tasks
                     //List<Order> list1 = orderList.Take(orderList.Count / 2).ToList();
                     //List<Order> list2 = orderList.Skip(orderList.Count / 2).Take(orderList.Count / 2).ToList();
 
@@ -139,15 +144,10 @@ namespace API_Gateway.Services
                     //await Task.WhenAll(t1, t2);
                     #endregion
 
-                    #region Multiple Order Inserting
-                    DateTime startTime = DateTime.Now;
+                    #region Produce Events Sequentially
 
-                    Task t1 = Task.Run(async () =>
-                    {
-                        await FireAllOrderProduceEvents(orderList);
-                    });
+                    await FireAllOrderProduceEvents(orderList);
 
-                    await Task.WhenAll(t1);
                     #endregion
                 }
 

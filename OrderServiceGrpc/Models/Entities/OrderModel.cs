@@ -17,5 +17,10 @@ namespace OrderServiceGrpc.Models.Entities
         public DateTime ModifiedDate { get; set; }
         public bool IsDeleted { get; set; }
         public List<OrderItemModel> OrderItems { get; set; } = new ();
+
+        public void RecalculateNetAmount()
+        {
+            NetAmount = OrderItems.Sum(x => x.Quantity * x.UnitPrice);
+        }
     }
 }

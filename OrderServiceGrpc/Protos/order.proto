@@ -17,6 +17,7 @@ message OrderItem{
 	int32 modifiedBy = 9;
 	google.protobuf.Timestamp  modifiedDate = 10;
 	bool isDeleted = 11;
+	double unitPrice = 12;
 }
 
 // ====== Order Model ======
@@ -89,4 +90,5 @@ service OrderGrpcService {
   rpc GetAllOrders (OrderListRequest) returns (OrderListResponse);
   rpc UpdateOrder (UpdateOrderRequest) returns (OrderResponse);
   rpc DeleteOrder (DeleteOrderRequest) returns (OrderResponse);
+  rpc TestOrderGrpcService(google.protobuf.Empty) returns (OrderResponse);
 }
