@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos\order.proto" GrpcServices="Server" />
+    <Protobuf Include="Protos\order.proto" GrpcServices="Client" />
     <Protobuf Include="Protos\product.proto" GrpcServices="Client" />
     <Protobuf Include="Protos\productCategory.proto">
       <GrpcServices>Client</GrpcServices>
