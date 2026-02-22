@@ -1,6 +1,7 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.IdentityModel.Tokens;
+using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
@@ -31,7 +32,7 @@ namespace OrderServiceGrpc.Services
             return new TransactionResponseSingle
             {
                 Status = 0,
-                Dto = MapToDto(model)
+                Dto = TransactionMapper.ToDto(model)
             };
         }
 
@@ -78,25 +79,6 @@ namespace OrderServiceGrpc.Services
             {
                 Status = result ? 0 : 1,
                 ErrorMessage = result ? "" : "Failed to delete transaction"
-            };
-        }
-
-        // ---------------------------
-        // 🔁 Mapping Helpers
-        // ---------------------------
-        private TransactionDto MapToDto(CustomerTransactionModel model)
-        {
-            return new TransactionDto
-            {
-                Id = model.Id,
-                UserId = model.UserId,
-                TransactionType = model.TransactionType,
-                Amount = (double)model.Amount,
-                CreatedBy = model.CreatedBy,
-                CreatedDate = Timestamp.FromDateTime(model.CreatedDate.ToUniversalTime()),
-                ModifiedBy = model.ModifiedBy,
-                TransactionDate = Timestamp.FromDateTime(model.TransactionDate.ToUniversalTime()),
-                IsDeleted = model.IsDeleted
             };
         }
     }

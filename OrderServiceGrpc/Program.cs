@@ -21,7 +21,7 @@ builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRe
 builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
-builder.Services.AddHostedService<KafkaEventConsumer>();
+builder.Services.AddHostedService<OrderEventConsumer>();
 
 
 var app = builder.Build();
