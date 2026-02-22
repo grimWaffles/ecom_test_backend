@@ -21,13 +21,12 @@ builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRe
 builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
-//builder.Services.AddHostedService<KafkaEventConsumer>();
+builder.Services.AddHostedService<KafkaEventConsumer>();
 
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.MapGrpcService<GreeterService>();
 app.MapGrpcService<CustomerTransactionGrpcService>();
 app.MapGrpcService<OrderGrpcService>();
 

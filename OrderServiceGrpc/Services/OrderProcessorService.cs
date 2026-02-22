@@ -299,11 +299,15 @@ namespace OrderServiceGrpc.Services
             }
 
             //Step 4
+            decimal initialItemCount = 0, finalItemCount = 0, initialNetAmount = 0, finalNetAmount = 0;  
+
             OrderProcessorResponseModel insertedDto = await GetOrderById(orderAddedResponse.InsertedOrderId);
             
             OrderDto dtoToUpdate = insertedDto.Order;
 
             OrderModel modelToUpdate = OrderMapper.DtoToEntity(dtoToUpdate);
+
+            initialNetAmount = modelToUpdate.NetAmount; initialItemCount = modelToUpdate.OrderItems.Count;
 
             OrderItemModel firstitem = modelToUpdate.OrderItems[0];
             firstitem.Quantity += 12; firstitem.Id = 0; firstitem.OrderId = dtoToUpdate.Id;
@@ -318,7 +322,11 @@ namespace OrderServiceGrpc.Services
 
             OrderProcessorResponseModel updateOrderResponse = await UpdateOrder(OrderMapper.EntityToOrderDto(modelToUpdate), 1);
 
-            if (updateOrderResponse.Status == true)
+            OrderProcessorResponseModel updatedDto = await GetOrderById(modelToUpdate.Id);
+
+            finalItemCount = updatedDto.Order.Items.Count; finalNetAmount = (decimal) updatedDto.Order.NetAmount; 
+
+            if (updateOrderResponse.Status == true && (finalItemCount==initialItemCount) && (finalNetAmount!=initialNetAmount))
             {
                 testLog.AppendLine("Step 4: UpdateOrder - Passed");
             }
