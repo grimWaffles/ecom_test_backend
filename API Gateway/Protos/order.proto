@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
-option csharp_namespace = "OrderServiceGrpc.Protos";
+option csharp_namespace = "ApiGateway.Protos";
 
 // ====== OrderItem Model ======
 message OrderItem{
