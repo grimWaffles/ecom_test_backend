@@ -17,6 +17,7 @@ builder.Services.Configure<KafkaConsumerSettings>(builder.Configuration.GetSecti
 
 //Dependency Injection
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
+builder.Services.AddScoped<ICustomerTransactionProcessorService, CustomerTransactionProcessorService>();
 
 builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.ObjectPool;
 using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using System.Collections.Immutable;
@@ -15,12 +16,12 @@ namespace OrderServiceGrpc.Repository
     public interface ICustomerTransactionRepository
     {
         Task<CustomerTransactionModel> GetTransactionById(int id);
-        Task<List<CustomerTransactionModel>> GetAllTransactions(TransactionRequestMultiple request);
+        Task<List<CustomerTransactionModel>> GetAllTransactions();
         Task<bool> AddTransaction(CustomerTransactionModel request, int userId);
         Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId);
         Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId);
         Task<int> GetTransactionCount();
-        Task<TransactionResponseMultiple> GetAllTransactionsWithPagination(TransactionRequestMultiple request);
+        Task<PagedTransactionResultRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
     }
 
     public class CustomerTransactionRepository : ICustomerTransactionRepository
@@ -110,7 +111,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<List<CustomerTransactionModel>> GetAllTransactions(TransactionRequestMultiple request)
+        public async Task<List<CustomerTransactionModel>> GetAllTransactions()
         {
             try
             {
@@ -129,8 +130,10 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<TransactionResponseMultiple> GetAllTransactionsWithPagination(TransactionRequestMultiple request)
+        public async Task<PagedTransactionResultRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
         {
+            PagedTransactionResultRepo result = new PagedTransactionResultRepo();
+
             try
             {
                 string sql = @"	SELECT 
@@ -165,11 +168,11 @@ namespace OrderServiceGrpc.Repository
 
                 DynamicParameters parameters = new DynamicParameters();
 
-                parameters.Add("@StartDate", DateTimeHelper.ConvertTimestampToDateTime(request.StartDate));
-                parameters.Add("@EndDate", DateTimeHelper.ConvertTimestampToDateTime(request.EndDate));
-                parameters.Add("@PageNumber", Convert.ToInt32(request.PageNumber));
-                parameters.Add("@PageSize", Convert.ToInt32(request.PageLength));
-                parameters.Add("@TransactionType", Convert.ToString(request.TransactionType));
+                parameters.Add("@StartDate", startDate);
+                parameters.Add("@EndDate", endDate);
+                parameters.Add("@PageNumber", pageNumber);
+                parameters.Add("@PageSize", pageSize);
+                parameters.Add("@TransactionType", transactionType);
 
                 using (SqlConnection conn = new SqlConnection(_connectionString))
                 {
@@ -181,35 +184,18 @@ namespace OrderServiceGrpc.Repository
                     int totalRows = await resultSet.ReadSingleAsync<int>();
                     int totalPages = await resultSet.ReadSingleAsync<int>();
 
-                    TransactionResponseMultiple response = new TransactionResponseMultiple()
-                    {
-                        Status = true,
-                        ErrorMessage = "",
-                        TotalPages = totalPages,
-                        TotalRows = totalRows,
-                    };
+                    result.Status = true;
+                    result.ErrorMessage = "";
+                    result.TotalPages = totalPages;
+                    result.TotalTransactions = totalRows;
+                    result.ListOfTransactions = list;
 
-                    response.Transactions.AddRange((IEnumerable<TransactionDto>)list.Select(x => new CustomerTransactionModel()
-                    {
-                        Id = x.Id,
-                        UserId = x.UserId,
-                        TransactionType = x.TransactionType,
-                        Amount = x.Amount,
-                        CreatedBy = x.CreatedBy,
-                        CreatedDate = Convert.ToDateTime(x.CreatedDate),
-                        IsDeleted = x.IsDeleted,
-                        TransactionDate = Convert.ToDateTime(x.TransactionDate),
-                        ModifiedBy = x.ModifiedBy,
-                        ModifiedDate = Convert.ToDateTime(x.ModifiedDate),
-                        TransactionKey = x.TransactionKey
-                    }).ToList());
-
-                    return response;
+                    return result;
                 }
             }
             catch (Exception e)
             {
-                return new TransactionResponseMultiple()
+                return new PagedTransactionResultRepo()
                 {
                     Status = false,
                     ErrorMessage = "Failed to fetch orders",

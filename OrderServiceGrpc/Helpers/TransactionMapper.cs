@@ -1,5 +1,6 @@
 ﻿
 using Google.Protobuf.WellKnownTypes;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 
@@ -44,6 +45,80 @@ namespace OrderServiceGrpc.Helpers
                 TransactionKey = dto.TransactionKey?.Length > 15
                     ? dto.TransactionKey[..15]
                     : dto.TransactionKey
+            };
+        }
+
+        //Entity <--> DTO
+        public static CustomerTransactionDto EntityToDto(CustomerTransactionModel entity)
+        {
+            return new CustomerTransactionDto
+            {
+                Id = entity.Id,
+                UserId = entity.UserId,
+                TransactionType = entity.TransactionType,
+                Amount = entity.Amount,
+                CreatedDate = entity.CreatedDate,
+                CreatedBy = entity.CreatedBy,
+                IsDeleted = entity.IsDeleted,
+                TransactionDate = entity.TransactionDate,
+                ModifiedDate = entity.ModifiedDate,
+                ModifiedBy = entity.ModifiedBy,
+                TransactionKey = entity.TransactionKey
+            };
+        }
+
+        public static CustomerTransactionModel DtoToEntity(CustomerTransactionDto dto)
+        {
+            return new CustomerTransactionModel
+            {
+                Id = dto.Id,
+                UserId = dto.UserId,
+                TransactionType = dto.TransactionType,
+                Amount = dto.Amount,
+                CreatedDate = dto.CreatedDate,
+                CreatedBy = dto.CreatedBy,
+                IsDeleted = dto.IsDeleted,
+                TransactionDate = dto.TransactionDate,
+                ModifiedDate = dto.ModifiedDate,
+                ModifiedBy = dto.ModifiedBy,
+                TransactionKey = dto.TransactionKey
+            };
+        }
+
+        //DTO <--> Proto
+        public static TransactionDto DtoToProto(CustomerTransactionDto dto)
+        {
+            return new TransactionDto
+            {
+                Id = dto.Id,
+                UserId = dto.UserId,
+                TransactionType = dto.TransactionType ?? string.Empty,
+                Amount = (double)dto.Amount,
+                CreatedDate = Timestamp.FromDateTime(DateTime.SpecifyKind(dto.CreatedDate, DateTimeKind.Utc)),
+                CreatedBy = dto.CreatedBy,
+                IsDeleted = dto.IsDeleted,
+                TransactionDate = Timestamp.FromDateTime(DateTime.SpecifyKind(dto.TransactionDate, DateTimeKind.Utc)),
+                ModifiedDate = Timestamp.FromDateTime(DateTime.SpecifyKind(dto.ModifiedDate, DateTimeKind.Utc)),
+                ModifiedBy = dto.ModifiedBy,
+                TransactionKey = dto.TransactionKey ?? string.Empty
+            };
+        }
+
+        public static CustomerTransactionDto ProtoToDto(TransactionDto proto)
+        {
+            return new CustomerTransactionDto
+            {
+                Id = (int)proto.Id,
+                UserId = (int)proto.UserId,
+                TransactionType = proto.TransactionType,
+                Amount = (decimal)proto.Amount,
+                CreatedDate = proto.CreatedDate?.ToDateTime() ?? DateTime.UtcNow,
+                CreatedBy = (int)proto.CreatedBy,
+                IsDeleted = proto.IsDeleted,
+                TransactionDate = proto.TransactionDate?.ToDateTime() ?? DateTime.UtcNow,
+                ModifiedDate = proto.ModifiedDate?.ToDateTime() ?? DateTime.UtcNow,
+                ModifiedBy = proto.ModifiedBy,
+                TransactionKey = proto.TransactionKey
             };
         }
     }
