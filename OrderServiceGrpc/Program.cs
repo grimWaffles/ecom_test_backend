@@ -24,7 +24,6 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 builder.Services.AddHostedService<OrderEventConsumer>();
 
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

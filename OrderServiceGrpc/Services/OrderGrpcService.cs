@@ -21,16 +21,19 @@ namespace OrderServiceGrpc.Services
 
         public override async Task<OrderResponse> CreateOrder(CreateOrderRequest request, ServerCallContext context)
         {
-            int userId = 1;
-
-            if (!ValidateGrpcRequests())
+            string validationError = ValidateOrder(request.Order);
+            if (validationError != null)
             {
-                return new OrderResponse() { Message = "Failed to validate", Status = false };
+                return new OrderResponse { Status = false, Message = validationError };
             }
-            
-            OrderProcessorResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), userId);
 
-            return new OrderResponse()
+            if (request.UserId <= 0)
+            {
+                return new OrderResponse { Status = false, Message = "Invalid user ID" };
+            }
+
+            OrderProcessorResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
+            return new OrderResponse
             {
                 Status = response.Status,
                 Message = response.Message,
@@ -40,15 +43,24 @@ namespace OrderServiceGrpc.Services
 
         public override async Task<OrderResponse> UpdateOrder(UpdateOrderRequest request, ServerCallContext context)
         {
-
-            if (!ValidateGrpcRequests())
+            if (request.Order.Id <= 0)
             {
-                return new OrderResponse() { Message = "Failed to validate", Status = false };
+                return new OrderResponse { Status = false, Message = "Invalid order ID" };
+            }
+
+            string validationError = ValidateOrder(request.Order);
+            if (validationError != null)
+            {
+                return new OrderResponse { Status = false, Message = validationError };
+            }
+
+            if (request.UserId <= 0)
+            {
+                return new OrderResponse { Status = false, Message = "Invalid user ID" };
             }
 
             OrderProcessorResponseModel response = await _service.UpdateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
-
-            return new OrderResponse()
+            return new OrderResponse
             {
                 Status = response.Status,
                 Message = response.Message,
@@ -58,16 +70,18 @@ namespace OrderServiceGrpc.Services
 
         public override async Task<OrderResponse> DeleteOrder(DeleteOrderRequest request, ServerCallContext context)
         {
-            int userId = 1;
-
-            if (!ValidateGrpcRequests())
+            if (request.Id <= 0)
             {
-                return new OrderResponse() { Message = "Failed to validate", Status = false };
+                return new OrderResponse { Status = false, Message = "Invalid order ID" };
             }
 
-            OrderProcessorResponseModel response = await _service.DeleteOrder(request.Id, userId);
+            if (request.UserId <= 0)
+            {
+                return new OrderResponse { Status = false, Message = "Invalid user ID" };
+            }
 
-            return new OrderResponse()
+            OrderProcessorResponseModel response = await _service.DeleteOrder(request.Id, request.UserId);
+            return new OrderResponse
             {
                 Status = response.Status,
                 Message = response.Message,
@@ -77,11 +91,19 @@ namespace OrderServiceGrpc.Services
 
         public override async Task<OrderListResponse> GetAllOrders(OrderListRequest request, ServerCallContext context)
         {
-            DateTime startDate = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
-            DateTime endDate = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
+            OrderListResponse validationResponse = ValidatePagedRequests(request);
 
-            OrderProcessorResponseModel response = await _service.GetAllOrders(startDate, endDate, request.PageSize, request.PageNumber);
-            OrderListResponse orderListResponse = new OrderListResponse()
+            if(validationResponse != null)
+            {
+                return validationResponse;
+            }
+
+            DateTime start = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
+            DateTime end = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
+
+            OrderProcessorResponseModel response = await _service.GetAllOrders(start, end, request.PageSize, request.PageNumber, 0);
+
+            OrderListResponse orderListResponse = new OrderListResponse
             {
                 Status = response.Status,
                 Message = response.Message,
@@ -89,16 +111,19 @@ namespace OrderServiceGrpc.Services
                 TotalPages = response.TotalPages
             };
 
-            orderListResponse.Orders.AddRange(response.ListOfOrders.Select(m=>OrderMapper.DtoToProto(m)).ToList());
-
+            orderListResponse.Orders.AddRange(response.ListOfOrders.Select(m => OrderMapper.DtoToProto(m)).ToList());
             return orderListResponse;
         }
 
         public override async Task<OrderResponse> GetOrderById(OrderIdRequest request, ServerCallContext context)
         {
-            OrderProcessorResponseModel response = await _service.GetOrderById(request.Id);
+            if (request.Id <= 0)
+            {
+                return new OrderResponse { Status = false, Message = "Invalid order ID" };
+            }
 
-            return new OrderResponse()
+            OrderProcessorResponseModel response = await _service.GetOrderById(request.Id);
+            return new OrderResponse
             {
                 Status = response.Status,
                 Message = response.Message,
@@ -106,25 +131,119 @@ namespace OrderServiceGrpc.Services
             };
         }
 
-        public override Task<OrderListResponse> GetOrdersByUser(UserIdRequest request, ServerCallContext context)
+        public override async Task<OrderListResponse> GetOrdersByUser(OrderListRequest request, ServerCallContext context)
         {
-            return base.GetOrdersByUser(request, context);
-        }
+            OrderListResponse validationResponse = ValidatePagedRequests(request);
 
-        private bool ValidateGrpcRequests()
-        {
-            return true;
+            if (validationResponse != null)
+            {
+                return validationResponse;
+            }
+
+            if (request.UserId <= 0)
+            {
+                return new OrderListResponse { Status = false, Message = "Invalid user ID" };
+            }
+
+            DateTime start = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
+            DateTime end = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
+
+            OrderProcessorResponseModel response = await _service.GetAllOrders(start, end, request.PageSize, request.PageNumber, request.UserId);
+
+            OrderListResponse orderListResponse = new OrderListResponse
+            {
+                Status = response.Status,
+                Message = response.Message,
+                TotalOrders = response.TotalOrders,
+                TotalPages = response.TotalPages
+            };
+
+            orderListResponse.Orders.AddRange(response.ListOfOrders.Select(m => OrderMapper.DtoToProto(m)).ToList());
+            return orderListResponse;
         }
 
         public override async Task<OrderResponse> TestOrderGrpcService(Empty request, ServerCallContext context)
         {
             OrderProcessorResponseModel response = await _service.TestOrderProcessorService();
-
-            return new OrderResponse()
+            return new OrderResponse
             {
                 Status = response.Status,
                 Message = response.Message
             };
+        }
+
+        // Validates fields shared between Create and Update
+        private string ValidateOrder(Order order)
+        {
+            if (order == null)
+                return "Order cannot be null";
+
+            if (order.UserId <= 0)
+                return "Invalid user ID on order";
+
+            if (string.IsNullOrWhiteSpace(order.Status))
+                return "Order status is required";
+
+            if (order.NetAmount < 0)
+                return "Net amount cannot be negative";
+
+            if (order.Items == null || order.Items.Count == 0)
+                return "Order must contain at least one item";
+
+            foreach (var item in order.Items)
+            {
+                string itemError = ValidateOrderItem(item);
+                if (itemError != null)
+                    return itemError;
+            }
+
+            return null;
+        }
+
+        private string ValidateOrderItem(OrderItem item)
+        {
+            if (item.ProductId <= 0)
+                return "Invalid product ID on order item";
+
+            if (item.Quantity <= 0)
+                return "Order item quantity must be greater than 0";
+
+            if (item.UnitPrice < 0)
+                return "Order item unit price cannot be negative";
+
+            if (item.GrossAmount < 0)
+                return "Order item gross amount cannot be negative";
+
+            if (string.IsNullOrWhiteSpace(item.Status))
+                return "Order item status is required";
+
+            return null;
+        }
+
+        private OrderListResponse ValidatePagedRequests(OrderListRequest request)
+        {
+            if (request.PageSize <= 0)
+            {
+                return new OrderListResponse { Status = false, Message = "Page size must be greater than 0" };
+            }
+
+            if (request.PageNumber <= 0)
+            {
+                return new OrderListResponse { Status = false, Message = "Page number must be greater than 0" };
+            }
+
+            if (request.StartDate != null && request.EndDate != null)
+            {
+                DateTime startDate = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
+                DateTime endDate = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
+
+                if (startDate > endDate)
+                {
+                    return new OrderListResponse { Status = false, Message = "Start date cannot be greater than end date" };
+                }
+            }
+
+            return null;
         }
     }
 }
