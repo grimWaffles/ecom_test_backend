@@ -90,10 +90,10 @@ namespace OrderServiceGrpc.Kafka
                 if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
                     throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
-                if (_consumerSettings.TopicsToConsume.Length == 0)
+                if (_kafkaSettings.OrderTopic.Length == 0)
                     throw new ArgumentException("No Kafka topics specified in configuration.");
 
-                if (_consumerSettings.DlqTopics.Length == 0)
+                if (_kafkaSettings.OrderDlqTopic.Length == 0)
                     throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
 
                 string kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
@@ -123,7 +123,7 @@ namespace OrderServiceGrpc.Kafka
                 // Initialize main topic consumer and subscribe
                 _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
 
-                _consumer.Subscribe(_consumerSettings.TopicsToConsume);
+                _consumer.Subscribe(_kafkaSettings.OrderTopic);
 
                 _logger.LogInformation("Initialized consumer service successfully");
             }
@@ -159,7 +159,7 @@ namespace OrderServiceGrpc.Kafka
                     OrderProcessorResponseModel repoResponse = new OrderProcessorResponseModel();
 
                     //Validate message topic
-                    bool topicExists = Array.Exists(_consumerSettings.TopicsToConsume, x => x == result.Topic);
+                    bool topicExists = Array.Exists(_kafkaSettings.OrderTopic, x => x == result.Topic);
 
                     //Implementing Max Retries if valid topic
                     if (topicExists)
@@ -206,7 +206,7 @@ namespace OrderServiceGrpc.Kafka
             //Check if DLQ topic exists for that topic, if we get an empty topic we know what to do
             if (topicExists)
             {
-                dlqTopic = _consumerSettings.DlqTopics.Where(x => x == result.Topic + "-dlq").FirstOrDefault() ?? "";
+                dlqTopic = _kafkaSettings.OrderDlqTopic.Where(x => x == result.Topic + "-dlq").FirstOrDefault() ?? "";
                 dlqTopic = dlqTopic == "" ? $"No DLQ topic found for topic:{result.Topic}" : dlqTopic;
 
                 produceDlq = dlqTopic == "" ? false : true;

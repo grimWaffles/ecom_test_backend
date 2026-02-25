@@ -55,10 +55,10 @@ namespace OrderServiceGrpc.Kafka
             if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
                 throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
-            if (_consumerSettings.TopicsToConsume.Length == 0)
+            if (_kafkaSettings.OrderTopic.Length == 0)
                 throw new ArgumentException("No Kafka topics specified in configuration.");
 
-            if (_consumerSettings.DlqTopics.Length == 0)
+            if (_kafkaSettings.OrderDlqTopic.Length == 0)
                 throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
             
             string kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
@@ -88,7 +88,7 @@ namespace OrderServiceGrpc.Kafka
             // Initialize main topic consumer and subscribe
             _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
 
-            _consumer.Subscribe(_consumerSettings.TopicsToConsume);
+            _consumer.Subscribe(_kafkaSettings.OrderTopic);
 
             Console.WriteLine("Initialized consumer service successfully");
         }

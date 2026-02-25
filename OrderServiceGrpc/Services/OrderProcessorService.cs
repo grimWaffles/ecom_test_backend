@@ -227,7 +227,7 @@ namespace OrderServiceGrpc.Services
             int pageSize = 10, pageNumber = 1;
 
             //Step 1
-            OrderProcessorResponseModel response = await GetAllOrders(startDate,endDate,pageSize,pageNumber);
+            OrderProcessorResponseModel response = await GetAllOrders(startDate,endDate,pageSize,pageNumber,0);
 
             if(response.ListOfOrders.Count()>0 && response.TotalOrders>0 && response.TotalPages> 0)
             {
