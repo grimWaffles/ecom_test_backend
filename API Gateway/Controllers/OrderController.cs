@@ -52,9 +52,9 @@ namespace API_Gateway.Controllers
 
         [HttpGet]
         [Route("user")]
-        public async Task<IActionResult> GetOrdersByUser()
+        public async Task<IActionResult> GetOrdersByUser([FromQuery] OrderListRequest request)
         {
-            var request = new UserIdRequest { UserId = UserId };
+            request.UserId = UserId;
             var response = await _grpcClient.GetOrdersByUserAsync(request);
             return Ok(response);
         }
@@ -98,5 +98,4 @@ namespace API_Gateway.Controllers
             return Ok(result);
         }
     }
-
 }
