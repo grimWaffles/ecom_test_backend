@@ -14,10 +14,10 @@ using System.Text.Json;
 
 namespace OrderServiceGrpc.Kafka
 {
-    public class KafkaEventConsumer : BackgroundService
+    public class OrderEventConsumer : BackgroundService
     {
         //ILogger
-        private readonly ILogger<KafkaEventConsumer> _logger;
+        private readonly ILogger<OrderEventConsumer> _logger;
 
         //IServiceProvider for the order repo service (A scoped service DI'd into a singleton)
         private readonly IServiceProvider _serviceProvider;
@@ -43,7 +43,7 @@ namespace OrderServiceGrpc.Kafka
         //Global Kafka Settings
         private KafkaSettings _kafkaSettings;
 
-        public KafkaEventConsumer(ILogger<KafkaEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
+        public OrderEventConsumer(ILogger<OrderEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
         {
             _logger = logger;
 

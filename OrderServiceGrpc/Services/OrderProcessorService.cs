@@ -14,7 +14,7 @@ namespace OrderServiceGrpc.Services
         Task<OrderProcessorResponseModel> CreateOrder(OrderDto dto, int userId);
         Task<OrderProcessorResponseModel> UpdateOrder(OrderDto model, int userId);
         Task<OrderProcessorResponseModel> DeleteOrder(int orderId, int userId);
-        Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
+        Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
         Task<OrderProcessorResponseModel> GetOrderById(int orderId);
         Task<OrderProcessorResponseModel> TestOrderProcessorService();
     }
@@ -71,9 +71,9 @@ namespace OrderServiceGrpc.Services
             };
         }
 
-        public async Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        public async Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
         {
-            PagedOrderListModel result = await _repo.GetAllOrdersWithPagination(startDate, endDate, pageSize, pageNumber);
+            PagedOrderListModel result = await _repo.GetAllOrdersWithPagination(startDate, endDate, pageSize, pageNumber, userId);
 
             if (result == null) { return new OrderProcessorResponseModel() { Message = "Failed to get orders", Status = false }; }
 

@@ -26,7 +26,7 @@ namespace OrderServiceGrpc.Repository
         Task<bool> UpdateOrder(OrderModel request, List<OrderItemModel> addList, List<OrderItemModel> deleteList, List<OrderItemModel> updateList, int userId);
         Task<bool> DeleteSingleOrder(int requestId, int userId);
         Task<int> GetOrderCount();
-        Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber);
+        Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
         Task<OrderProcessorResponseModel> InsertOrderCreateEvent(int orderId);
     }
@@ -259,18 +259,18 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        public async Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
         {
             using var conn = GetDatabaseConnection();
             try
             {
                 if (_dbType == "sqlserver")
                 {
-                    return await AllOrdersSqlServerPaginationMode(conn, startDate, endDate, pageSize, pageNumber);
+                    return await AllOrdersSqlServerPaginationMode(conn, startDate, endDate, pageSize, pageNumber, userId);
                 }
                 else
                 {
-                    return await AllOrdersMySqlPaginationMode(conn, startDate, endDate, pageSize, pageNumber);
+                    return await AllOrdersMySqlPaginationMode(conn, startDate, endDate, pageSize, pageNumber, userId);
                 }
             }
             catch (Exception e)
@@ -284,20 +284,22 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<PagedOrderListModel> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        private async Task<PagedOrderListModel> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
         {
             // Common parameters
             var parameters = new DynamicParameters();
             parameters.Add("@StartDate", startDate.Date);
             parameters.Add("@EndDate", endDate.Date);
             parameters.Add("@PageSize", pageSize);
+            parameters.Add("@UserId", userId);
             parameters.Add("@Offset", (pageNumber - 1) * pageSize);
+            
             try
             {
                 const string MY_SQL_QUERY = @"select 
                             Id, OrderDate, OrderCounter, UserId, Status	, NetAmount, CreatedBy, CreatedDate, IsDeleted, ModifiedBy, ModifiedDate
-                        from Orders 
-                        
+                        from Orders o
+                        where (@UserId = 0 OR o.UserId = @UserId)
                         order by 
                             OrderDate desc, OrderCounter desc
                         limit @Offset, @PageSize;
@@ -306,6 +308,7 @@ namespace OrderServiceGrpc.Repository
                 const string MY_SQL_COUNT = @"
                         SELECT COUNT(*) 
                         FROM Orders o
+                        where (@UserId = 0 OR o.UserId = @UserId)
                     ";
 
                 await conn.OpenAsync();
@@ -327,7 +330,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        private async Task<PagedOrderListModel> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber)
+        private async Task<PagedOrderListModel> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
         {
 
             // Common parameters
@@ -338,6 +341,8 @@ namespace OrderServiceGrpc.Repository
 
             parameters.Add("@PageNumber", pageNumber);
             parameters.Add("@PageSize", pageSize);
+
+            parameters.Add("@UserId", userId);
 
             const string SQL_SERVER_QUERY = @"
                         DECLARE @TotalOrders INT, @TotalPages INT;
@@ -351,6 +356,7 @@ namespace OrderServiceGrpc.Repository
                         WHERE o.OrderDate >= CONVERT(DATE, @StartDate) 
                         AND o.OrderDate <= CONVERT(DATE, @EndDate)
                         AND o.IsDeleted = 0
+                        AND (@UserId = 0 OR o.UserId = @UserId)
                         ORDER BY o.OrderDate DESC
                         OFFSET (@PageNumber - 1) * @PageSize ROWS
                         FETCH NEXT @PageSize ROWS ONLY;

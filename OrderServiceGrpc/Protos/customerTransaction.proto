@@ -16,6 +16,7 @@ message TransactionDto {
   google.protobuf.Timestamp transaction_date = 8;
   google.protobuf.Timestamp modified_date = 9;
   int32 modified_by = 10;
+  string transaction_key = 11;
 }
 
 message TransactionRequestSingle{

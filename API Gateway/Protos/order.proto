@@ -49,10 +49,6 @@ message OrderListRequest{
 	int32 userId = 5;
 }
 
-message UserIdRequest {
-  int32 userId = 1;
-}
-
 message CreateOrderRequest {
   Order order = 1;
   int32 userId = 2;
@@ -86,7 +82,7 @@ message OrderListResponse {
 service OrderGrpcService {
   rpc CreateOrder (CreateOrderRequest) returns (OrderResponse);
   rpc GetOrderById (OrderIdRequest) returns (OrderResponse);
-  rpc GetOrdersByUser (UserIdRequest) returns (OrderListResponse);
+  rpc GetOrdersByUser (OrderListRequest) returns (OrderListResponse);
   rpc GetAllOrders (OrderListRequest) returns (OrderListResponse);
   rpc UpdateOrder (UpdateOrderRequest) returns (OrderResponse);
   rpc DeleteOrder (DeleteOrderRequest) returns (OrderResponse);

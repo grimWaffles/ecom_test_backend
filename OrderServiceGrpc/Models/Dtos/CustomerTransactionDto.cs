@@ -1,8 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace OrderServiceGrpc.Models.Entities
+namespace OrderServiceGrpc.Models.Dtos
 {
-    public class CustomerTransactionModel
+    public class CustomerTransactionDto
     {
         public int Id { get; set; }
         public int UserId { get; set; }
