@@ -3,6 +3,7 @@ using Grpc.Core;
 using Microsoft.IdentityModel.Tokens;
 using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
@@ -141,8 +142,8 @@ namespace OrderServiceGrpc.Services
 
             return new TransactionCrudResponse
             {
-                Status = result ? 0 : 1,
-                ErrorMessage = result ? "" : "Failed to add transaction"
+                Status = result < 1 ? 0 : 1,
+                ErrorMessage = result < 1 ? "" : "Failed to add transaction"
             };
         }
 
@@ -229,6 +230,16 @@ namespace OrderServiceGrpc.Services
             {
                 Status = result ? 0 : 1,
                 ErrorMessage = result ? "" : "Failed to delete transaction"
+            };
+        }
+
+        public override async Task<TransactionCrudResponse> TestCustomerTransactionGrpcService(Empty request, ServerCallContext context)
+        {
+            OrderProcessorResponseModel response = await _transactionProcessorService.TestCustomerTransactionProcessorService();
+            return new TransactionCrudResponse
+            {
+                Status = response.Status ? 1 : 0,
+                ErrorMessage = response.Message
             };
         }
     }

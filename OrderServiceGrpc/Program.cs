@@ -1,5 +1,5 @@
 using OrderServiceGrpc.Kafka;
-using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
 

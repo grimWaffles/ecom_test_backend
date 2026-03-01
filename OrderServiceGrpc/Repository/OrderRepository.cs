@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using MySql.Data.MySqlClient;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using System.Data;

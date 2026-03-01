@@ -1,4 +1,4 @@
-﻿namespace OrderServiceGrpc.Kafka
+﻿namespace OrderServiceGrpc.Models.ConfigModels
 {
     public class KafkaSettings
     {

@@ -4,6 +4,7 @@ using Google.Protobuf;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;

@@ -4,7 +4,9 @@ using Google.Protobuf.WellKnownTypes;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.ObjectPool;
+using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
@@ -17,7 +19,7 @@ namespace OrderServiceGrpc.Repository
     {
         Task<CustomerTransactionModel> GetTransactionById(int id);
         Task<List<CustomerTransactionModel>> GetAllTransactions();
-        Task<bool> AddTransaction(CustomerTransactionModel request, int userId);
+        Task<int> AddTransaction(CustomerTransactionModel request, int userId);
         Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId);
         Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId);
         Task<int> GetTransactionCount();
@@ -27,16 +29,24 @@ namespace OrderServiceGrpc.Repository
     public class CustomerTransactionRepository : ICustomerTransactionRepository
     {
         private readonly string _connectionString;
-        private readonly IConfiguration _config;
+        private readonly string _dbType;
 
-        public CustomerTransactionRepository(IConfiguration configuration)
+        public CustomerTransactionRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings)
         {
-            _config = configuration;
-            _connectionString = _config.GetSection("ConnectionStrings:DefaultConnection").Get<string>() ?? "";
+            _connectionString = (dbConfig.Value.Database.ToLower(), dbConfig.Value.Mode.ToLower()) switch
+            {
+                ("mysql", "local") => connectionStrings.Value.MySqlConnection,
+                ("mysql", "docker") => connectionStrings.Value.MySqlDockerConnection,
+                ("sqlserver", "local") => connectionStrings.Value.SqlServerConnection,
+                ("sqlserver", "docker") => connectionStrings.Value.SqlServerDockerConnection,
+                _ => ""
+            };
+            _dbType = dbConfig.Value.Database;
         }
-        public async Task<bool> AddTransaction(CustomerTransactionModel request, int userId)
+
+        public async Task<int> AddTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" INSERT INTO CustomerTransactionModel (
+            string sql = @" INSERT INTO CustomerTransactions (
                                 UserId,
                                 TransactionType,
                                 Amount,
@@ -54,39 +64,41 @@ namespace OrderServiceGrpc.Repository
                                 @IsDeleted,
                                 @TransactionDate,
                                 @TransactionKey
-                            );";
+                            ); select SCOPE_IDENTITY();";
 
             DynamicParameters parameters = new DynamicParameters();
             parameters.Add("@UserId", request.UserId);
             parameters.Add("TransactionType", request.TransactionType);
-            parameters.Add("@TransactionDate", request.TransactionDate);
+            parameters.Add("@TransactionDate", DateTime.Now);
             parameters.Add("@Amount", request.Amount);
             parameters.Add("@CreatedDate", DateTime.Now);
             parameters.Add("@CreatedBy", userId);
             parameters.Add("@IsDeleted", false);
-            parameters.Add("@TransactionKey", request.TransactionKey);
+            parameters.Add("@TransactionKey", request.TransactionKey ?? "" );
 
             try
             {
                 await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
-                await conn.ExecuteAsync(sql, parameters);
+                var result = await conn.ExecuteScalarAsync(sql, parameters);
 
-                return true;
+                int resultToReturn = Convert.ToInt32(result);
+                return resultToReturn;
             }
             catch (Exception e)
             {
-                return false;
+                return -1;
             }
         }
 
         public async Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" UPDATE CustomerTransactionModel
+            string sql = @" UPDATE CustomerTransactions
                             SET
                                 IsDeleted = @IsDeleted,
                                 ModifiedDate = @ModifiedDate,
-                                ModifiedBy = @ModifiedBy
+                                ModifiedBy = @ModifiedBy,
+                                TransactionKey = @TransactionKey
                             WHERE
                                 Id = @Id;";
 
@@ -94,8 +106,9 @@ namespace OrderServiceGrpc.Repository
 
             parameters.Add("@ModifiedDate", DateTime.Now);
             parameters.Add("@ModifiedBy", userId);
-            parameters.Add("@IsDeleted", false);
+            parameters.Add("@IsDeleted", true);
             parameters.Add("@Id", request.Id);
+            parameters.Add("@TransactionKey", request.TransactionKey);
 
             try
             {
@@ -254,7 +267,7 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" UPDATE CustomerTransactionModel
+            string sql = @" UPDATE CustomerTransactions
                             SET
                                 UserId = @UserId,
                                 TransactionType = @TransactionType,
@@ -283,7 +296,6 @@ namespace OrderServiceGrpc.Repository
                 {
                     await conn.OpenAsync();
                     await conn.ExecuteAsync(sql, parameters);
-                    await conn.CloseAsync();
                     return true;
                 }
             }

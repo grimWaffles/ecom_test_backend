@@ -210,10 +210,10 @@ namespace OrderServiceGrpc.Services
             return item;
         }
 
-        //Test Method
+        //Integration Test for the service + repo
         public async Task<OrderProcessorResponseModel> TestOrderProcessorService()
         {
-            /*** Test Process for OrderGrpcService
+            /* Test Process for OrderGrpcService
              * 1) Get list of orders
              * 2) Select 1 Id and fetch the single order using the function
              * 3) Insert the order and check if the Insert is successful

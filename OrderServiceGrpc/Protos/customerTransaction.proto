@@ -59,5 +59,7 @@ service CustomerTransactionService {
   rpc AddTransaction (TransactionDto) returns (TransactionCrudResponse);
   rpc UpdateTransaction (TransactionDto) returns (TransactionCrudResponse);
   rpc DeleteTransaction (TransactionRequestSingle) returns (TransactionCrudResponse);
+
+  rpc TestCustomerTransactionGrpcService (google.protobuf.Empty) returns (TransactionCrudResponse);
 }
 
