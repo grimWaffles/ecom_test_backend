@@ -50,12 +50,12 @@ namespace OrderServiceGrpc.Kafka
 
             _serviceProvider = serviceProvider;
 
-            _logger.LogInformation("Kafka consumer constructor started...");
+            _logger.LogInformation("Kafka order consumer constructor started...");
 
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
             _consumerSettings = kafkaConsumerSettings.Value;
 
-            _logger.LogInformation("Kafka consumer settings loaded...");
+            _logger.LogInformation("Kafka order consumer settings loaded...");
 
             _kafkaSettings = kafkaSettings.Value;
         }
@@ -126,12 +126,12 @@ namespace OrderServiceGrpc.Kafka
 
                 _consumer.Subscribe(_kafkaSettings.OrderTopic);
 
-                _logger.LogInformation("Initialized consumer service successfully");
+                _logger.LogInformation("Initialized order consumer service successfully");
             }
 
             catch (Exception e)
             {
-                _logger.LogInformation($"Failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
+                _logger.LogInformation($"Order consumer failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
                 await CloseAndDisposeConsumerAndProducer();
                 return;
             }
@@ -249,7 +249,7 @@ namespace OrderServiceGrpc.Kafka
             }
             else
             {
-                _logger.LogInformation($"Failed to process DLQ Message: {result.Topic}. Sending to Catch-All...");
+                _logger.LogInformation($"Failed to process DLQ Message for order consumer: {result.Topic}. Sending to Catch-All...");
 
                 // Produce failed message to CATCH-ALL-DLQ
                 try
@@ -277,7 +277,7 @@ namespace OrderServiceGrpc.Kafka
 
             for (int attemptNo = 1; attemptNo < _consumerSettings.MaxConsumerRetries; attemptNo++)
             {
-                _logger.LogInformation($"Attemp#{attemptNo + 1} to commit result...");
+                _logger.LogInformation($"Attemp#{attemptNo + 1} to commit order consumer result...");
 
                 try
                 {
@@ -289,24 +289,24 @@ namespace OrderServiceGrpc.Kafka
                         _processedOffsets.TryRemove(tpo.TopicPartition, out _);
                     }
 
-                    _logger.LogInformation($"Committed {topicPartitionOffsets.Count} offset(s) successfully.");
+                    _logger.LogInformation($"Committed {topicPartitionOffsets.Count} offset(s) successfully by order consumer.");
 
                     break;
                 }
                 catch (KafkaException kex)
                 {
-                    _logger.LogWarning($"Attempt {attemptNo + 1}: Failed to commit offsets: {kex.Message}");
+                    _logger.LogWarning($"Attempt {attemptNo + 1}: Failed to commit offsets for order consumer: {kex.Message}");
 
                     if (attemptNo < _consumerSettings.MaxConsumerRetries - 1)
                     {
                         int delayMs = GetExponentialDelay(attemptNo);
-                        _logger.LogInformation($"Retrying commit in {delayMs}ms...");
+                        _logger.LogInformation($"Retrying commit by order consumer in {delayMs}ms...");
 
                         await Task.Delay(delayMs, token);
                     }
                     else
                     {
-                        _logger.LogInformation($"Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts.");
+                        _logger.LogInformation($"Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts by order consumer.");
                     }
                 }
             }
@@ -341,7 +341,7 @@ namespace OrderServiceGrpc.Kafka
                         return true;
                     }
 
-                    _logger.LogInformation($"Error: Processing failed for topic '{result.Topic}'. Retrying...");
+                    _logger.LogInformation($"Error: Processing failed for topic '{result.Topic}' by order consumer. Retrying...");
 
                     await Task.Delay(GetExponentialDelay(attemptNo), stoppingToken);
                 }

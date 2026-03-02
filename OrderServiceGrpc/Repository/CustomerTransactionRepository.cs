@@ -23,7 +23,7 @@ namespace OrderServiceGrpc.Repository
         Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId);
         Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId);
         Task<int> GetTransactionCount();
-        Task<PagedTransactionResultRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
+        Task<PagedTransactionResultFromRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
     }
 
     public class CustomerTransactionRepository : ICustomerTransactionRepository
@@ -143,9 +143,9 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<PagedTransactionResultRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
+        public async Task<PagedTransactionResultFromRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
         {
-            PagedTransactionResultRepo result = new PagedTransactionResultRepo();
+            PagedTransactionResultFromRepo result = new PagedTransactionResultFromRepo();
 
             try
             {
@@ -208,7 +208,7 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception e)
             {
-                return new PagedTransactionResultRepo()
+                return new PagedTransactionResultFromRepo()
                 {
                     Status = false,
                     ErrorMessage = "Failed to fetch orders",

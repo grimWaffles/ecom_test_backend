@@ -332,7 +332,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    OrderProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    TransactionProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
@@ -359,7 +359,7 @@ namespace OrderServiceGrpc.Kafka
             return false;
         }
 
-        private async Task<OrderProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<TransactionProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
         {
             try
             {
@@ -375,12 +375,12 @@ namespace OrderServiceGrpc.Kafka
                     {
                         ICustomerTransactionProcessorService processorService = scope.ServiceProvider.GetRequiredService<ICustomerTransactionProcessorService>();
 
-                        OrderProcessorResponseModel repoResponse = (result.Topic) switch
+                        TransactionProcessorResponseModel repoResponse = (result.Topic) switch
                         {
                             "trx-create" => await processorService.AddTransaction(trxDto, userId),
                             "trx-update" => await processorService.UpdateTransaction(trxDto, userId),
                             "trx-delete" => await processorService.DeleteTransaction(trxDto, userId),
-                            _ => new OrderProcessorResponseModel()
+                            _ => new TransactionProcessorResponseModel()
                             {
                                 Status = false,
                                 Message = $"Error: Invalid topic provided in message={result.Topic}"
@@ -391,7 +391,7 @@ namespace OrderServiceGrpc.Kafka
                     }
                 }
 
-                return new OrderProcessorResponseModel()
+                return new TransactionProcessorResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid message provided topic:{result.Topic}"
@@ -399,7 +399,7 @@ namespace OrderServiceGrpc.Kafka
             }
             catch (Exception e)
             {
-                return new OrderProcessorResponseModel()
+                return new TransactionProcessorResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"

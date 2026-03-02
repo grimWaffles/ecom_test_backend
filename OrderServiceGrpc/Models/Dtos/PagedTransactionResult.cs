@@ -2,7 +2,7 @@
 
 namespace OrderServiceGrpc.Models.Dtos
 {
-    public class PagedTransactionResultRepo
+    public class PagedTransactionResultFromRepo
     {
         public List<CustomerTransactionModel> ListOfTransactions { get; set; }
         public bool Status { get; set; }
@@ -11,7 +11,7 @@ namespace OrderServiceGrpc.Models.Dtos
         public int TotalTransactions { get; set; }
     }
 
-    public class PagedTransactionResultService
+    public class PagedTransactionResultFromService
     {
         public List<CustomerTransactionDto> ListOfTransactions { get; set; }
         public bool Status { get; set; }
