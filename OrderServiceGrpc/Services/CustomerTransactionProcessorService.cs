@@ -13,13 +13,13 @@ namespace OrderServiceGrpc.Services
 {
     public interface ICustomerTransactionProcessorService
     {
-        Task<TransactionProcessorResponseModel> GetTransactionById(int id);
-        Task<TransactionProcessorResponseModel> GetAllTransactions();
-        Task<TransactionProcessorResponseModel> AddTransaction(CustomerTransactionDto request, int userId);
-        Task<TransactionProcessorResponseModel> UpdateTransaction(CustomerTransactionDto request, int userId);
-        Task<TransactionProcessorResponseModel> DeleteTransaction(CustomerTransactionDto request, int userId);
-        Task<TransactionProcessorResponseModel> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
-        Task<TransactionProcessorResponseModel> TestCustomerTransactionProcessorService();
+        Task<CustomerTransactionDto> GetTransactionById(int id);
+        Task<List<CustomerTransactionDto>> GetAllTransactions();
+        Task<int> AddTransaction(CustomerTransactionDto request, int userId);
+        Task<bool> UpdateTransaction(CustomerTransactionDto request, int userId);
+        Task<bool> DeleteTransaction(CustomerTransactionDto request, int userId);
+        Task<PagedTransactionResultFromService> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
+        Task<ConsumerResponseModel> TestCustomerTransactionProcessorService();
     }
 
     public class CustomerTransactionProcessorService : ICustomerTransactionProcessorService
@@ -31,7 +31,7 @@ namespace OrderServiceGrpc.Services
             _repo = repo;
         }
 
-        public async Task<TransactionProcessorResponseModel> AddTransaction(CustomerTransactionDto request, int userId)
+        public async Task<int> AddTransaction(CustomerTransactionDto request, int userId)
         {
             int result = -1;
             try
@@ -46,12 +46,7 @@ namespace OrderServiceGrpc.Services
                 Console.WriteLine($"{ex.Message}. StackTrace: {ex.StackTrace}");
             }
 
-            return new TransactionProcessorResponseModel()
-            {
-                InsertedTrxId = result,
-                Status = result > 0 ? true : false,
-                Message = result > 0 ? "Success" : "Failed to insert transaction"
-            };
+            return result;
         }
 
         private string GenerateTransactionKey(CustomerTransactionModel model)
@@ -59,7 +54,7 @@ namespace OrderServiceGrpc.Services
             return $"{model.UserId}-{model.TransactionType}-{model.TransactionDate.ToString("yyyyMMdd")}-00";
         }
 
-        public async Task<TransactionProcessorResponseModel> DeleteTransaction(CustomerTransactionDto request, int userId)
+        public async Task<bool> DeleteTransaction(CustomerTransactionDto request, int userId)
         {
             bool result = false;
             try
@@ -73,14 +68,10 @@ namespace OrderServiceGrpc.Services
                 Console.WriteLine($"{ex.Message}. StackTrace: {ex.StackTrace}");
             }
 
-            return new TransactionProcessorResponseModel()
-            {
-                Status = result,
-                Message = result ? "Success" : "Failed to insert transaction"
-            };
+            return result;
         }
 
-        public async Task<TransactionProcessorResponseModel> GetAllTransactions()
+        public async Task<List<CustomerTransactionDto>> GetAllTransactions()
         {
             try
             {
@@ -91,25 +82,15 @@ namespace OrderServiceGrpc.Services
                     return null;
                 }
 
-                return new TransactionProcessorResponseModel()
-                {
-                    ListOfTransactions = list.Select(x => TransactionMapper.EntityToDto(x)).ToList(),
-                    Status = true,
-                    Message = "Success"
-                };
+                return list.Select(x=> TransactionMapper.EntityToDto(x)).ToList();
             }
             catch (Exception ex)
             {
-                return new TransactionProcessorResponseModel()
-                {
-                    ListOfTransactions = null,
-                    Status = false,
-                    Message = "Failed to get transactions"
-                };
+                return null;
             }
         }
 
-        public async Task<TransactionProcessorResponseModel> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
+        public async Task<PagedTransactionResultFromService> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
         {
             try
             {
@@ -124,73 +105,57 @@ namespace OrderServiceGrpc.Services
                     ErrorMessage = repoResult.ErrorMessage
                 };
 
-                return new TransactionProcessorResponseModel()
-                {
-                    PagedTrxResults = result,
-                    Status = result.Status,
-                    Message = result.ErrorMessage
-                };
+                return result;
             }
             catch (Exception ex)
             {
-                return new TransactionProcessorResponseModel()
+                return new PagedTransactionResultFromService()
                 {
-                    PagedTrxResults = null,
+                    ListOfTransactions = null,
+                    TotalPages = 0,
+                    TotalTransactions = 0,
                     Status = false,
-                    Message = "Failed to get transactions"
+                    ErrorMessage = "Failed to fetch transactions"
                 };
             }
         }
 
-        public async Task<TransactionProcessorResponseModel> GetTransactionById(int id)
+        public async Task<CustomerTransactionDto> GetTransactionById(int id)
         {
             try
             {
                 CustomerTransactionModel model = await _repo.GetTransactionById(id);
 
-                return new TransactionProcessorResponseModel()
+                if(model==null)
                 {
-                    ListOfTransactions = new List<CustomerTransactionDto>() { TransactionMapper.EntityToDto(model) },
-                    Status = true,
-                    Message = "Success"
-                };
+                    return null;
+                }
+
+                return TransactionMapper.EntityToDto(model);
             }
             catch (Exception ex)
             {
-                return new TransactionProcessorResponseModel()
-                {
-                    ListOfTransactions = null,
-                    Status = false,
-                    Message = "Failed to fetch data"
-                };
+                return null;
             }
         }
 
-        public async Task<TransactionProcessorResponseModel> UpdateTransaction(CustomerTransactionDto request, int userId)
+        public async Task<bool> UpdateTransaction(CustomerTransactionDto request, int userId)
         {
             try
             {
                 bool result = await _repo.UpdateTransaction(TransactionMapper.DtoToEntity(request), userId);
 
-                return new TransactionProcessorResponseModel()
-                {
-                    Status = result,
-                    Message = result ? "Success" : "Failed to update transaction"
-                };
+                return result;
 
             }
             catch (Exception ex)
             {
-                return new TransactionProcessorResponseModel()
-                {
-                    Status = false,
-                    Message = "Failed to update transaction"
-                };
+                return false;
             }
         }
 
         //Integration smoke test
-        public async Task<TransactionProcessorResponseModel> TestCustomerTransactionProcessorService()
+        public async Task<ConsumerResponseModel> TestCustomerTransactionProcessorService()
         {
             /* Test Process for CustomerTransactionProcessorService
              * 1) Get list of transactions
@@ -209,11 +174,11 @@ namespace OrderServiceGrpc.Services
                 DateTime startDate = new DateTime(2020, 1, 1), endDate = new DateTime(2026, 12, 31);
                 int pageNumber = 1, pageSize = 10;
 
-                TransactionProcessorResponseModel transactions = await GetAllTransactionsWithPagination(startDate, endDate, pageNumber, pageSize, "");
+                PagedTransactionResultFromService transactions = await GetAllTransactionsWithPagination(startDate, endDate, pageNumber, pageSize, "");
 
                 if (transactions.ListOfTransactions == null)
                 {
-                    return new TransactionProcessorResponseModel()
+                    return new ConsumerResponseModel()
                     {
                         Status = false,
                         Message = "Step 1: GetAll - Failed"
@@ -225,10 +190,10 @@ namespace OrderServiceGrpc.Services
                 }
 
                 //Step 2 
-                TransactionProcessorResponseModel transaction = await GetTransactionById(transactions.ListOfTransactions[0].Id);
+                CustomerTransactionDto transaction = await GetTransactionById(transactions.ListOfTransactions[0].Id);
                 if (transaction == null)
                 {
-                    return new TransactionProcessorResponseModel()
+                    return new ConsumerResponseModel()
                     {
                         Status = false,
                         Message = "Step 2: GetById - Failed"
@@ -240,18 +205,17 @@ namespace OrderServiceGrpc.Services
                 }
 
                 //Step 3
-                CustomerTransactionDto newTransactionDto = transaction.ListOfTransactions[0];
+                CustomerTransactionDto newTransactionDto = transaction;
 
                 CustomerTransactionModel transactionToAdd = TransactionMapper.DtoToEntity(newTransactionDto);
 
                 transactionToAdd.Id = 0;
-                TransactionProcessorResponseModel response = await AddTransaction(newTransactionDto, userId);
 
-                int newId = response.InsertedTrxId;
+                int newId = await AddTransaction(newTransactionDto, userId);
 
                 if (newId <= 0)
                 {
-                    return new TransactionProcessorResponseModel()
+                    return new ConsumerResponseModel()
                     {
                         Status = false,
                         Message = "Step 3: Add - Failed"
@@ -265,21 +229,18 @@ namespace OrderServiceGrpc.Services
                 //Step 4 Update the transaction
                 int idToUpdate = newId;
 
-                TransactionProcessorResponseModel trxToUpdate = await GetTransactionById(idToUpdate);
 
-                CustomerTransactionDto dtoToUpdate = trxToUpdate.ListOfTransactions[0];
+                CustomerTransactionDto dtoToUpdate = await GetTransactionById(idToUpdate);
 
                 CustomerTransactionModel modelToUpdate = TransactionMapper.DtoToEntity(dtoToUpdate);
 
                 modelToUpdate.Amount += 10;
 
-                TransactionProcessorResponseModel repoResultForUpdate = await UpdateTransaction(TransactionMapper.EntityToDto(modelToUpdate), userId);
-
-                bool updateResult = repoResultForUpdate.Status;
+                bool updateResult = await UpdateTransaction(TransactionMapper.EntityToDto(modelToUpdate), userId);
 
                 if (!updateResult)
                 {
-                    return new TransactionProcessorResponseModel()
+                    return new ConsumerResponseModel()
                     {
                         Status = false,
                         Message = "Step 4: Update - Failed"
@@ -291,15 +252,14 @@ namespace OrderServiceGrpc.Services
                 }
 
                 //Step 5 Delete the transaction
-                TransactionProcessorResponseModel deleteResponse = await DeleteTransaction(TransactionMapper.EntityToDto(modelToUpdate), userId);
-                bool deleteResult = deleteResponse.Status;
+                bool deleteResult = await DeleteTransaction(TransactionMapper.EntityToDto(modelToUpdate), userId);
+                
 
-                TransactionProcessorResponseModel deleteDtoResponse = await GetTransactionById(modelToUpdate.Id);
-                CustomerTransactionDto deletedDto = deleteResponse.ListOfTransactions[0];
+                CustomerTransactionDto deletedDto = await GetTransactionById(modelToUpdate.Id);
                 
                 if (!deleteResult || !deletedDto.IsDeleted)
                 {
-                    return new TransactionProcessorResponseModel()
+                    return new ConsumerResponseModel()
                     {
                         Status = false,
                         Message = "Step 5: Delete - Failed"
@@ -310,7 +270,7 @@ namespace OrderServiceGrpc.Services
                     sb.AppendLine("Step 5: Delete - Passed");
                 }
 
-                return new TransactionProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = true,
                     Message = sb.ToString()
@@ -318,7 +278,7 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception ex)
             {
-                return new TransactionProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Message = "Test Failed",
                     Status = false,

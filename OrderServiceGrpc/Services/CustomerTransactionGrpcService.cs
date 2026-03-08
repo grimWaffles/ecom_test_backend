@@ -32,7 +32,7 @@ namespace OrderServiceGrpc.Services
                 };
             }
 
-            TransactionProcessorResponseModel dto = await _transactionProcessorService.GetTransactionById(request.Id);
+            CustomerTransactionDto dto = await _transactionProcessorService.GetTransactionById(request.Id);
 
             if (dto == null)
             {
@@ -46,7 +46,7 @@ namespace OrderServiceGrpc.Services
             return new TransactionResponseSingle
             {
                 Status = 0,
-                Dto = TransactionMapper.DtoToProto(dto.ListOfTransactions[0])
+                Dto = TransactionMapper.DtoToProto(dto)
             };
         }
 
@@ -88,15 +88,15 @@ namespace OrderServiceGrpc.Services
             DateTime start = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
             DateTime end = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
 
-            TransactionProcessorResponseModel result = await _transactionProcessorService.GetAllTransactionsWithPagination(
+            PagedTransactionResultFromService result = await _transactionProcessorService.GetAllTransactionsWithPagination(
                 start, end, request.PageNumber, request.PageLength, request.TransactionType);
 
             return new TransactionResponseMultiple
             {
                 Status = result.Status,
-                ErrorMessage = result.PagedTrxResults.ErrorMessage,
-                TotalPages = result.PagedTrxResults.TotalPages,
-                TotalRows = result.PagedTrxResults.TotalTransactions
+                ErrorMessage = result.ErrorMessage,
+                TotalPages = result.TotalPages,
+                TotalRows = result.TotalTransactions
             };
         }
 
@@ -138,12 +138,12 @@ namespace OrderServiceGrpc.Services
                 };
             }
 
-            TransactionProcessorResponseModel result = await _transactionProcessorService.AddTransaction(TransactionMapper.ProtoToDto(request), (int)request.CreatedBy);
+            int result = await _transactionProcessorService.AddTransaction(TransactionMapper.ProtoToDto(request), (int)request.CreatedBy);
 
             return new TransactionCrudResponse
             {
-                Status = result.InsertedTrxId < 1 ? 0 : 1,
-                ErrorMessage = result.Status ? "" : "Failed to add transaction"
+                Status = result <= 0 ? 0 : 1,
+                ErrorMessage = result > 0 ? "" : "Failed to add transaction"
             };
         }
 
@@ -198,8 +198,8 @@ namespace OrderServiceGrpc.Services
 
             return new TransactionCrudResponse
             {
-                Status = result.Status ? 1 :0,
-                ErrorMessage = result.Message
+                Status = result ? 1 :0,
+                ErrorMessage = result ? "" : "Failed to update transaction"
             };
         }
 
@@ -228,14 +228,14 @@ namespace OrderServiceGrpc.Services
 
             return new TransactionCrudResponse
             {
-                Status = !result.Status ? 0 : 1,
-                ErrorMessage = result.Message
+                Status = !result ? 0 : 1,
+                ErrorMessage = result ? "" : "Failed to delete transaction"
             };
         }
 
         public override async Task<TransactionCrudResponse> TestCustomerTransactionGrpcService(Empty request, ServerCallContext context)
         {
-            TransactionProcessorResponseModel response = await _transactionProcessorService.TestCustomerTransactionProcessorService();
+            ConsumerResponseModel response = await _transactionProcessorService.TestCustomerTransactionProcessorService();
             return new TransactionCrudResponse
             {
                 Status = response.Status ? 1 : 0,

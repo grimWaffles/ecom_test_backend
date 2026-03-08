@@ -11,12 +11,12 @@ namespace OrderServiceGrpc.Services
 {
     public interface IOrderProcessorService
     {
-        Task<OrderProcessorResponseModel> CreateOrder(OrderDto dto, int userId);
-        Task<OrderProcessorResponseModel> UpdateOrder(OrderDto model, int userId);
-        Task<OrderProcessorResponseModel> DeleteOrder(int orderId, int userId);
-        Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
-        Task<OrderProcessorResponseModel> GetOrderById(int orderId);
-        Task<OrderProcessorResponseModel> TestOrderProcessorService();
+        Task<ConsumerResponseModel> CreateOrder(OrderDto dto, int userId);
+        Task<ConsumerResponseModel> UpdateOrder(OrderDto model, int userId);
+        Task<ConsumerResponseModel> DeleteOrder(int orderId, int userId);
+        Task<ConsumerResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
+        Task<ConsumerResponseModel> GetOrderById(int orderId);
+        Task<ConsumerResponseModel> TestOrderProcessorService();
     }
     public class OrderProcessorService : IOrderProcessorService
     {
@@ -27,11 +27,11 @@ namespace OrderServiceGrpc.Services
             _repo = orderRepository;
         }
 
-        public async Task<OrderProcessorResponseModel> CreateOrder(OrderDto dto, int userId)
+        public async Task<ConsumerResponseModel> CreateOrder(OrderDto dto, int userId)
         {
             try
             {
-                OrderProcessorResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
+                ConsumerResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
 
                 if (!eventLogResponse.Status)
                 {
@@ -42,7 +42,7 @@ namespace OrderServiceGrpc.Services
 
                 int insertedOrderId = await _repo.AddSingleOrder(model, userId);
 
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = insertedOrderId == 0 ? false : true,
                     Message = insertedOrderId>0 ? "Added successfully" : "Failed to add",
@@ -51,7 +51,7 @@ namespace OrderServiceGrpc.Services
             }
             catch(Exception ex)
             {
-                return new OrderProcessorResponseModel
+                return new ConsumerResponseModel
                 {
                     Status = false,
                     Message = ex.Message,
@@ -60,26 +60,26 @@ namespace OrderServiceGrpc.Services
             }
         }
 
-        public async Task<OrderProcessorResponseModel> DeleteOrder(int orderId, int userId)
+        public async Task<ConsumerResponseModel> DeleteOrder(int orderId, int userId)
         {
             bool orderAdded = await _repo.DeleteSingleOrder(orderId, userId);
 
-            return new OrderProcessorResponseModel()
+            return new ConsumerResponseModel()
             {
                 Status = orderAdded,
                 Message = orderAdded ? "Deleted successfully" : "Failed to delete"
             };
         }
 
-        public async Task<OrderProcessorResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
+        public async Task<ConsumerResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
         {
             PagedOrderListModel result = await _repo.GetAllOrdersWithPagination(startDate, endDate, pageSize, pageNumber, userId);
 
-            if (result == null) { return new OrderProcessorResponseModel() { Message = "Failed to get orders", Status = false }; }
+            if (result == null) { return new ConsumerResponseModel() { Message = "Failed to get orders", Status = false }; }
 
             try
             {
-                OrderProcessorResponseModel response = new OrderProcessorResponseModel()
+                ConsumerResponseModel response = new ConsumerResponseModel()
                 {
                     Status = true,
                     Message = "Success",
@@ -92,17 +92,17 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception e)
             {
-                return new OrderProcessorResponseModel() { Message = "Failed to get orders", Status = false, StackTrace = e.StackTrace ?? e.Message };
+                return new ConsumerResponseModel() { Message = "Failed to get orders", Status = false, StackTrace = e.StackTrace ?? e.Message };
             }
         }
 
-        public async Task<OrderProcessorResponseModel> GetOrderById(int orderId)
+        public async Task<ConsumerResponseModel> GetOrderById(int orderId)
         {
             OrderModel model = await _repo.GetOrderById(orderId);
 
-            if (model == null) { return new OrderProcessorResponseModel() { Message = "Failed to get order", Status = false }; }
+            if (model == null) { return new ConsumerResponseModel() { Message = "Failed to get order", Status = false }; }
 
-            return new OrderProcessorResponseModel()
+            return new ConsumerResponseModel()
             {
                 Status = true,
                 Message = "Success",
@@ -110,11 +110,11 @@ namespace OrderServiceGrpc.Services
             };
         }
 
-        public async Task<OrderProcessorResponseModel> UpdateOrder(OrderDto dto, int userId)
+        public async Task<ConsumerResponseModel> UpdateOrder(OrderDto dto, int userId)
         {
             try
             {
-                OrderProcessorResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
+                ConsumerResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
 
                 if (!eventLogResponse.Status)
                 {
@@ -157,7 +157,7 @@ namespace OrderServiceGrpc.Services
 
                     bool orderUpdated = await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
 
-                    return new OrderProcessorResponseModel()
+                    return new ConsumerResponseModel()
                     {
                         Status = orderUpdated,
                         Message = orderUpdated ? "Updated successfully" : "Failed to update"
@@ -165,7 +165,7 @@ namespace OrderServiceGrpc.Services
                 }
                 else
                 {
-                    return new OrderProcessorResponseModel()
+                    return new ConsumerResponseModel()
                     {
                         Status = false,
                         Message = "Failed to update"
@@ -174,7 +174,7 @@ namespace OrderServiceGrpc.Services
             }
             catch(Exception e)
             {
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = e.Message,
@@ -211,7 +211,7 @@ namespace OrderServiceGrpc.Services
         }
 
         //Integration Test for the service + repo
-        public async Task<OrderProcessorResponseModel> TestOrderProcessorService()
+        public async Task<ConsumerResponseModel> TestOrderProcessorService()
         {
             /* Test Process for OrderGrpcService
              * 1) Get list of orders
@@ -227,7 +227,7 @@ namespace OrderServiceGrpc.Services
             int pageSize = 10, pageNumber = 1;
 
             //Step 1
-            OrderProcessorResponseModel response = await GetAllOrders(startDate,endDate,pageSize,pageNumber,0);
+            ConsumerResponseModel response = await GetAllOrders(startDate,endDate,pageSize,pageNumber,0);
 
             if(response.ListOfOrders.Count()>0 && response.TotalOrders>0 && response.TotalPages> 0)
             {
@@ -236,7 +236,7 @@ namespace OrderServiceGrpc.Services
             else
             {
                 testLog.AppendLine("Step 1: GetAllOrders - Failed");
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = testLog.ToString(),
@@ -249,7 +249,7 @@ namespace OrderServiceGrpc.Services
             
             if (orderId == 0)
             {
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = testLog.ToString(),
@@ -257,7 +257,7 @@ namespace OrderServiceGrpc.Services
                 };
             }
 
-            OrderProcessorResponseModel singleOrderResponse = await GetOrderById(orderId);
+            ConsumerResponseModel singleOrderResponse = await GetOrderById(orderId);
 
             if (singleOrderResponse.Order != null && singleOrderResponse.Order.Id == orderId)
             {
@@ -266,7 +266,7 @@ namespace OrderServiceGrpc.Services
             else
             {
                 testLog.AppendLine("Step 2: GetOrderById - Failed");
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = testLog.ToString(),
@@ -281,7 +281,7 @@ namespace OrderServiceGrpc.Services
             model.Id = 0;
             model.OrderDate = DateTime.Now;
 
-            OrderProcessorResponseModel orderAddedResponse = await CreateOrder(OrderMapper.EntityToOrderDto(model), 1);
+            ConsumerResponseModel orderAddedResponse = await CreateOrder(OrderMapper.EntityToOrderDto(model), 1);
 
             if (orderAddedResponse.Status == true && orderAddedResponse.InsertedOrderId > 0)
             {
@@ -290,7 +290,7 @@ namespace OrderServiceGrpc.Services
             else
             {
                 testLog.AppendLine("Step 3: CreateOrder - Failed");
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = testLog.ToString(),
@@ -301,7 +301,7 @@ namespace OrderServiceGrpc.Services
             //Step 4
             decimal initialItemCount = 0, finalItemCount = 0, initialNetAmount = 0, finalNetAmount = 0;  
 
-            OrderProcessorResponseModel insertedDto = await GetOrderById(orderAddedResponse.InsertedOrderId);
+            ConsumerResponseModel insertedDto = await GetOrderById(orderAddedResponse.InsertedOrderId);
             
             OrderDto dtoToUpdate = insertedDto.Order;
 
@@ -320,9 +320,9 @@ namespace OrderServiceGrpc.Services
 
             modelToUpdate.RecalculateNetAmount();
 
-            OrderProcessorResponseModel updateOrderResponse = await UpdateOrder(OrderMapper.EntityToOrderDto(modelToUpdate), 1);
+            ConsumerResponseModel updateOrderResponse = await UpdateOrder(OrderMapper.EntityToOrderDto(modelToUpdate), 1);
 
-            OrderProcessorResponseModel updatedDto = await GetOrderById(modelToUpdate.Id);
+            ConsumerResponseModel updatedDto = await GetOrderById(modelToUpdate.Id);
 
             finalItemCount = updatedDto.Order.Items.Count; finalNetAmount = (decimal) updatedDto.Order.NetAmount; 
 
@@ -333,7 +333,7 @@ namespace OrderServiceGrpc.Services
             else
             {
                 testLog.AppendLine("Step 4: UpdateOrder - Failed");
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = testLog.ToString(),
@@ -342,7 +342,7 @@ namespace OrderServiceGrpc.Services
             }
 
             //Step 5
-            OrderProcessorResponseModel deleteOrderResponse = await DeleteOrder(orderAddedResponse.InsertedOrderId, 1);
+            ConsumerResponseModel deleteOrderResponse = await DeleteOrder(orderAddedResponse.InsertedOrderId, 1);
 
             if (deleteOrderResponse.Status == true)
             {
@@ -351,7 +351,7 @@ namespace OrderServiceGrpc.Services
             else
             {
                 testLog.AppendLine("Step 5: DeleteOrder - Failed");
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = testLog.ToString(),
@@ -359,7 +359,7 @@ namespace OrderServiceGrpc.Services
                 };
             }
 
-            return new OrderProcessorResponseModel()
+            return new ConsumerResponseModel()
             {
                 Status = true,
                 Message = testLog.ToString()

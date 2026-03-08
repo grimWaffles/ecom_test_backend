@@ -155,7 +155,7 @@ namespace OrderServiceGrpc.Kafka
                         continue;
                     }
 
-                    OrderProcessorResponseModel repoResponse = new OrderProcessorResponseModel();
+                    ConsumerResponseModel repoResponse = new ConsumerResponseModel();
 
                     //Validate message topic
                     bool topicExists = Array.Exists(_kafkaSettings.TrxTopic, x => x == result.Topic);
@@ -198,7 +198,7 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, OrderProcessorResponseModel repoResponse, CancellationToken stoppingToken)
+        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, ConsumerResponseModel repoResponse, CancellationToken stoppingToken)
         {
             string dlqTopic = ""; bool produceDlq = false;
 
@@ -332,7 +332,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    TransactionProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    ConsumerResponseModel repoResponse = await ProcessTransactionEvent(result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
@@ -359,39 +359,74 @@ namespace OrderServiceGrpc.Kafka
             return false;
         }
 
-        private async Task<TransactionProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<ConsumerResponseModel> ProcessTransactionEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
         {
             try
             {
-                //CreateOrderRequest request = JsonParser.Default.Parse<CreateOrderRequest>(result.Message.Value);
-                TransactionDto request = JsonSerializer.Deserialize<TransactionDto>(result.Message.Value);
+                CreateOrderRequestDto request = JsonSerializer.Deserialize<CreateOrderRequestDto>(result.Message.Value);
 
                 if (request != null)
                 {
-                    CustomerTransactionDto trxDto = TransactionMapper.ProtoToDto(request);
+
+                    CustomerTransactionDto trxDto = new CustomerTransactionDto()
+                    {
+                        UserId = request.UserId,
+                        TransactionType = "PURCHASE",
+                        Amount = (decimal)request.Order.NetAmount,
+                        CreatedDate = DateTime.Now,
+                        CreatedBy = request.Order.CreatedBy,
+                        IsDeleted = request.Order.IsDeleted,
+                        TransactionDate = DateTime.Now,
+                        ModifiedDate = DateTime.Now,
+                        ModifiedBy = request.Order.UserId,
+                        TransactionKey = ""
+                    };
                     int userId = trxDto.UserId;
 
                     using (var scope = _serviceProvider.CreateScope())
                     {
                         ICustomerTransactionProcessorService processorService = scope.ServiceProvider.GetRequiredService<ICustomerTransactionProcessorService>();
 
-                        TransactionProcessorResponseModel repoResponse = (result.Topic) switch
+                        if (result.Topic == "order-create")
                         {
-                            "trx-create" => await processorService.AddTransaction(trxDto, userId),
-                            "trx-update" => await processorService.UpdateTransaction(trxDto, userId),
-                            "trx-delete" => await processorService.DeleteTransaction(trxDto, userId),
-                            _ => new TransactionProcessorResponseModel()
+                            int insertedId = await processorService.AddTransaction(trxDto, userId);
+
+                            return new ConsumerResponseModel()
+                            {
+                                Status = insertedId > 0,
+                                Message = insertedId > 0 ? $"Transaction created with ID: {insertedId}" : "Failed to create transaction"
+                            };
+                        }
+                        else if (result.Topic == "order-update")
+                        {
+                            bool updateResult = await processorService.UpdateTransaction(trxDto, userId);
+                            return new ConsumerResponseModel()
+                            {
+                                Status = updateResult,
+                                Message = updateResult ? $"Transaction with ID: {trxDto.Id} updated successfully" : $"Failed to update transaction with ID: {trxDto.Id}"
+                            };
+                        }
+                        else if (result.Topic == "order-delete")
+                        {
+                            bool deleteResult = await processorService.DeleteTransaction(trxDto, userId);
+                            return new ConsumerResponseModel()
+                            {
+                                Status = deleteResult,
+                                Message = deleteResult ? $"Transaction with ID: {trxDto.Id} deleted successfully" : $"Failed to delete transaction with ID: {trxDto.Id}"
+                            };
+                        }
+                        else
+                        {
+                            return new ConsumerResponseModel()
                             {
                                 Status = false,
                                 Message = $"Error: Invalid topic provided in message={result.Topic}"
-                            }
-                        };
-
-                        return repoResponse;
+                            };
+                        }
                     }
                 }
 
-                return new TransactionProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid message provided topic:{result.Topic}"
@@ -399,7 +434,7 @@ namespace OrderServiceGrpc.Kafka
             }
             catch (Exception e)
             {
-                return new TransactionProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"

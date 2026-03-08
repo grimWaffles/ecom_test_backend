@@ -29,7 +29,7 @@ namespace OrderServiceGrpc.Repository
         Task<int> GetOrderCount();
         Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
-        Task<OrderProcessorResponseModel> InsertOrderCreateEvent(int orderId);
+        Task<ConsumerResponseModel> InsertOrderCreateEvent(int orderId);
     }
 
     public class OrderRepository : IOrderRepository
@@ -459,7 +459,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<OrderProcessorResponseModel> InsertOrderCreateEvent(int orderId)
+        public async Task<ConsumerResponseModel> InsertOrderCreateEvent(int orderId)
         {
             const string sql = @"INSERT INTO OrderEventLogs (OrderId, CreatedAt) VALUES (@OrderId, @CreatedAt);";
 
@@ -476,7 +476,7 @@ namespace OrderServiceGrpc.Repository
                 {
                     await conn.ExecuteAsync(sql, parameters);
 
-                    return new OrderProcessorResponseModel
+                    return new ConsumerResponseModel
                     {
                         Status = true,
                         Message = "Order inserted successfully"
@@ -485,7 +485,7 @@ namespace OrderServiceGrpc.Repository
                 catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
                 {
                     // UNIQUE constraint violation → duplicate Kafka message
-                    return new OrderProcessorResponseModel
+                    return new ConsumerResponseModel
                     {
                         Status = true,
                         Message = "Order already exists (idempotent)"
@@ -494,7 +494,7 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception ex)
             {
-                return new OrderProcessorResponseModel
+                return new ConsumerResponseModel
                 {
                     Status = false,
                     Message = ex.Message,

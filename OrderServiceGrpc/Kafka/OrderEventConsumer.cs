@@ -157,7 +157,7 @@ namespace OrderServiceGrpc.Kafka
                         continue;
                     }
 
-                    OrderProcessorResponseModel repoResponse = new OrderProcessorResponseModel();
+                    ConsumerResponseModel repoResponse = new ConsumerResponseModel();
 
                     //Validate message topic
                     bool topicExists = Array.Exists(_kafkaSettings.OrderTopic, x => x == result.Topic);
@@ -200,7 +200,7 @@ namespace OrderServiceGrpc.Kafka
             }
         }
 
-        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, OrderProcessorResponseModel repoResponse, CancellationToken stoppingToken)
+        private async Task SendToDlq(ConsumeResult<string, string> result, bool topicExists, ConsumerResponseModel repoResponse, CancellationToken stoppingToken)
         {
             string dlqTopic = ""; bool produceDlq = false;
 
@@ -334,7 +334,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    OrderProcessorResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    ConsumerResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
@@ -361,7 +361,7 @@ namespace OrderServiceGrpc.Kafka
             return false;
         }
 
-        private async Task<OrderProcessorResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<ConsumerResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
         {
             try
             {
@@ -377,12 +377,12 @@ namespace OrderServiceGrpc.Kafka
                     {
                         IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
 
-                        OrderProcessorResponseModel repoResponse = (result.Topic) switch
+                        ConsumerResponseModel repoResponse = (result.Topic) switch
                         {
                             "order-create" => await processorService.CreateOrder(request.Order, userId),
                             "order-update" => await processorService.UpdateOrder(request.Order, userId),
                             "order-delete" => await processorService.DeleteOrder(request.Order.Id, userId),
-                            _ => new OrderProcessorResponseModel()
+                            _ => new ConsumerResponseModel()
                             {
                                 Status = false,
                                 Message = $"Error: Invalid topic provided in message={result.Topic}"
@@ -393,7 +393,7 @@ namespace OrderServiceGrpc.Kafka
                     }
                 }
 
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid message provided topic:{result.Topic}"
@@ -401,7 +401,7 @@ namespace OrderServiceGrpc.Kafka
             }
             catch (Exception e)
             {
-                return new OrderProcessorResponseModel()
+                return new ConsumerResponseModel()
                 {
                     Status = false,
                     Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"

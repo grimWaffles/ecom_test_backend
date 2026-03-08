@@ -32,7 +32,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse { Status = false, Message = "Invalid user ID" };
             }
 
-            OrderProcessorResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
+            ConsumerResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
             return new OrderResponse
             {
                 Status = response.Status,
@@ -59,7 +59,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse { Status = false, Message = "Invalid user ID" };
             }
 
-            OrderProcessorResponseModel response = await _service.UpdateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
+            ConsumerResponseModel response = await _service.UpdateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
             return new OrderResponse
             {
                 Status = response.Status,
@@ -80,7 +80,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse { Status = false, Message = "Invalid user ID" };
             }
 
-            OrderProcessorResponseModel response = await _service.DeleteOrder(request.Id, request.UserId);
+            ConsumerResponseModel response = await _service.DeleteOrder(request.Id, request.UserId);
             return new OrderResponse
             {
                 Status = response.Status,
@@ -101,7 +101,7 @@ namespace OrderServiceGrpc.Services
             DateTime start = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
             DateTime end = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
 
-            OrderProcessorResponseModel response = await _service.GetAllOrders(start, end, request.PageSize, request.PageNumber, 0);
+            ConsumerResponseModel response = await _service.GetAllOrders(start, end, request.PageSize, request.PageNumber, 0);
 
             OrderListResponse orderListResponse = new OrderListResponse
             {
@@ -122,7 +122,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse { Status = false, Message = "Invalid order ID" };
             }
 
-            OrderProcessorResponseModel response = await _service.GetOrderById(request.Id);
+            ConsumerResponseModel response = await _service.GetOrderById(request.Id);
             return new OrderResponse
             {
                 Status = response.Status,
@@ -148,7 +148,7 @@ namespace OrderServiceGrpc.Services
             DateTime start = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
             DateTime end = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
 
-            OrderProcessorResponseModel response = await _service.GetAllOrders(start, end, request.PageSize, request.PageNumber, request.UserId);
+            ConsumerResponseModel response = await _service.GetAllOrders(start, end, request.PageSize, request.PageNumber, request.UserId);
 
             OrderListResponse orderListResponse = new OrderListResponse
             {
@@ -164,7 +164,7 @@ namespace OrderServiceGrpc.Services
 
         public override async Task<OrderResponse> TestOrderGrpcService(Empty request, ServerCallContext context)
         {
-            OrderProcessorResponseModel response = await _service.TestOrderProcessorService();
+            ConsumerResponseModel response = await _service.TestOrderProcessorService();
             return new OrderResponse
             {
                 Status = response.Status,

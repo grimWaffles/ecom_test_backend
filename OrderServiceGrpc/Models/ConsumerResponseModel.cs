@@ -3,7 +3,7 @@ using OrderServiceGrpc.Models.Entities;
 
 namespace OrderServiceGrpc.Models
 {
-    public class OrderProcessorResponseModel
+    public class ConsumerResponseModel
     {
         public string Message { get; set; }
         public bool Status { get; set; }
