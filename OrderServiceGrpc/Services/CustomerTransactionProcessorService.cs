@@ -37,7 +37,19 @@ namespace OrderServiceGrpc.Services
             try
             {
                 CustomerTransactionModel model = TransactionMapper.DtoToEntity(request);
-                model.TransactionKey = GenerateTransactionKey(model);
+                int totalTransactionsToday = await _repo.GetTotalTransactionCountForUser(request.UserId);
+
+                if (totalTransactionsToday < 0)
+                {
+                    return result;
+                }
+
+                model.TransactionKey = GenerateTransactionKey(model.UserId, model.TransactionType, model.TransactionDate, totalTransactionsToday);
+
+                if (await _repo.CheckIfTransactionKeyExists(model.TransactionKey) > 0)
+                {
+                    return result;
+                }
 
                 result = await _repo.AddTransaction(model, userId);
             }
@@ -49,9 +61,12 @@ namespace OrderServiceGrpc.Services
             return result;
         }
 
-        private string GenerateTransactionKey(CustomerTransactionModel model)
+        private string GenerateTransactionKey(int userId, string trxType, DateTime trxDate, int totalTransactionsToday)
         {
-            return $"{model.UserId}-{model.TransactionType}-{model.TransactionDate.ToString("yyyyMMdd")}-00";
+            string tCounter = totalTransactionsToday.ToString();
+            tCounter.PadLeft(2, '0');
+
+            return $"{userId}-{trxType}-{trxDate.ToString("yyyyMMdd")}-{tCounter}";
         }
 
         public async Task<bool> DeleteTransaction(CustomerTransactionDto request, int userId)
@@ -59,8 +74,13 @@ namespace OrderServiceGrpc.Services
             bool result = false;
             try
             {
+                if (await _repo.CheckIfTransactionKeyExists(request.TransactionKey) <= 0)
+                {
+                    return false;
+                }
+
                 CustomerTransactionModel model = TransactionMapper.DtoToEntity(request);
-                model.TransactionKey =  model.TransactionKey.Substring(0, model.TransactionKey.Length-2) + "01";
+                //model.TransactionKey = model.TransactionKey.Substring(0, model.TransactionKey.Length - 2) + "01";
                 result = await _repo.DeleteTransaction(model, userId);
             }
             catch (Exception ex)
@@ -82,7 +102,7 @@ namespace OrderServiceGrpc.Services
                     return null;
                 }
 
-                return list.Select(x=> TransactionMapper.EntityToDto(x)).ToList();
+                return list.Select(x => TransactionMapper.EntityToDto(x)).ToList();
             }
             catch (Exception ex)
             {
@@ -126,7 +146,7 @@ namespace OrderServiceGrpc.Services
             {
                 CustomerTransactionModel model = await _repo.GetTransactionById(id);
 
-                if(model==null)
+                if (model == null)
                 {
                     return null;
                 }
@@ -143,6 +163,11 @@ namespace OrderServiceGrpc.Services
         {
             try
             {
+                if (await _repo.CheckIfTransactionKeyExists(request.TransactionKey) <= 0)
+                {
+                    return false;
+                }
+
                 bool result = await _repo.UpdateTransaction(TransactionMapper.DtoToEntity(request), userId);
 
                 return result;
@@ -253,10 +278,10 @@ namespace OrderServiceGrpc.Services
 
                 //Step 5 Delete the transaction
                 bool deleteResult = await DeleteTransaction(TransactionMapper.EntityToDto(modelToUpdate), userId);
-                
+
 
                 CustomerTransactionDto deletedDto = await GetTransactionById(modelToUpdate.Id);
-                
+
                 if (!deleteResult || !deletedDto.IsDeleted)
                 {
                     return new ConsumerResponseModel()

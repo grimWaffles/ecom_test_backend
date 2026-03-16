@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.ObjectPool;
@@ -24,6 +25,8 @@ namespace OrderServiceGrpc.Repository
         Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId);
         Task<int> GetTransactionCount();
         Task<PagedTransactionResultFromRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
+        Task<int> GetTotalTransactionCountForUser(int userId);
+        Task<int> CheckIfTransactionKeyExists(string trxKey);
     }
 
     public class CustomerTransactionRepository : ICustomerTransactionRepository
@@ -140,6 +143,55 @@ namespace OrderServiceGrpc.Repository
             catch (Exception e)
             {
                 return null;
+            }
+        }
+
+        public async Task<int> GetTotalTransactionCountForUser(int userId)
+        {
+            int totalTransactionsToday = 0;
+
+            try
+            {
+                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where UserId = @UserId and Convert(date,TransactionDate) = Convert(date,GETDATE());";
+                
+                DynamicParameters parameters = new DynamicParameters();
+                parameters.Add("@UserId", userId);
+
+                await using SqlConnection conn = new SqlConnection(_connectionString);
+
+                await conn.OpenAsync();
+
+                totalTransactionsToday = await conn.ExecuteScalarAsync<int>(sql,parameters);
+
+                return totalTransactionsToday;
+            }
+            catch (Exception e)
+            {
+                return -1;
+            }
+        }
+
+        public async Task<int> CheckIfTransactionKeyExists(string trxKey)
+        {
+            int trxCount = 0;
+
+            try
+            {
+                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where TransactionKey = @TransactionKey";
+
+                DynamicParameters parameters = new DynamicParameters();
+                parameters.Add("@TransactionKey", trxKey);
+
+                await using SqlConnection conn = new SqlConnection(_connectionString);
+
+                await conn.OpenAsync();
+                trxCount = await conn.ExecuteScalarAsync<int>(sql, parameters);
+
+                return trxCount;
+            }
+            catch (Exception e)
+            {
+                return -1;
             }
         }
 
