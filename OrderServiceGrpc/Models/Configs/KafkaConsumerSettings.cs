@@ -7,7 +7,9 @@ namespace OrderServiceGrpc.Models.ConfigModels
     {
         //Main Consumer
         [Required]
-        public string GroupId { get; set; } = null!;
+        public string TransactionGroupId { get; set; } = null!;
+        [Required]
+        public string OrderGroupId { get; set; } = null!;
 
         public bool EnableAutoCommit { get; set; } = true;
         public bool EnableAutoOffsetStore { get; set; }

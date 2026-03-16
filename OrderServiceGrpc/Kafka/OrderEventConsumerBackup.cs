@@ -53,7 +53,7 @@ namespace OrderServiceGrpc.Kafka
             if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerLocal))
                 throw new ArgumentException("Kafka BootstrapServer for dev is missing from configuration.");
 
-            if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
+            if (string.IsNullOrWhiteSpace(_consumerSettings.OrderGroupId))
                 throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
             if (_kafkaSettings.OrderTopic.Length == 0)
@@ -68,7 +68,7 @@ namespace OrderServiceGrpc.Kafka
             _consumerConfig = new ConsumerConfig()
             {
                 BootstrapServers = kafkaBootstrapServer,
-                GroupId = _consumerSettings.GroupId,
+                GroupId = _consumerSettings.OrderGroupId,
                 AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
                 EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
                 EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing

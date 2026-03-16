@@ -50,12 +50,12 @@ namespace OrderServiceGrpc.Kafka
 
             _serviceProvider = serviceProvider;
 
-            _logger.LogInformation("Kafka order consumer constructor started...");
+            _logger.LogInformation("KAFKA ORDER CONSUMER: Kafka order consumer constructor started...");
 
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
             _consumerSettings = kafkaConsumerSettings.Value;
 
-            _logger.LogInformation("Kafka order consumer settings loaded...");
+            _logger.LogInformation("KAFKA ORDER CONSUMER: Kafka order consumer settings loaded...");
 
             _kafkaSettings = kafkaSettings.Value;
         }
@@ -88,7 +88,7 @@ namespace OrderServiceGrpc.Kafka
                 if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerLocal))
                     throw new ArgumentException("Kafka BootstrapServer for dev is missing from configuration.");
 
-                if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
+                if (string.IsNullOrWhiteSpace(_consumerSettings.OrderGroupId))
                     throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
                 if (_kafkaSettings.OrderTopic.Length == 0)
@@ -103,7 +103,7 @@ namespace OrderServiceGrpc.Kafka
                 _consumerConfig = new ConsumerConfig()
                 {
                     BootstrapServers = kafkaBootstrapServer,
-                    GroupId = _consumerSettings.GroupId,
+                    GroupId = _consumerSettings.OrderGroupId,
                     AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
                     EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
                     EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing
@@ -126,12 +126,12 @@ namespace OrderServiceGrpc.Kafka
 
                 _consumer.Subscribe(_kafkaSettings.OrderTopic);
 
-                _logger.LogInformation("Initialized order consumer service successfully");
+                _logger.LogInformation("KAFKA ORDER CONSUMER: Initialized order consumer service successfully");
             }
 
             catch (Exception e)
             {
-                _logger.LogInformation($"Order consumer failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
+                _logger.LogInformation($"KAFKA ORDER CONSUMER: Order consumer failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
                 await CloseAndDisposeConsumerAndProducer();
                 return;
             }
@@ -249,7 +249,7 @@ namespace OrderServiceGrpc.Kafka
             }
             else
             {
-                _logger.LogInformation($"Failed to process DLQ Message for order consumer: {result.Topic}. Sending to Catch-All...");
+                _logger.LogInformation($"KAFKA ORDER CONSUMER: Failed to process DLQ Message for order consumer: {result.Topic}. Sending to Catch-All...");
 
                 // Produce failed message to CATCH-ALL-DLQ
                 try
@@ -277,7 +277,7 @@ namespace OrderServiceGrpc.Kafka
 
             for (int attemptNo = 1; attemptNo < _consumerSettings.MaxConsumerRetries; attemptNo++)
             {
-                _logger.LogInformation($"Attemp#{attemptNo + 1} to commit order consumer result...");
+                _logger.LogInformation($"KAFKA ORDER CONSUMER: Attemp#{attemptNo + 1} to commit order consumer result...");
 
                 try
                 {
@@ -289,24 +289,24 @@ namespace OrderServiceGrpc.Kafka
                         _processedOffsets.TryRemove(tpo.TopicPartition, out _);
                     }
 
-                    _logger.LogInformation($"Committed {topicPartitionOffsets.Count} offset(s) successfully by order consumer.");
+                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Committed {topicPartitionOffsets.Count} offset(s) successfully by order consumer.");
 
                     break;
                 }
                 catch (KafkaException kex)
                 {
-                    _logger.LogWarning($"Attempt {attemptNo + 1}: Failed to commit offsets for order consumer: {kex.Message}");
+                    _logger.LogWarning($"KAFKA ORDER CONSUMER: Attempt {attemptNo + 1}: Failed to commit offsets for order consumer: {kex.Message}");
 
                     if (attemptNo < _consumerSettings.MaxConsumerRetries - 1)
                     {
                         int delayMs = GetExponentialDelay(attemptNo);
-                        _logger.LogInformation($"Retrying commit by order consumer in {delayMs}ms...");
+                        _logger.LogInformation($"KAFKA ORDER CONSUMER: Retrying commit by order consumer in {delayMs}ms...");
 
                         await Task.Delay(delayMs, token);
                     }
                     else
                     {
-                        _logger.LogInformation($"Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts by order consumer.");
+                        _logger.LogInformation($"KAFKA ORDER CONSUMER: Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts by order consumer.");
                     }
                 }
             }
@@ -341,7 +341,7 @@ namespace OrderServiceGrpc.Kafka
                         return true;
                     }
 
-                    _logger.LogInformation($"Error: Processing failed for topic '{result.Topic}' by order consumer. Retrying...");
+                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Processing failed for topic '{result.Topic}' by order consumer. Retrying...");
 
                     await Task.Delay(GetExponentialDelay(attemptNo), stoppingToken);
                 }
@@ -385,7 +385,7 @@ namespace OrderServiceGrpc.Kafka
                             _ => new ConsumerResponseModel()
                             {
                                 Status = false,
-                                Message = $"Error: Invalid topic provided in message={result.Topic}"
+                                Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
                             }
                         };
 
@@ -393,10 +393,15 @@ namespace OrderServiceGrpc.Kafka
                     }
                 }
 
+                else
+                {
+                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Consumer has null order to process");
+                }
+
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = $"Error: Invalid message provided topic:{result.Topic}"
+                    Message = $"KAFKA ORDER CONSUMER: Invalid message provided topic:{result.Topic}"
                 };
             }
             catch (Exception e)
@@ -404,7 +409,7 @@ namespace OrderServiceGrpc.Kafka
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"
+                    Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"
                 };
             }
         }
