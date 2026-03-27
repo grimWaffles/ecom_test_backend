@@ -22,8 +22,8 @@ builder.Services.AddScoped<ICustomerTransactionProcessorService, CustomerTransac
 builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
-builder.Services.AddHostedService<OrderEventConsumer>();
-builder.Services.AddHostedService<TransactionEventConsumer>();
+// builder.Services.AddHostedService<OrderEventConsumer>();
+// builder.Services.AddHostedService<TransactionEventConsumer>();
 
 var app = builder.Build();
 

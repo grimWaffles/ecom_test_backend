@@ -8,9 +8,9 @@ namespace OrderServiceGrpc.Models.ConfigModels
 
     public class DatabaseConnection
     {
-        public string MySqlConnection { get; set; } = "" ;
-        public string MySqlDockerConnection { get; set; } = "" ;
-        public string SqlServerConnection { get; set; } = "" ;
-        public string SqlServerDockerConnection { get; set; } = "" ;
+        public string SqlServerHomeConnection { get; set; } = "" ;
+        public string SqlServerHomeDockerConnection { get; set; } = "" ;
+        public string SqlServerWorkConnection { get; set; } = "" ;
+        public string SqlServerWorkDockerConnection { get; set; } = "" ;
     }
 }

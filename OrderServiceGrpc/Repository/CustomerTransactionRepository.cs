@@ -32,19 +32,17 @@ namespace OrderServiceGrpc.Repository
     public class CustomerTransactionRepository : ICustomerTransactionRepository
     {
         private readonly string _connectionString;
-        private readonly string _dbType;
 
         public CustomerTransactionRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings)
         {
-            _connectionString = (dbConfig.Value.Database.ToLower(), dbConfig.Value.Mode.ToLower()) switch
+           _connectionString = (dbConfig.Value.Database.ToLower(),dbConfig.Value.Mode.ToLower()) switch
             {
-                ("mysql", "local") => connectionStrings.Value.MySqlConnection,
-                ("mysql", "docker") => connectionStrings.Value.MySqlDockerConnection,
-                ("sqlserver", "local") => connectionStrings.Value.SqlServerConnection,
-                ("sqlserver", "docker") => connectionStrings.Value.SqlServerDockerConnection,
+                ("home", "local") => connectionStrings.Value.SqlServerHomeConnection,
+                ("home", "docker") => connectionStrings.Value.SqlServerHomeDockerConnection,
+                ("work", "local") => connectionStrings.Value.SqlServerWorkConnection,
+                ("work", "docker") => connectionStrings.Value.SqlServerWorkDockerConnection,
                 _ => ""
             };
-            _dbType = dbConfig.Value.Database;
         }
 
         public async Task<int> AddTransaction(CustomerTransactionModel request, int userId)
