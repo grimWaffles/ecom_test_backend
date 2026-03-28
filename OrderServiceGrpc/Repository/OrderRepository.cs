@@ -5,16 +5,15 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
-using MySql.Data.MySqlClient;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Transactions;
-using Z.Dapper.Plus;
 using static Dapper.SqlMapper;
 
 namespace OrderServiceGrpc.Repository
@@ -28,33 +27,23 @@ namespace OrderServiceGrpc.Repository
         Task<int> GetOrderCount();
         Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
-        Task<OrderProcessorResponseModel> InsertOrderCreateEvent(int orderId);
+        Task<ConsumerResponseModel> InsertOrderCreateEvent(int orderId);
     }
 
     public class OrderRepository : IOrderRepository
     {
         private readonly string _connectionString;
-        private readonly string _dbType;
 
         public OrderRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings)
         {
-            _connectionString = (dbConfig.Value.Database.ToLower(), dbConfig.Value.Mode.ToLower()) switch
+            _connectionString = (dbConfig.Value.Database.ToLower(),dbConfig.Value.Mode.ToLower()) switch
             {
-                ("mysql", "local") => connectionStrings.Value.MySqlConnection,
-                ("mysql", "docker") => connectionStrings.Value.MySqlDockerConnection,
-                ("sqlserver", "local") => connectionStrings.Value.SqlServerConnection,
-                ("sqlserver", "docker") => connectionStrings.Value.SqlServerDockerConnection,
+                ("home", "local") => connectionStrings.Value.SqlServerHomeConnection,
+                ("home", "docker") => connectionStrings.Value.SqlServerHomeDockerConnection,
+                ("work", "local") => connectionStrings.Value.SqlServerWorkConnection,
+                ("work", "docker") => connectionStrings.Value.SqlServerWorkDockerConnection,
                 _ => ""
             };
-            _dbType = dbConfig.Value.Database;
-        }
-
-        private DbConnection GetDatabaseConnection()
-        {
-            if (_dbType == "mysql")
-                return new MySqlConnection(_connectionString);
-
-            return new SqlConnection(_connectionString);
         }
 
         public async Task<int> AddSingleOrder(OrderModel request, int userId)
@@ -261,148 +250,86 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
         {
-            using var conn = GetDatabaseConnection();
             try
             {
-                if (_dbType == "sqlserver")
+                await using var conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync(); 
+
+                // Common parameters
+                var parameters = new DynamicParameters();
+
+                parameters.Add("@StartDate", startDate);
+                parameters.Add("@EndDate", endDate);
+
+                parameters.Add("@PageNumber", pageNumber);
+                parameters.Add("@PageSize", pageSize);
+
+                parameters.Add("@UserId", userId);
+
+                const string SQL_SERVER_QUERY = @"
+                            DECLARE @TotalOrders INT, @TotalPages INT;
+
+                            drop table if exists #OrderIds
+                            create table #OrderIds(OrderId int)
+
+                            insert into #OrderIds(OrderId)
+                            SELECT o.Id
+                            FROM Orders o
+                            WHERE o.OrderDate >= CONVERT(DATE, @StartDate) 
+                            AND o.OrderDate <= CONVERT(DATE, @EndDate)
+                            AND o.IsDeleted = 0
+                            AND (@UserId = 0 OR o.UserId = @UserId)
+                            ORDER BY o.OrderDate DESC
+                            OFFSET (@PageNumber - 1) * @PageSize ROWS
+                            FETCH NEXT @PageSize ROWS ONLY;
+
+                            select 
+                                *
+                            from Orders
+                            where Id in (select OrderId from #OrderIds)
+
+                            select oi.*
+                            from OrderItems oi
+                            where oi.OrderId in (select OrderId from #OrderIds)
+
+                            SELECT @TotalOrders = COUNT(*)
+                            FROM Orders
+                            WHERE OrderDate >= CONVERT(DATE, @StartDate) 
+                            AND OrderDate <= CONVERT(DATE, @EndDate);
+
+                            SELECT @TotalPages = CEILING(CAST(@TotalOrders AS FLOAT) / @PageSize);
+
+                            SELECT @TotalPages AS TotalPages;
+                            SELECT @TotalOrders AS TotalOrders;
+
+                            drop table if exists #OrderIds
+                        ";
+
+                var reader = await conn.QueryMultipleAsync(SQL_SERVER_QUERY, parameters);
+
+                List<OrderModel> orders = reader.Read<OrderModel>().ToList();
+                List<OrderItemModel> itemList = reader.Read<OrderItemModel>().ToList();
+
+                foreach(var order in orders)
                 {
-                    return await AllOrdersSqlServerPaginationMode(conn, startDate, endDate, pageSize, pageNumber, userId);
+                    order.OrderItems = itemList.Where(x=>x.OrderId == order.Id).ToList();
                 }
-                else
+
+                int totalPages = reader.ReadSingle<int>();
+                int totalOrders = reader.ReadSingle<int>();
+
+                return new PagedOrderListModel()
                 {
-                    return await AllOrdersMySqlPaginationMode(conn, startDate, endDate, pageSize, pageNumber, userId);
-                }
+                    TotalOrders = totalOrders,
+                    TotalPages = totalPages,
+                    OrderList = orders
+                };
             }
             catch (Exception e)
             {
                 // Optionally log e.Message
                 return null;
             }
-            finally
-            {
-                await conn.CloseAsync();
-            }
-        }
-
-        private async Task<PagedOrderListModel> AllOrdersMySqlPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
-        {
-            // Common parameters
-            var parameters = new DynamicParameters();
-            parameters.Add("@StartDate", startDate.Date);
-            parameters.Add("@EndDate", endDate.Date);
-            parameters.Add("@PageSize", pageSize);
-            parameters.Add("@UserId", userId);
-            parameters.Add("@Offset", (pageNumber - 1) * pageSize);
-            
-            try
-            {
-                const string MY_SQL_QUERY = @"select 
-                            Id, OrderDate, OrderCounter, UserId, Status	, NetAmount, CreatedBy, CreatedDate, IsDeleted, ModifiedBy, ModifiedDate
-                        from Orders o
-                        where (@UserId = 0 OR o.UserId = @UserId)
-                        order by 
-                            OrderDate desc, OrderCounter desc
-                        limit @Offset, @PageSize;
-                    ";
-
-                const string MY_SQL_COUNT = @"
-                        SELECT COUNT(*) 
-                        FROM Orders o
-                        where (@UserId = 0 OR o.UserId = @UserId)
-                    ";
-
-                await conn.OpenAsync();
-
-                List<OrderModel> orderList = (await conn.QueryAsync<OrderModel>(MY_SQL_QUERY, parameters)).ToList();
-                int totalOrders = Convert.ToInt32(await conn.ExecuteScalarAsync<long>(MY_SQL_COUNT, parameters));
-                int totalPages = Convert.ToInt32(System.Math.Ceiling((decimal)totalOrders / pageSize));
-
-                return new PagedOrderListModel()
-                {
-                    TotalOrders = totalOrders,
-                    TotalPages = totalPages,
-                    OrderList = orderList
-                };
-            }
-            catch (Exception e)
-            {
-                return null;
-            }
-        }
-
-        private async Task<PagedOrderListModel> AllOrdersSqlServerPaginationMode(DbConnection conn, DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
-        {
-
-            // Common parameters
-            var parameters = new DynamicParameters();
-
-            parameters.Add("@StartDate", startDate);
-            parameters.Add("@EndDate", endDate);
-
-            parameters.Add("@PageNumber", pageNumber);
-            parameters.Add("@PageSize", pageSize);
-
-            parameters.Add("@UserId", userId);
-
-            const string SQL_SERVER_QUERY = @"
-                        DECLARE @TotalOrders INT, @TotalPages INT;
-
-                        drop table if exists #OrderIds
-                        create table #OrderIds(OrderId int)
-
-                        insert into #OrderIds(OrderId)
-                        SELECT o.Id
-                        FROM Orders o
-                        WHERE o.OrderDate >= CONVERT(DATE, @StartDate) 
-                        AND o.OrderDate <= CONVERT(DATE, @EndDate)
-                        AND o.IsDeleted = 0
-                        AND (@UserId = 0 OR o.UserId = @UserId)
-                        ORDER BY o.OrderDate DESC
-                        OFFSET (@PageNumber - 1) * @PageSize ROWS
-                        FETCH NEXT @PageSize ROWS ONLY;
-
-                        select 
-	                        *
-                        from Orders
-                        where Id in (select OrderId from #OrderIds)
-
-                        select oi.*
-                        from OrderItems oi
-                        where oi.OrderId in (select OrderId from #OrderIds)
-
-                        SELECT @TotalOrders = COUNT(*)
-                        FROM Orders
-                        WHERE OrderDate >= CONVERT(DATE, @StartDate) 
-                        AND OrderDate <= CONVERT(DATE, @EndDate);
-
-                        SELECT @TotalPages = CEILING(CAST(@TotalOrders AS FLOAT) / @PageSize);
-
-                        SELECT @TotalPages AS TotalPages;
-                        SELECT @TotalOrders AS TotalOrders;
-
-                        drop table if exists #OrderIds
-                    ";
-
-            await conn.OpenAsync();
-            var reader = await conn.QueryMultipleAsync(SQL_SERVER_QUERY, parameters);
-
-            List<OrderModel> orders = reader.Read<OrderModel>().ToList();
-            List<OrderItemModel> itemList = reader.Read<OrderItemModel>().ToList();
-
-            foreach(var order in orders)
-            {
-                order.OrderItems = itemList.Where(x=>x.OrderId == order.Id).ToList();
-            }
-
-            int totalPages = reader.ReadSingle<int>();
-            int totalOrders = reader.ReadSingle<int>();
-
-            return new PagedOrderListModel()
-            {
-                TotalOrders = totalOrders,
-                TotalPages = totalPages,
-                OrderList = orders
-            };
         }
 
         public async Task<OrderModel> GetOrderById(int orderId)
@@ -410,11 +337,10 @@ namespace OrderServiceGrpc.Repository
             const string fetchOrderSql = @"select * from Orders where Id = @OrderId and IsDeleted = 0;
                                             select * from OrderItems where OrderId = @OrderId and IsDeleted = 0;";
 
-            using var conn = GetDatabaseConnection();
-
             try
             {
-                await conn.OpenAsync();
+                await using var conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync(); 
 
                 DynamicParameters parameters = new DynamicParameters();
                 parameters.Add("@OrderId", orderId);
@@ -435,22 +361,22 @@ namespace OrderServiceGrpc.Repository
             {
                 return null;
             }
-            finally { await conn.CloseAsync(); }
         }
 
         public async Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId)
         {
             string sql = @"select * from OrderItems where OrderId = @OrderId and IsDeleted = 0";
+
             DynamicParameters dynamicParameters = new DynamicParameters();
             dynamicParameters.Add("@Id", orderId);
             try
             {
-                using (var conn = GetDatabaseConnection())
-                {
-                    await conn.OpenAsync();
+                await using var conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync(); 
 
-                    return (List<OrderItemModel>)await conn.QueryAsync<OrderItemModel>(sql, dynamicParameters);
-                }
+                await conn.OpenAsync();
+
+                return (List<OrderItemModel>)await conn.QueryAsync<OrderItemModel>(sql, dynamicParameters);
             }
             catch (Exception e)
             {
@@ -458,7 +384,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<OrderProcessorResponseModel> InsertOrderCreateEvent(int orderId)
+        public async Task<ConsumerResponseModel> InsertOrderCreateEvent(int orderId)
         {
             const string sql = @"INSERT INTO OrderEventLogs (OrderId, CreatedAt) VALUES (@OrderId, @CreatedAt);";
 
@@ -475,7 +401,7 @@ namespace OrderServiceGrpc.Repository
                 {
                     await conn.ExecuteAsync(sql, parameters);
 
-                    return new OrderProcessorResponseModel
+                    return new ConsumerResponseModel
                     {
                         Status = true,
                         Message = "Order inserted successfully"
@@ -484,7 +410,7 @@ namespace OrderServiceGrpc.Repository
                 catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
                 {
                     // UNIQUE constraint violation → duplicate Kafka message
-                    return new OrderProcessorResponseModel
+                    return new ConsumerResponseModel
                     {
                         Status = true,
                         Message = "Order already exists (idempotent)"
@@ -493,7 +419,7 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception ex)
             {
-                return new OrderProcessorResponseModel
+                return new ConsumerResponseModel
                 {
                     Status = false,
                     Message = ex.Message,
@@ -507,8 +433,8 @@ namespace OrderServiceGrpc.Repository
             string sql = @"select Count(*) from Orders";
             try
             {
-                using var conn = GetDatabaseConnection();
-                await conn.OpenAsync();
+                await using var conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync(); 
 
                 return await conn.ExecuteScalarAsync<int>(sql);
             }

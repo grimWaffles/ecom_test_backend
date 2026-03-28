@@ -1,10 +1,13 @@
 ﻿using Dapper;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.ObjectPool;
+using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
@@ -17,26 +20,34 @@ namespace OrderServiceGrpc.Repository
     {
         Task<CustomerTransactionModel> GetTransactionById(int id);
         Task<List<CustomerTransactionModel>> GetAllTransactions();
-        Task<bool> AddTransaction(CustomerTransactionModel request, int userId);
+        Task<int> AddTransaction(CustomerTransactionModel request, int userId);
         Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId);
         Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId);
         Task<int> GetTransactionCount();
-        Task<PagedTransactionResultRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
+        Task<PagedTransactionResultFromRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
+        Task<int> GetTotalTransactionCountForUser(int userId);
+        Task<int> CheckIfTransactionKeyExists(string trxKey);
     }
 
     public class CustomerTransactionRepository : ICustomerTransactionRepository
     {
         private readonly string _connectionString;
-        private readonly IConfiguration _config;
 
-        public CustomerTransactionRepository(IConfiguration configuration)
+        public CustomerTransactionRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings)
         {
-            _config = configuration;
-            _connectionString = _config.GetSection("ConnectionStrings:DefaultConnection").Get<string>() ?? "";
+           _connectionString = (dbConfig.Value.Database.ToLower(),dbConfig.Value.Mode.ToLower()) switch
+            {
+                ("home", "local") => connectionStrings.Value.SqlServerHomeConnection,
+                ("home", "docker") => connectionStrings.Value.SqlServerHomeDockerConnection,
+                ("work", "local") => connectionStrings.Value.SqlServerWorkConnection,
+                ("work", "docker") => connectionStrings.Value.SqlServerWorkDockerConnection,
+                _ => ""
+            };
         }
-        public async Task<bool> AddTransaction(CustomerTransactionModel request, int userId)
+
+        public async Task<int> AddTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" INSERT INTO CustomerTransactionModel (
+            string sql = @" INSERT INTO CustomerTransactions (
                                 UserId,
                                 TransactionType,
                                 Amount,
@@ -54,39 +65,41 @@ namespace OrderServiceGrpc.Repository
                                 @IsDeleted,
                                 @TransactionDate,
                                 @TransactionKey
-                            );";
+                            ); select SCOPE_IDENTITY();";
 
             DynamicParameters parameters = new DynamicParameters();
             parameters.Add("@UserId", request.UserId);
             parameters.Add("TransactionType", request.TransactionType);
-            parameters.Add("@TransactionDate", request.TransactionDate);
+            parameters.Add("@TransactionDate", DateTime.Now);
             parameters.Add("@Amount", request.Amount);
             parameters.Add("@CreatedDate", DateTime.Now);
             parameters.Add("@CreatedBy", userId);
             parameters.Add("@IsDeleted", false);
-            parameters.Add("@TransactionKey", request.TransactionKey);
+            parameters.Add("@TransactionKey", request.TransactionKey ?? "" );
 
             try
             {
                 await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
-                await conn.ExecuteAsync(sql, parameters);
+                var result = await conn.ExecuteScalarAsync(sql, parameters);
 
-                return true;
+                int resultToReturn = Convert.ToInt32(result);
+                return resultToReturn;
             }
             catch (Exception e)
             {
-                return false;
+                return -1;
             }
         }
 
         public async Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" UPDATE CustomerTransactionModel
+            string sql = @" UPDATE CustomerTransactions
                             SET
                                 IsDeleted = @IsDeleted,
                                 ModifiedDate = @ModifiedDate,
-                                ModifiedBy = @ModifiedBy
+                                ModifiedBy = @ModifiedBy,
+                                TransactionKey = @TransactionKey
                             WHERE
                                 Id = @Id;";
 
@@ -94,8 +107,9 @@ namespace OrderServiceGrpc.Repository
 
             parameters.Add("@ModifiedDate", DateTime.Now);
             parameters.Add("@ModifiedBy", userId);
-            parameters.Add("@IsDeleted", false);
+            parameters.Add("@IsDeleted", true);
             parameters.Add("@Id", request.Id);
+            parameters.Add("@TransactionKey", request.TransactionKey);
 
             try
             {
@@ -130,9 +144,58 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<PagedTransactionResultRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
+        public async Task<int> GetTotalTransactionCountForUser(int userId)
         {
-            PagedTransactionResultRepo result = new PagedTransactionResultRepo();
+            int totalTransactionsToday = 0;
+
+            try
+            {
+                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where UserId = @UserId and Convert(date,TransactionDate) = Convert(date,GETDATE());";
+                
+                DynamicParameters parameters = new DynamicParameters();
+                parameters.Add("@UserId", userId);
+
+                await using SqlConnection conn = new SqlConnection(_connectionString);
+
+                await conn.OpenAsync();
+
+                totalTransactionsToday = await conn.ExecuteScalarAsync<int>(sql,parameters);
+
+                return totalTransactionsToday;
+            }
+            catch (Exception e)
+            {
+                return -1;
+            }
+        }
+
+        public async Task<int> CheckIfTransactionKeyExists(string trxKey)
+        {
+            int trxCount = 0;
+
+            try
+            {
+                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where TransactionKey = @TransactionKey";
+
+                DynamicParameters parameters = new DynamicParameters();
+                parameters.Add("@TransactionKey", trxKey);
+
+                await using SqlConnection conn = new SqlConnection(_connectionString);
+
+                await conn.OpenAsync();
+                trxCount = await conn.ExecuteScalarAsync<int>(sql, parameters);
+
+                return trxCount;
+            }
+            catch (Exception e)
+            {
+                return -1;
+            }
+        }
+
+        public async Task<PagedTransactionResultFromRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
+        {
+            PagedTransactionResultFromRepo result = new PagedTransactionResultFromRepo();
 
             try
             {
@@ -195,7 +258,7 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception e)
             {
-                return new PagedTransactionResultRepo()
+                return new PagedTransactionResultFromRepo()
                 {
                     Status = false,
                     ErrorMessage = "Failed to fetch orders",
@@ -254,7 +317,7 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" UPDATE CustomerTransactionModel
+            string sql = @" UPDATE CustomerTransactions
                             SET
                                 UserId = @UserId,
                                 TransactionType = @TransactionType,
@@ -283,7 +346,6 @@ namespace OrderServiceGrpc.Repository
                 {
                     await conn.OpenAsync();
                     await conn.ExecuteAsync(sql, parameters);
-                    await conn.CloseAsync();
                     return true;
                 }
             }

@@ -3,6 +3,7 @@ using Grpc.Core;
 using Microsoft.IdentityModel.Tokens;
 using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
@@ -87,7 +88,7 @@ namespace OrderServiceGrpc.Services
             DateTime start = DateTimeHelper.ConvertTimestampToDateTime(request.StartDate);
             DateTime end = DateTimeHelper.ConvertTimestampToDateTime(request.EndDate);
 
-            PagedTransactionResultService result = await _transactionProcessorService.GetAllTransactionsWithPagination(
+            PagedTransactionResultFromService result = await _transactionProcessorService.GetAllTransactionsWithPagination(
                 start, end, request.PageNumber, request.PageLength, request.TransactionType);
 
             return new TransactionResponseMultiple
@@ -137,12 +138,12 @@ namespace OrderServiceGrpc.Services
                 };
             }
 
-            var result = await _transactionProcessorService.AddTransaction(TransactionMapper.ProtoToDto(request), (int)request.CreatedBy);
+            int result = await _transactionProcessorService.AddTransaction(TransactionMapper.ProtoToDto(request), (int)request.CreatedBy);
 
             return new TransactionCrudResponse
             {
-                Status = result ? 0 : 1,
-                ErrorMessage = result ? "" : "Failed to add transaction"
+                Status = result <= 0 ? 0 : 1,
+                ErrorMessage = result > 0 ? "" : "Failed to add transaction"
             };
         }
 
@@ -197,7 +198,7 @@ namespace OrderServiceGrpc.Services
 
             return new TransactionCrudResponse
             {
-                Status = result ? 0 : 1,
+                Status = result ? 1 :0,
                 ErrorMessage = result ? "" : "Failed to update transaction"
             };
         }
@@ -227,8 +228,18 @@ namespace OrderServiceGrpc.Services
 
             return new TransactionCrudResponse
             {
-                Status = result ? 0 : 1,
+                Status = !result ? 0 : 1,
                 ErrorMessage = result ? "" : "Failed to delete transaction"
+            };
+        }
+
+        public override async Task<TransactionCrudResponse> TestCustomerTransactionGrpcService(Empty request, ServerCallContext context)
+        {
+            ConsumerResponseModel response = await _transactionProcessorService.TestCustomerTransactionProcessorService();
+            return new TransactionCrudResponse
+            {
+                Status = response.Status ? 1 : 0,
+                ErrorMessage = response.Message
             };
         }
     }

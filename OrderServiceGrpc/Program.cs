@@ -1,5 +1,5 @@
 using OrderServiceGrpc.Kafka;
-using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
 
@@ -22,7 +22,8 @@ builder.Services.AddScoped<ICustomerTransactionProcessorService, CustomerTransac
 builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
-builder.Services.AddHostedService<OrderEventConsumer>();
+// builder.Services.AddHostedService<OrderEventConsumer>();
+// builder.Services.AddHostedService<TransactionEventConsumer>();
 
 var app = builder.Build();
 

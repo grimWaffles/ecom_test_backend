@@ -12,7 +12,7 @@ namespace API_Gateway.Services
     {
         Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request);
         Task<OrderResponse> GetOrderByIdAsync(OrderIdRequest request);
-        Task<OrderListResponse> GetOrdersByUserAsync(UserIdRequest request);
+        Task<OrderListResponse> GetOrdersByUserAsync(OrderListRequest request);
         Task<OrderListResponse> GetAllOrdersAsync(OrderListRequest request);
         Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request);
         Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request);
@@ -62,7 +62,7 @@ namespace API_Gateway.Services
         public async Task<OrderResponse> GetOrderByIdAsync(OrderIdRequest request)
             => await _orderClient.GetOrderByIdAsync(request);
 
-        public async Task<OrderListResponse> GetOrdersByUserAsync(UserIdRequest request)
+        public async Task<OrderListResponse> GetOrdersByUserAsync(OrderListRequest request)
             => await _orderClient.GetOrdersByUserAsync(request);
 
         public async Task<OrderListResponse> GetAllOrdersAsync(OrderListRequest request)

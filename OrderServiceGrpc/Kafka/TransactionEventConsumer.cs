@@ -1,21 +1,19 @@
-﻿
-using Confluent.Kafka;
-using Google.Protobuf;
+﻿using Confluent.Kafka;
 using Microsoft.Extensions.Options;
+using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
-using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace OrderServiceGrpc.Kafka
 {
-    public class OrderEventConsumer : BackgroundService
+    public class TransactionEventConsumer : BackgroundService
     {
         //ILogger
         private readonly ILogger<OrderEventConsumer> _logger;
@@ -44,18 +42,18 @@ namespace OrderServiceGrpc.Kafka
         //Global Kafka Settings
         private KafkaSettings _kafkaSettings;
 
-        public OrderEventConsumer(ILogger<OrderEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
+        public TransactionEventConsumer(ILogger<OrderEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
         {
             _logger = logger;
 
             _serviceProvider = serviceProvider;
 
-            _logger.LogInformation("KAFKA ORDER CONSUMER: Kafka order consumer constructor started...");
+            _logger.LogInformation("KAFKA TRX CONSUMER: Kafka consumer constructor started...");
 
             // Load Kafka bootstrap server, topics, and DLQ topics from configuration
             _consumerSettings = kafkaConsumerSettings.Value;
 
-            _logger.LogInformation("KAFKA ORDER CONSUMER: Kafka order consumer settings loaded...");
+            _logger.LogInformation("KAFKA TRX CONSUMER: Kafka consumer settings loaded...");
 
             _kafkaSettings = kafkaSettings.Value;
         }
@@ -88,7 +86,7 @@ namespace OrderServiceGrpc.Kafka
                 if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerLocal))
                     throw new ArgumentException("Kafka BootstrapServer for dev is missing from configuration.");
 
-                if (string.IsNullOrWhiteSpace(_consumerSettings.OrderGroupId))
+                if (string.IsNullOrWhiteSpace(_consumerSettings.TransactionGroupId))
                     throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
                 if (_kafkaSettings.OrderTopic.Length == 0)
@@ -103,7 +101,7 @@ namespace OrderServiceGrpc.Kafka
                 _consumerConfig = new ConsumerConfig()
                 {
                     BootstrapServers = kafkaBootstrapServer,
-                    GroupId = _consumerSettings.OrderGroupId,
+                    GroupId = _consumerSettings.TransactionGroupId,
                     AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
                     EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
                     EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing
@@ -126,12 +124,12 @@ namespace OrderServiceGrpc.Kafka
 
                 _consumer.Subscribe(_kafkaSettings.OrderTopic);
 
-                _logger.LogInformation("KAFKA ORDER CONSUMER: Initialized order consumer service successfully");
+                _logger.LogInformation("KAFKA TRX CONSUMER: Initialized TRX consumer service successfully");
             }
 
             catch (Exception e)
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER: Order consumer failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
+                _logger.LogInformation($"KAFKA TRX CONSUMER: Failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
                 await CloseAndDisposeConsumerAndProducer();
                 return;
             }
@@ -190,12 +188,12 @@ namespace OrderServiceGrpc.Kafka
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Consumer has been cancelled by user");
+                    _logger.LogInformation($"KAFKA TRX CONSUMER: Consumer has been cancelled by user");
                     break;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER Fatal Error: {ex.Message}");
+                    _logger.LogInformation($"KAFKA TRX CONSUMER Fatal Error: {ex.Message}");
                 }
             }
         }
@@ -244,12 +242,12 @@ namespace OrderServiceGrpc.Kafka
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
+                    _logger.LogInformation($"KAFKA TRX CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
                 }
             }
             else
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER: Failed to process DLQ Message for order consumer: {result.Topic}. Sending to Catch-All...");
+                _logger.LogInformation($"KAFKA TRX CONSUMER: Failed to process DLQ Message: {result.Topic}. Sending to Catch-All...");
 
                 // Produce failed message to CATCH-ALL-DLQ
                 try
@@ -262,7 +260,7 @@ namespace OrderServiceGrpc.Kafka
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
+                    _logger.LogInformation($"KAFKA TRX CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
                 }
             }
         }
@@ -277,7 +275,7 @@ namespace OrderServiceGrpc.Kafka
 
             for (int attemptNo = 1; attemptNo < _consumerSettings.MaxConsumerRetries; attemptNo++)
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER: Attemp#{attemptNo + 1} to commit order consumer result...");
+                _logger.LogInformation($"KAFKA TRX CONSUMER: Attemp#{attemptNo + 1} to commit result...");
 
                 try
                 {
@@ -289,24 +287,24 @@ namespace OrderServiceGrpc.Kafka
                         _processedOffsets.TryRemove(tpo.TopicPartition, out _);
                     }
 
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Committed {topicPartitionOffsets.Count} offset(s) successfully by order consumer.");
+                    _logger.LogInformation($"KAFKA TRX CONSUMER: Committed {topicPartitionOffsets.Count} offset(s) successfully.");
 
                     break;
                 }
                 catch (KafkaException kex)
                 {
-                    _logger.LogWarning($"KAFKA ORDER CONSUMER: Attempt {attemptNo + 1}: Failed to commit offsets for order consumer: {kex.Message}");
+                    _logger.LogWarning($"KAFKA TRX CONSUMER: Attempt {attemptNo + 1}: Failed to commit offsets: {kex.Message}");
 
                     if (attemptNo < _consumerSettings.MaxConsumerRetries - 1)
                     {
                         int delayMs = GetExponentialDelay(attemptNo);
-                        _logger.LogInformation($"KAFKA ORDER CONSUMER: Retrying commit by order consumer in {delayMs}ms...");
+                        _logger.LogInformation($" KAFKA TRX CONSUMER:Retrying commit in {delayMs}ms...");
 
                         await Task.Delay(delayMs, token);
                     }
                     else
                     {
-                        _logger.LogInformation($"KAFKA ORDER CONSUMER: Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts by order consumer.");
+                        _logger.LogInformation($"KAFKA TRX CONSUMER: Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts.");
                     }
                 }
             }
@@ -324,7 +322,7 @@ namespace OrderServiceGrpc.Kafka
             }
             catch (Exception ex)
             {
-                _logger.LogInformation("KAFKA ORDER CONSUMER: Error closing and shutting down consumer and dlqProducer");
+                _logger.LogInformation("KAFKA TRX CONSUMER: Error closing and shutting down consumer and dlqProducer");
             }
         }
 
@@ -334,20 +332,20 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    ConsumerResponseModel repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    ConsumerResponseModel repoResponse = await ProcessTransactionEvent(result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
                         return true;
                     }
 
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Processing failed for topic '{result.Topic}' by order consumer. Retrying...");
+                    _logger.LogInformation($"KAFKA TRX CONSUMER Error: Processing failed for topic '{result.Topic}'. Retrying...");
 
                     await Task.Delay(GetExponentialDelay(attemptNo), stoppingToken);
                 }
                 catch (OperationCanceledException ex) when (stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Consumer has been cancelled by user");
+                    _logger.LogInformation($"KAFKA TRX CONSUMER: Consumer has been cancelled by user");
                     throw;
                 }
                 catch (Exception ex)
@@ -361,47 +359,77 @@ namespace OrderServiceGrpc.Kafka
             return false;
         }
 
-        private async Task<ConsumerResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<ConsumerResponseModel> ProcessTransactionEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
         {
             try
             {
-                //CreateOrderRequest request = JsonParser.Default.Parse<CreateOrderRequest>(result.Message.Value);
                 CreateOrderRequestDto request = JsonSerializer.Deserialize<CreateOrderRequestDto>(result.Message.Value);
 
-                if (request.Order != null && request.Order.Items.Count() > 0)
+                if (request != null)
                 {
-                    OrderModel orderModel = OrderMapper.DtoToEntity(request.Order);
-                    int userId = request.UserId;
+
+                    CustomerTransactionDto trxDto = new CustomerTransactionDto()
+                    {
+                        UserId = request.UserId,
+                        TransactionType = "PURCHASE",
+                        Amount = (decimal)request.Order.NetAmount,
+                        CreatedDate = DateTime.Now,
+                        CreatedBy = request.Order.CreatedBy,
+                        IsDeleted = request.Order.IsDeleted,
+                        TransactionDate = DateTime.Now,
+                        ModifiedDate = DateTime.Now,
+                        ModifiedBy = request.Order.UserId,
+                        TransactionKey = ""
+                    };
+                    int userId = trxDto.UserId;
 
                     using (var scope = _serviceProvider.CreateScope())
                     {
-                        IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+                        ICustomerTransactionProcessorService processorService = scope.ServiceProvider.GetRequiredService<ICustomerTransactionProcessorService>();
 
-                        ConsumerResponseModel repoResponse = (result.Topic) switch
+                        if (result.Topic == "order-create")
                         {
-                            "order-create" => await processorService.CreateOrder(request.Order, userId),
-                            "order-update" => await processorService.UpdateOrder(request.Order, userId),
-                            "order-delete" => await processorService.DeleteOrder(request.Order.Id, userId),
-                            _ => new ConsumerResponseModel()
+                            int insertedId = await processorService.AddTransaction(trxDto, userId);
+
+                            return new ConsumerResponseModel()
+                            {
+                                Status = insertedId > 0,
+                                Message = insertedId > 0 ? $"KAFKA TRX CONSUMER: Transaction created with ID: {insertedId}" : "Failed to create transaction"
+                            };
+                        }
+                        else if (result.Topic == "order-update")
+                        {
+                            bool updateResult = await processorService.UpdateTransaction(trxDto, userId);
+                            return new ConsumerResponseModel()
+                            {
+                                Status = updateResult,
+                                Message = updateResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} updated successfully" : $"Failed to update transaction with ID: {trxDto.Id}"
+                            };
+                        }
+                        else if (result.Topic == "order-delete")
+                        {
+                            bool deleteResult = await processorService.DeleteTransaction(trxDto, userId);
+                            return new ConsumerResponseModel()
+                            {
+                                Status = deleteResult,
+                                Message = deleteResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} deleted successfully" : $"Failed to delete transaction with ID: {trxDto.Id}"
+                            };
+                        }
+                        else
+                        {
+                            return new ConsumerResponseModel()
                             {
                                 Status = false,
-                                Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
-                            }
-                        };
-
-                        return repoResponse;
+                                Message = $"KAFKA TRX CONSUMER: Error: Invalid topic provided in message={result.Topic}"
+                            };
+                        }
                     }
-                }
-
-                else
-                {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Consumer has null order to process");
                 }
 
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = $"KAFKA ORDER CONSUMER: Invalid message provided topic:{result.Topic}"
+                    Message = $"Error: Invalid message provided topic:{result.Topic}"
                 };
             }
             catch (Exception e)
@@ -409,7 +437,7 @@ namespace OrderServiceGrpc.Kafka
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"
+                    Message = $"Error: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}"
                 };
             }
         }

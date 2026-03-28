@@ -34,16 +34,6 @@
     volumes:
       - ./kafka-data:/tmp/kraft-combined-logs
 
-  kafdrop:
-    image: obsidiandynamics/kafdrop:latest
-    container_name: kafdrop
-    ports:
-      - "9000:9000"
-    environment:
-      KAFKA_BROKERCONNECT: "kafka:9092"
-    depends_on:
-      - kafka
-
   kafka-ui:
     container_name: kafka-ui
     image: provectuslabs/kafka-ui:latest

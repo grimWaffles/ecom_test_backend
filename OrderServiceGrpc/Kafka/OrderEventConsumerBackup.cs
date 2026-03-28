@@ -2,6 +2,7 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Repository;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -52,13 +53,13 @@ namespace OrderServiceGrpc.Kafka
             if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServerLocal))
                 throw new ArgumentException("Kafka BootstrapServer for dev is missing from configuration.");
 
-            if (string.IsNullOrWhiteSpace(_consumerSettings.GroupId))
+            if (string.IsNullOrWhiteSpace(_consumerSettings.OrderGroupId))
                 throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
-            if (_consumerSettings.TopicsToConsume.Length == 0)
+            if (_kafkaSettings.OrderTopic.Length == 0)
                 throw new ArgumentException("No Kafka topics specified in configuration.");
 
-            if (_consumerSettings.DlqTopics.Length == 0)
+            if (_kafkaSettings.OrderDlqTopic.Length == 0)
                 throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
             
             string kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
@@ -67,7 +68,7 @@ namespace OrderServiceGrpc.Kafka
             _consumerConfig = new ConsumerConfig()
             {
                 BootstrapServers = kafkaBootstrapServer,
-                GroupId = _consumerSettings.GroupId,
+                GroupId = _consumerSettings.OrderGroupId,
                 AutoOffsetReset = _consumerSettings.AutoOffsetReset, // Start from beginning if no committed offsets
                 EnableAutoCommit = _consumerSettings.EnableAutoCommit,                   // We'll commit manually after successful processing
                 EnableAutoOffsetStore = _consumerSettings.EnableAutoOffsetStore,              // We'll explicitly store offsets after processing
@@ -88,7 +89,7 @@ namespace OrderServiceGrpc.Kafka
             // Initialize main topic consumer and subscribe
             _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
 
-            _consumer.Subscribe(_consumerSettings.TopicsToConsume);
+            _consumer.Subscribe(_kafkaSettings.OrderTopic);
 
             Console.WriteLine("Initialized consumer service successfully");
         }
