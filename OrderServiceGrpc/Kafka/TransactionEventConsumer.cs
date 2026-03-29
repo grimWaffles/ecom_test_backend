@@ -4,6 +4,7 @@ using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.ConfigModels;
+using OrderServiceGrpc.Models.Configs;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
@@ -42,7 +43,9 @@ namespace OrderServiceGrpc.Kafka
         //Global Kafka Settings
         private KafkaSettings _kafkaSettings;
 
-        public TransactionEventConsumer(ILogger<OrderEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings)
+        private TransactionEventConsumerSettings _transactionEventConsumerSettings;
+
+        public TransactionEventConsumer(ILogger<OrderEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOptions<TransactionEventConsumerSettings> tecSettings)
         {
             _logger = logger;
 
@@ -56,6 +59,7 @@ namespace OrderServiceGrpc.Kafka
             _logger.LogInformation("KAFKA TRX CONSUMER: Kafka consumer settings loaded...");
 
             _kafkaSettings = kafkaSettings.Value;
+            _transactionEventConsumerSettings = tecSettings.Value;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -89,10 +93,10 @@ namespace OrderServiceGrpc.Kafka
                 if (string.IsNullOrWhiteSpace(_consumerSettings.TransactionGroupId))
                     throw new ArgumentException("Kafka GroupId is missing from configuration.");
 
-                if (_kafkaSettings.OrderTopic.Length == 0)
+                if (_transactionEventConsumerSettings.TopicsToConsume.Length == 0)
                     throw new ArgumentException("No Kafka topics specified in configuration.");
 
-                if (_kafkaSettings.OrderDlqTopic.Length == 0)
+                if (_transactionEventConsumerSettings.TopicsToProduce.Length == 0)
                     throw new ArgumentException("No Kafka DLQ topics specified in configuration.");
 
                 string kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
@@ -122,7 +126,7 @@ namespace OrderServiceGrpc.Kafka
                 // Initialize main topic consumer and subscribe
                 _consumer = new ConsumerBuilder<string, string>(_consumerConfig).Build();
 
-                _consumer.Subscribe(_kafkaSettings.OrderTopic);
+                _consumer.Subscribe(_transactionEventConsumerSettings.TopicsToConsume);
 
                 _logger.LogInformation("KAFKA TRX CONSUMER: Initialized TRX consumer service successfully");
             }
@@ -158,7 +162,7 @@ namespace OrderServiceGrpc.Kafka
                     ConsumerResponseModel repoResponse = new ConsumerResponseModel();
 
                     //Validate message topic
-                    bool topicExists = Array.Exists(_kafkaSettings.OrderTopic, x => x == result.Topic);
+                    bool topicExists = Array.Exists(_transactionEventConsumerSettings.TopicsToConsume, x => x == result.Topic);
 
                     //Implementing Max Retries if valid topic
                     if (topicExists)
@@ -205,7 +209,7 @@ namespace OrderServiceGrpc.Kafka
             //Check if DLQ topic exists for that topic, if we get an empty topic we know what to do
             if (topicExists)
             {
-                dlqTopic = _kafkaSettings.OrderDlqTopic.Where(x => x == result.Topic + "-dlq").FirstOrDefault() ?? "";
+                dlqTopic = _transactionEventConsumerSettings.TopicsToProduce.Where(x => x == result.Topic + "-dlq").FirstOrDefault() ?? "";
                 dlqTopic = dlqTopic == "" ? $"No DLQ topic found for topic:{result.Topic}" : dlqTopic;
 
                 produceDlq = dlqTopic == "" ? false : true;
@@ -372,7 +376,7 @@ namespace OrderServiceGrpc.Kafka
                     {
                         UserId = request.UserId,
                         TransactionType = "PURCHASE",
-                        Amount = (decimal)request.Order.NetAmount,
+                        Amount = (decimal) request.Order.NetAmount,
                         CreatedDate = DateTime.Now,
                         CreatedBy = request.Order.CreatedBy,
                         IsDeleted = request.Order.IsDeleted,

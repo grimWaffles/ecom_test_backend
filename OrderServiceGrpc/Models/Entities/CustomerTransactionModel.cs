@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace OrderServiceGrpc.Models.Entities
 {
@@ -16,5 +17,8 @@ namespace OrderServiceGrpc.Models.Entities
         public int ModifiedBy { get; set; }
         [MaxLength(15)]
         public string TransactionKey { get; set; }
+
+        [ForeignKey(nameof(OrderModel))]
+        public int OrderId { get; set; }
     }
 }
