@@ -22,15 +22,15 @@ builder.Services.Configure<OrderEventConsumerSettings>(builder.Configuration.Get
 builder.Services.Configure<TransactionEventConsumerSettings>(builder.Configuration.GetSection("TransactionEventConsumerSettings"));
 
 //Dependency Injection
+builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
+
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
 builder.Services.AddScoped<ICustomerTransactionProcessorService, CustomerTransactionProcessorService>();
 
 builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
-builder.Services.AddSingleton<KafkaEventProducer>();
-
-// builder.Services.AddHostedService<OrderEventConsumer>();
+ builder.Services.AddHostedService<OrderEventConsumer>();
 // builder.Services.AddHostedService<TransactionEventConsumer>();
 
 var app = builder.Build();

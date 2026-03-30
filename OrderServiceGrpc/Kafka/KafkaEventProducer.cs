@@ -6,23 +6,32 @@ using System.Text.Json;
 
 namespace OrderServiceGrpc.Kafka
 {
-    public class KafkaEventProducer : IDisposable, IAsyncDisposable
+    public interface IKafkaEventProducer
+    {
+        Task<bool> ProduceDlqEventAsync(string topic, DeadLetterQueueMessage deadLetterQueueMessage, CancellationToken stoppingToken);
+        Task<bool> ProduceEventAsync(string topic, string key, string payload, CancellationToken stoppingToken);
+    }
+
+    public class KafkaEventProducer : IKafkaEventProducer,IDisposable, IAsyncDisposable
     {
         private readonly ILogger<KafkaEventProducer> _logger; 
         private readonly ProducerConfig _dlqProducerConfig;
         private readonly IProducer<string, string> _dlqProducer;
         private readonly KafkaProducerSettings _producerSettings;
+        private readonly string _kafkaBootstrapServer;
         private bool _disposed;
 
-        public KafkaEventProducer(ILogger<KafkaEventProducer> logger, string kafkaBootstrapServer, IOptions<KafkaProducerSettings> producerSettings)
+        public KafkaEventProducer(ILogger<KafkaEventProducer> logger, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaProducerSettings> producerSettings)
         {
             _logger = logger;
 
             _producerSettings = producerSettings.Value;
 
+            _kafkaBootstrapServer = kafkaSettings.Value.Mode == "local" ? kafkaSettings.Value.BootstrapServerLocal : kafkaSettings.Value.BootstrapServerDocker;
+
             _dlqProducerConfig = new ProducerConfig
             {
-                BootstrapServers = kafkaBootstrapServer,
+                BootstrapServers = _kafkaBootstrapServer,
                 Acks = _producerSettings.Acks,
                 EnableIdempotence = _producerSettings.EnableIdempotence,
                 MessageTimeoutMs = _producerSettings.MessageTimeoutMs,

@@ -20,7 +20,7 @@ $topics = @(
   "order-delete-dlq:1"
 
   # 1) MS-1 to MS-2
-  "order-add-success:2"
+  "order-create-success:2"
   "order-update-success:2"
   "order-delete-success:2"
 

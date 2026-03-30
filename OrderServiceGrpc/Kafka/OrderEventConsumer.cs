@@ -42,11 +42,14 @@ namespace OrderServiceGrpc.Kafka
 
         private OrderEventConsumerSettings _orderEventConsumerSettings;
 
-        private KafkaEventProducer _kafkaProducer;
+        private readonly IKafkaEventProducer _kafkaProducer;
 
         private string _kafkaBootstrapServer;
 
-        public OrderEventConsumer(ILogger<OrderEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOptions<OrderEventConsumerSettings> ecSettings, KafkaEventProducer kafkaEventProducer)
+        private readonly Dictionary<string, string> _sagaTopicMapping = new();
+        private readonly Dictionary<string, string> _dlqTopicMapping = new();
+
+        public OrderEventConsumer(ILogger<OrderEventConsumer> logger, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOptions<OrderEventConsumerSettings> ecSettings, IKafkaEventProducer kafkaEventProducer)
         {
             _logger = logger;
 
@@ -61,6 +64,32 @@ namespace OrderServiceGrpc.Kafka
 
             _kafkaSettings = kafkaSettings.Value;
             _orderEventConsumerSettings = ecSettings.Value;
+
+            bool isValidTopics = true;
+
+            foreach(string topic in _orderEventConsumerSettings.TopicsToConsume.Where(x=> x.Contains("order")).ToList()) 
+            {
+                string successTopic = topic + "-success";
+                string dlqTopic = topic + "-dlq";
+
+                if(!_orderEventConsumerSettings.TopicsToProduce.Contains(successTopic))
+                {
+                    _logger.LogWarning("KAFKA ORDER CONSUMER: Success topic {successTopic} for topic {topic} is missing from configuration", successTopic, topic);
+                    isValidTopics = false;
+                }
+
+                if(!_orderEventConsumerSettings.DlqTopicsToProduce.Contains(dlqTopic))
+                {
+                    _logger.LogWarning("KAFKA ORDER CONSUMER: DLQ topic {dlqTopic} for topic {topic} is missing from configuration",dlqTopic, topic);
+                    isValidTopics= false;
+                }
+
+                if (isValidTopics)
+                {
+                    _sagaTopicMapping[topic] = successTopic;
+                    _dlqTopicMapping[topic] = dlqTopic;
+                }
+            }
 
             _kafkaBootstrapServer = _kafkaSettings.Mode == "local" ? _kafkaSettings.BootstrapServerLocal : _kafkaSettings.BootstrapServerDocker;
 
@@ -127,7 +156,7 @@ namespace OrderServiceGrpc.Kafka
 
             catch (Exception e)
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER: Order consumer failed to subscribe to topics. Exception: {e.Message}", e.StackTrace);
+                _logger.LogError("KAFKA ORDER CONSUMER: Order consumer failed to subscribe to topics. Exception: {Message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
                 await CloseAndDisposeConsumerAndProducer();
                 return;
             }
@@ -189,12 +218,12 @@ namespace OrderServiceGrpc.Kafka
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Consumer has been cancelled by user");
+                    _logger.LogWarning("KAFKA ORDER CONSUMER: Consumer has been cancelled by user");
                     break;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER Fatal Error: {ex.Message}");
+                    _logger.LogCritical("KAFKA ORDER CONSUMER Fatal Error: {Message}", ex.Message);
                 }
             }
         }
@@ -214,13 +243,13 @@ namespace OrderServiceGrpc.Kafka
                         return repoResponse;
                     }
 
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Processing failed for topic '{result.Topic}' by order consumer. Retrying...");
+                    _logger.LogWarning("KAFKA ORDER CONSUMER: Processing failed for topic '{Topic}' by order consumer. Retrying...", result.Topic);
 
                     await Task.Delay(GetExponentialDelay(attemptNo), stoppingToken);
                 }
                 catch (OperationCanceledException ex) when (stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Consumer has been cancelled by user");
+                    _logger.LogInformation("KAFKA ORDER CONSUMER: Consumer has been cancelled by user");
                     throw;
                 }
                 catch (Exception ex)
@@ -256,15 +285,15 @@ namespace OrderServiceGrpc.Kafka
                         {
                             IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
 
-                            ConsumerResponseModel repoResponse = (result.Topic) switch
+                            ConsumerResponseModel repoResponse = (result.Topic.Replace("order-","")) switch
                             {
-                                "order-create" => await processorService.CreateOrder(request.Order, userId),
-                                "order-update" => await processorService.UpdateOrder(request.Order, userId),
-                                "order-delete" => await processorService.DeleteOrder(request.Order.Id, userId),
+                                "create" => await processorService.CreateOrder(request.Order, userId),
+                                "update" => await processorService.UpdateOrder(request.Order, userId),
+                                "delete" => await processorService.DeleteOrder(request.Order.Id, userId),
                                 _ => new ConsumerResponseModel()
                                 {
                                     Status = false,
-                                    Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
+                                    Message = "KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
                                 }
                             };
 
@@ -276,7 +305,7 @@ namespace OrderServiceGrpc.Kafka
 
                     else
                     {
-                        _logger.LogInformation($"KAFKA ORDER CONSUMER: Consumer has null order to process");
+                        _logger.LogError("KAFKA ORDER CONSUMER: Consumer has null order to process");
                     }
                 }
 
@@ -293,7 +322,7 @@ namespace OrderServiceGrpc.Kafka
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = $"KAFKA ORDER CONSUMER: Invalid message provided topic:{result.Topic}",
+                    Message = "KAFKA ORDER CONSUMER: Invalid message provided topic:{result.Topic}",
                 };
             }
             catch (Exception e)
@@ -301,8 +330,8 @@ namespace OrderServiceGrpc.Kafka
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}",
-                    StackTrace = $"StackTrace: {e.StackTrace}",
+                    Message = "KAFKA ORDER CONSUMER: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}",
+                    StackTrace = "StackTrace: {e.StackTrace}",
                 };
             }
         }
@@ -321,33 +350,33 @@ namespace OrderServiceGrpc.Kafka
 
                 string payload = JsonSerializer.Serialize(message);
 
-                string topic = originalTopic.ToLower() switch
+                if(!_sagaTopicMapping.TryGetValue(originalTopic, out var topicForNextEventInSaga))
                 {
-                    "order-create" => _orderEventConsumerSettings.TopicsToProduce.FirstOrDefault(x => x == "order-add-success") ?? "",
-                    "order-update" => _orderEventConsumerSettings.TopicsToProduce.FirstOrDefault(x => x == "order-update-success") ?? "",
-                    "order-delete" => _orderEventConsumerSettings.TopicsToProduce.FirstOrDefault(x => x == "order-delete-success") ?? "",
-                    _ => ""
-                };
+                    _logger.LogError("KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled because topic cannot be found for original topic:{originalTopic}", originalTopic);
+                    return false;
+                }
 
-                if (topic == null || topic == "")
+                if (topicForNextEventInSaga == null || topicForNextEventInSaga == "")
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled because topic cannot be found");
+                    _logger.LogError("KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled because topic cannot be found");
                     return false;
                 }
 
                 //Produce the message
-                await _kafkaProducer.ProduceEventAsync(topic, dto.Id.ToString(), payload, token);
+                await _kafkaProducer.ProduceEventAsync(topicForNextEventInSaga, dto.Id.ToString(), payload, token);
+
+                _logger.LogInformation("KAFKA ORDER CONSUMER: Processing next event in saga successful");
 
                 return true;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled by user for topic:{originalTopic}, key:{dto.Id}");
+                _logger.LogInformation("KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled by user for topic:{originalTopic}, key:{key}", originalTopic, dto.Id);
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER EXCEPTION: Failed to process next event in saga for topic:{originalTopic}, key:{dto.Id}. ErrorMessage: {ex.Message}");
+                _logger.LogError("KAFKA ORDER CONSUMER EXCEPTION: Failed to process next event in saga for topic:{originalTopic}, key:{Key}. ErrorMessage: {Message}", originalTopic, dto.Id, ex.Message);
                 return false;
             }
         }
@@ -360,14 +389,22 @@ namespace OrderServiceGrpc.Kafka
             //Check if DLQ topic exists for that topic, if we get an empty topic we know what to do
             if (topicExists)
             {
-                dlqTopic = _orderEventConsumerSettings.DlqTopicsToProduce.Where(x => x == result.Topic + "-dlq").FirstOrDefault() ?? "";
-                dlqTopic = dlqTopic == "" ? $"No DLQ topic found for topic:{result.Topic}" : dlqTopic;
+                if(!_dlqTopicMapping.TryGetValue(result.Topic, out var dlqTopicToProduce))
+                {
+                    _logger.LogError("KAFKA ORDER CONSUMER: Failed to find DLQ topic for topic:{topic} in configuration. Sending to catch-all...", result.Topic);
+                    dlqTopic = "";
+                }
+                else
+                {
+                    dlqTopic = dlqTopicToProduce;
+                }
+                //dlqTopic = _orderEventConsumerSettings.DlqTopicsToProduce.Where(x => x == result.Topic + "-dlq").FirstOrDefault() ?? "";
+                //dlqTopic = dlqTopic == "" ? "No DLQ topic found for topic:{result.Topic}" : dlqTopic;
 
                 produceDlq = dlqTopic == "" ? false : true;
             }
             else
             {
-                dlqTopic = $"Invalid Topic Found:{result.Topic}";
                 produceDlq = false;
             }
 
@@ -389,16 +426,16 @@ namespace OrderServiceGrpc.Kafka
                 // Produce failed message to DLQ
                 try
                 {
-                    await _kafkaProducer.ProduceDlqEventAsync(result.Topic, dlqMessage, stoppingToken);
+                    await _kafkaProducer.ProduceDlqEventAsync(dlqTopic, dlqMessage, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
+                    _logger.LogWarning("KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {Topic}. ErrorMessage: {Message}", result.Topic, ex.Message);
                 }
             }
             else
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER: Failed to process DLQ Message for order consumer: {result.Topic}. Sending to Catch-All...");
+                _logger.LogWarning("KAFKA ORDER CONSUMER: Failed to process DLQ Message for order consumer: {Topic}. Sending to Catch-All...", result.Topic);
 
                 // Produce failed message to CATCH-ALL-DLQ
                 try
@@ -407,7 +444,7 @@ namespace OrderServiceGrpc.Kafka
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER EXCEPTION: Failed to produce DLQ message for {result.Topic}. ErrorMessage: {ex.Message}");
+                    _logger.LogError("KAFKA ORDER CONSUMER EXCEPTION: Failed to produce CatchAll DLQ message for {result.Topic}. ErrorMessage: {Message}", result.Topic, ex.Message);
                 }
             }
         }
@@ -422,7 +459,7 @@ namespace OrderServiceGrpc.Kafka
 
             for (int attemptNo = 1; attemptNo < _consumerSettings.MaxConsumerRetries; attemptNo++)
             {
-                _logger.LogInformation($"KAFKA ORDER CONSUMER: Attemp#{attemptNo + 1} to commit order consumer result...");
+                _logger.LogInformation("KAFKA ORDER CONSUMER: Attemp#{attemptNo} to commit order consumer result...", attemptNo + 1);
 
                 try
                 {
@@ -434,24 +471,24 @@ namespace OrderServiceGrpc.Kafka
                         _processedOffsets.TryRemove(tpo.TopicPartition, out _);
                     }
 
-                    _logger.LogInformation($"KAFKA ORDER CONSUMER: Committed {topicPartitionOffsets.Count} offset(s) successfully by order consumer.");
+                    _logger.LogInformation("KAFKA ORDER CONSUMER: Committed {topicPartitionOffset} offset(s) successfully by order consumer.", topicPartitionOffsets.Count);
 
                     break;
                 }
                 catch (KafkaException kex)
                 {
-                    _logger.LogWarning($"KAFKA ORDER CONSUMER: Attempt {attemptNo + 1}: Failed to commit offsets for order consumer: {kex.Message}");
+                    _logger.LogWarning("KAFKA ORDER CONSUMER: Attempt {AttemptNo}: Failed to commit offsets for order consumer: {Message}", attemptNo + 1, kex.Message);
 
                     if (attemptNo < _consumerSettings.MaxConsumerRetries - 1)
                     {
                         int delayMs = GetExponentialDelay(attemptNo);
-                        _logger.LogInformation($"KAFKA ORDER CONSUMER: Retrying commit by order consumer in {delayMs}ms...");
+                        _logger.LogInformation("KAFKA ORDER CONSUMER: Retrying commit by order consumer in {delayMs}ms...", delayMs);
 
                         await Task.Delay(delayMs, token);
                     }
                     else
                     {
-                        _logger.LogInformation($"KAFKA ORDER CONSUMER: Failed to commit offsets after {_consumerSettings.MaxConsumerRetries} attempts by order consumer.");
+                        _logger.LogInformation("KAFKA ORDER CONSUMER: Failed to commit offsets after {MaxConsumerRetries} attempts by order consumer.", _consumerSettings.MaxConsumerRetries);
                     }
                 }
             }
