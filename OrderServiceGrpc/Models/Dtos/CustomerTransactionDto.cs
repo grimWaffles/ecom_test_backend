@@ -16,5 +16,6 @@ namespace OrderServiceGrpc.Models.Dtos
         public int ModifiedBy { get; set; }
         [MaxLength(15)]
         public string TransactionKey { get; set; }
+        public int OrderId { get; set; }
     }
 }
