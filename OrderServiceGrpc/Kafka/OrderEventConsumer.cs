@@ -191,16 +191,20 @@ namespace OrderServiceGrpc.Kafka
                         processedMessage = await ProcessMessageResult(result, stoppingToken);
                     }
 
-                    //Forwarding to the next step of the saga or DLQ Processing
-                    if (processedMessage.Status && topicExists)
-                    {
-                        await ProcessNextEventInSaga(processedMessage.Order,result.Topic, stoppingToken);
-                    }
-                    else
-                    {
-                        await SendToDlq(result, topicExists, processedMessage, stoppingToken);
-                    }
+                    //Forwarding to the next step of the saga or DLQ Processing (if its not a compensating event)
+                    bool isACompensatingEvent = !result.Topic.ToLower().Contains("order");
 
+                    if (!isACompensatingEvent)
+                    {
+                        if (processedMessage.Status && topicExists)
+                        {
+                            await ProcessNextEventInSaga(processedMessage.Order, result.Topic, stoppingToken);
+                        }
+                        else
+                        {
+                            await SendToDlq(result, topicExists, processedMessage, stoppingToken);
+                        }
+                    }
 
                     //Add to processed messages
                     _processedOffsets[result.TopicPartition] = result.Offset + 1;
@@ -236,7 +240,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 try
                 {
-                    repoResponse = await ProcessOrderEvent(result, stoppingToken);
+                    repoResponse = await ProcessConsumerEvent(result);
 
                     if (repoResponse.Status == true)
                     {
@@ -268,61 +272,24 @@ namespace OrderServiceGrpc.Kafka
             };
         }
 
-        private async Task<ConsumerResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result, CancellationToken cancellationToken)
+        private async Task<ConsumerResponseModel> ProcessConsumerEvent(ConsumeResult<string, string> result)
         {
             try
             {
                 if (result.Topic.ToLower().Contains("order"))
                 {
-                    CreateOrderRequestDto request = JsonSerializer.Deserialize<CreateOrderRequestDto>(result.Message.Value) ?? new CreateOrderRequestDto();
-
-                    if (request.Order != null && request.Order.Items.Count() > 0)
-                    {
-                        OrderModel orderModel = OrderMapper.DtoToEntity(request.Order);
-                        int userId = request.UserId;
-
-                        using (var scope = _serviceProvider.CreateScope())
-                        {
-                            IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
-
-                            ConsumerResponseModel repoResponse = (result.Topic.Replace("order-","")) switch
-                            {
-                                "create" => await processorService.CreateOrder(request.Order, userId),
-                                "update" => await processorService.UpdateOrder(request.Order, userId),
-                                "delete" => await processorService.DeleteOrder(request.Order.Id, userId),
-                                _ => new ConsumerResponseModel()
-                                {
-                                    Status = false,
-                                    Message = "KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
-                                }
-                            };
-
-                            repoResponse.Order = OrderMapper.EntityToOrderDto(orderModel);
-
-                            return repoResponse;
-                        }
-                    }
-
-                    else
-                    {
-                        _logger.LogError("KAFKA ORDER CONSUMER: Consumer has null order to process");
-                    }
+                    return await ProcessOrderEvent(result);
                 }
 
                 else if (result.Topic.ToLower().Contains("transaction"))
                 {
-                    //This is to ensure data consistency between the order and transaction tables.
-                    //For example, if we receive a transaction-create event for a transaction that has failed, we can update the corresponding order to reflect the failed transaction status.
-                    //This will be important for accurate reporting and analytics on order statuses and transaction outcomes.
-
-
-                    //TODO: Implement CUD for order table operations if transactions have failed to be processed by the transaction consumer.
+                    return await ProcessTransactionEvent(result);
                 }
 
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = "KAFKA ORDER CONSUMER: Invalid message provided topic:{result.Topic}",
+                    Message = $"KAFKA ORDER CONSUMER: Invalid message provided topic:{result.Topic}",
                 };
             }
             catch (Exception e)
@@ -330,8 +297,106 @@ namespace OrderServiceGrpc.Kafka
                 return new ConsumerResponseModel()
                 {
                     Status = false,
-                    Message = "KAFKA ORDER CONSUMER: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}",
-                    StackTrace = "StackTrace: {e.StackTrace}",
+                    Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message:{result.Topic}. STACKTRACE: {e.StackTrace}",
+                    StackTrace = $"StackTrace: {e.StackTrace}",
+                };
+            }
+        }
+
+        private async Task<ConsumerResponseModel> ProcessOrderEvent(ConsumeResult<string, string> result)
+        {
+            CreateOrderRequestDto request = JsonSerializer.Deserialize<CreateOrderRequestDto>(result.Message.Value) ?? new CreateOrderRequestDto();
+
+            if (request.Order != null && request.Order.Items.Count() > 0)
+            {
+                OrderModel orderModel = OrderMapper.DtoToEntity(request.Order);
+                int userId = request.UserId;
+
+                using (var scope = _serviceProvider.CreateScope())
+                {
+                    IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+
+                    ConsumerResponseModel repoResponse = (result.Topic.Replace("order-", "")) switch
+                    {
+                        "create" => await processorService.CreateOrder(request.Order, userId),
+                        "update" => await processorService.UpdateOrder(request.Order, userId),
+                        "delete" => await processorService.UpdateDeleteStatusForSingleOrder(request.Order.Id, userId),
+                        _ => new ConsumerResponseModel()
+                        {
+                            Status = false,
+                            Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
+                        }
+                    };
+                    orderModel.Id = repoResponse.InsertedOrderId;
+
+                    repoResponse.Order = OrderMapper.EntityToOrderDto(orderModel);
+
+                    return repoResponse;
+                }
+            }
+
+            else
+            {
+                _logger.LogError("KAFKA ORDER CONSUMER: Consumer has null order to process");
+                return new ConsumerResponseModel()
+                {
+                    Status = false,
+                    Message = "Consumer has null order to process"
+                };
+            }
+        }
+
+        private async Task<ConsumerResponseModel> ProcessTransactionEvent(ConsumeResult<string, string> result)
+        {
+            _logger.LogInformation("Processing compensating event for failed transaction. Topic: {topic}", result.Topic);
+
+            OrderEventMessage request = JsonSerializer.Deserialize<OrderEventMessage>(result.Message.Value) ?? new OrderEventMessage();
+
+            if (request != null && request.OrderId > 0)
+            {
+                using (var scope = _serviceProvider.CreateScope())
+                {
+                    IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+
+                    ConsumerResponseModel repoResponse = new ConsumerResponseModel();
+
+                    if (result.Topic.Contains("create"))
+                    {
+                        //Execute the delete operation
+                        repoResponse = await processorService.UpdateDeleteStatusForSingleOrder(request.OrderId, request.UserId);
+                    }
+                    else if (result.Topic.Contains("delete"))
+                    {
+                        //Undo the delete operation
+                        repoResponse = await processorService.UpdateDeleteStatusForSingleOrder(request.OrderId, request.UserId);
+                    }
+                    else if (result.Topic.Contains("update"))
+                    {
+                        //Execute another update operation to revert to original state
+                        //TODO
+                    }
+                    else
+                    {
+                        _logger.LogError("Failed to process compensating event for failed transaction. Topic: {topic}", result.Topic);
+                        return new ConsumerResponseModel()
+                        {
+                            Status = false,
+                            Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
+                        };
+                    }
+
+                    _logger.LogInformation("Successfully processed compensating event for failed transaction. Topic: {topic}", result.Topic);
+                    return repoResponse;
+                }
+            }
+
+            else
+            {
+                _logger.LogError("KAFKA ORDER CONSUMER: Consumer has null order to process");
+                return new ConsumerResponseModel()
+                {
+                    Status = false,
+                    Message = "Consumer has null order to process"
                 };
             }
         }

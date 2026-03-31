@@ -105,7 +105,7 @@ namespace API_Gateway.Services
         public async Task<OrderResponse> GenerateCustomManualOrder()
         {
             DateTime startDate = DateTime.Parse("2022-01-01");
-            DateTime endDate = DateTime.Parse("2025-12-31");
+            DateTime endDate = DateTime.Parse("2027-12-31");
 
             OrderListRequest request = new OrderListRequest()
             {
@@ -124,6 +124,13 @@ namespace API_Gateway.Services
                 response = await GetAllOrdersAsync(request);
                 orderList = response.Orders.ToList();
 
+                foreach (Order order in orderList)
+                {
+                    foreach (OrderItem item in order.Items)
+                    {
+                        item.IsDeleted = false;
+                    }
+                }
                 if (orderList.Count > 0)
                 {
                     #region Multiple Order Inserting Using Threads & Tasks

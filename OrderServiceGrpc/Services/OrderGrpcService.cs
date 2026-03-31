@@ -80,7 +80,7 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse { Status = false, Message = "Invalid user ID" };
             }
 
-            ConsumerResponseModel response = await _service.DeleteOrder(request.Id, request.UserId);
+            ConsumerResponseModel response = await _service.UpdateDeleteStatusForSingleOrder(request.Id, request.UserId);
             return new OrderResponse
             {
                 Status = response.Status,

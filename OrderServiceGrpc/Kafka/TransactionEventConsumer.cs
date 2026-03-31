@@ -18,7 +18,7 @@ namespace OrderServiceGrpc.Kafka
     public class TransactionEventConsumer : BackgroundService
     {
         //ILogger
-        private readonly ILogger<OrderEventConsumer> _logger;
+        private readonly ILogger<TransactionEventConsumer> _logger;
 
         //IServiceProvider for the order repo service (A scoped service DI'd into a singleton)
         private readonly IServiceProvider _serviceProvider;
@@ -48,7 +48,7 @@ namespace OrderServiceGrpc.Kafka
 
         private readonly Dictionary<string, string> _compensationEventMap = new();
 
-        public TransactionEventConsumer(ILogger<OrderEventConsumer> logger, IKafkaEventProducer kafkaEventProducer, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOptions<TransactionEventConsumerSettings> tecSettings)
+        public TransactionEventConsumer(ILogger<TransactionEventConsumer> logger, IKafkaEventProducer kafkaEventProducer, IServiceProvider serviceProvider, IOptions<KafkaSettings> kafkaSettings, IOptions<KafkaConsumerSettings> kafkaConsumerSettings, IOptions<TransactionEventConsumerSettings> tecSettings)
         {
             _logger = logger;
 
@@ -62,8 +62,9 @@ namespace OrderServiceGrpc.Kafka
 
             foreach(string topic in _transactionEventConsumerSettings.TopicsToConsume)
             {
-                string ct = topic.Replace("order", "transaction") + "-failed";
-                
+                string ct = topic.Replace("order", "transaction");
+                ct = ct.Replace("success", "failed");
+
                 if (!_transactionEventConsumerSettings.TopicsToProduce.Contains(ct))
                 {
                     _logger.LogError("KAFKA TRX CONSUMER: Compensation topic {Topic} not found for consumed topic {ConsumedTopic}. Compensation events will not be produced for this topic.", ct, topic);
@@ -181,7 +182,7 @@ namespace OrderServiceGrpc.Kafka
                         processedMessage = await ProcessMessageResult(result.Topic,oem, stoppingToken);
                     }
 
-                    //TODO: Success processing
+                    //TODO: Produce next event in saga processing
 
                     //Failure Processing
                     if (!processedMessage.Status || !topicExists)
@@ -229,7 +230,7 @@ namespace OrderServiceGrpc.Kafka
                         return repoResponse;
                     }
 
-                    _logger.LogInformation("KAFKA TRX CONSUMER Error: Processing failed for topic {Topic}. Retrying...", topic);
+                    _logger.LogError("KAFKA TRX CONSUMER Error: Processing failed for topic {Topic}. Retrying...", topic);
 
                     await Task.Delay(GetExponentialDelay(attemptNo), stoppingToken);
                 }
@@ -257,7 +258,7 @@ namespace OrderServiceGrpc.Kafka
                 {
                     ICustomerTransactionProcessorService processorService = scope.ServiceProvider.GetRequiredService<ICustomerTransactionProcessorService>();
 
-                    if (topic == "order-create-sucess")
+                    if (topic == "order-create-success")
                     {
                         CustomerTransactionDto trxDto = new CustomerTransactionDto()
                         {
@@ -368,6 +369,8 @@ namespace OrderServiceGrpc.Kafka
                 string payload = JsonSerializer.Serialize(oem);
 
                 await _eventProducer.ProduceEventAsync(ct, oem.OrderId.ToString(), payload, stoppingToken);
+
+                _logger.LogInformation("Produced compensating event for failed transaction operation. Topic: {topic}", ct);
 
                 return true;
             }
