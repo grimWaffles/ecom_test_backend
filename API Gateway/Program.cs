@@ -1,6 +1,7 @@
 
 using API_Gateway.Helpers;
 using API_Gateway.Kafka;
+using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Services;
 using ApiGateway.Protos;
@@ -58,13 +59,14 @@ namespace API_Gateway
             builder.Services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
 
             builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
-
             builder.Services.AddSingleton<IRedisService, RedisService>();
 
             //Add AppSettings objects as Options
             builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSection("KafkaProducerSettings"));
             builder.Services.Configure<KafkaGlobalSetting>(builder.Configuration.GetSection("Kafka"));
             builder.Services.Configure<MicroServiceUrl>(builder.Configuration.GetSection("MicroServiceUrls"));
+
+            builder.Services.AddScoped<TokenAuthorizationMiddleware>();
 
             var app = builder.Build();
 
@@ -77,6 +79,8 @@ namespace API_Gateway
 
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
+
+            app.UseTokenAuthorizationMiddleware();
 
             //Add Authentication and Authorization
             app.UseAuthentication();

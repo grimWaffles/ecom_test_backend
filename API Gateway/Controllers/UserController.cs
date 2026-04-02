@@ -24,7 +24,7 @@ namespace API_Gateway.Controllers
         [Route("test")]
         public async Task<IActionResult> TestUserService()
         {
-            var response = await _userServiceClient.TestServiceAsync();
+            string response = "";// await _userServiceClient.TestServiceAsync();
             return StatusCode(StatusCodes.Status200OK, new { message = response });
         }
 

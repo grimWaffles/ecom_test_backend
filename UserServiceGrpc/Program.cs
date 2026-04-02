@@ -20,8 +20,10 @@ namespace UserServiceGrpc
 
             //Add JWT Auth
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options=>{
-                    options.TokenValidationParameters = new TokenValidationParameters(){
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters()
+                    {
                         ValidateIssuer = true,
                         ValidateAudience = true,
                         ValidateLifetime = true,
@@ -51,24 +53,25 @@ namespace UserServiceGrpc
             app.Run();
         }
 
-        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration){
+        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
+        {
             string dbType = configuration["DatabaseConfig:Database"] ?? "";
             string mode = configuration["DatabaseConfig:Mode"] ?? "";
             string dbKey = "";
             string connectionString = "";
 
-            if(dbType=="" || mode == "")
+            if (dbType == "" || mode == "")
             {
                 throw new InvalidOperationException("Database configuration not set up correctly.");
             }
 
-            dbKey = (dbType.ToLower(),mode.ToLower()) switch
+            dbKey = (dbType.ToLower(), mode.ToLower()) switch
             {
-                ("mysql","local")=>"MySqlConnection",
-                ("mysql","docker")=>"MySqlDockerConnection",
-                ("sqlserver","local")=>"SqlServerConnection",
-                ("sqlserver","docker")=>"SqlServerDockerConnection",
-                _=>""
+                ("work", "local") => "SqlServerWorkConnection",
+                ("work", "docker") => "SqlServerWorkDockerConnection",
+                ("home", "local") => "SqlServerHomeConnection",
+                ("home", "docker") => "SqlServerHomeDockerConnection",
+                _ => ""
             };
 
             if (dbKey == "")
@@ -83,18 +86,9 @@ namespace UserServiceGrpc
                 throw new InvalidOperationException("Database connection string not found.");
             }
 
-            if (dbType == "mysql")
-            {
-                services.AddDbContext<AppDbContext>(options=>
-                    options.UseMySQL(connectionString)
-                );
-            }
-            else if (dbType == "sqlserver")
-            {
-                services.AddDbContext<AppDbContext>(options=>
+            services.AddDbContext<AppDbContext>(options =>
                     options.UseSqlServer(connectionString)
                 );
-            }
         }
     }
 }
