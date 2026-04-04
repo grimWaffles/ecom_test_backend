@@ -33,11 +33,14 @@ namespace UserServiceGrpc
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"]))
                     };
                 });
+
             builder.Services.AddAuthentication();
             builder.Services.AddAuthorization();
 
             //Add services for dependency injection
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IRolePermissionsRepository, RolePermissionsRepository>();
+            builder.Services.AddScoped<IRolePermissionsService, RolePermissionsService>();
 
             var app = builder.Build();
 
@@ -46,9 +49,19 @@ namespace UserServiceGrpc
             app.UseAuthorization();
 
             // Configure the HTTP request pipeline.
-            app.MapGrpcService<UserService>();
+            app.MapGrpcService<UserGrpcService>();
 
             app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+
+            //Call seeder to populate permissions data
+            using (var scope = app.Services.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                RolePermissionSeeder seeder = new RolePermissionSeeder(dbContext);
+
+                seeder.SeedRolePermissions();
+            }
 
             app.Run();
         }

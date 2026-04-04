@@ -163,5 +163,21 @@ namespace API_Gateway.Controllers
                 return StatusCode(500, ex.Message);
             }
         }
+
+        //Role Permissions
+        [HttpGet("roles/get-by-role-path")]
+        public async Task<IActionResult> GetRolePermissionsForUser([FromQuery] int roleId, [FromQuery] string entity)
+        {
+            try
+            {
+                var response = await _userServiceClient.GetRolePermissionByRoleIdAndPathAsync(roleId, entity);
+
+                return StatusCode(StatusCodes.Status200OK, new {response = response });
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, ex.Message);
+            }
+        }
     }
 }
