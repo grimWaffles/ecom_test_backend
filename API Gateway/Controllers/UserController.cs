@@ -1,4 +1,5 @@
 ﻿using API_Gateway.Services;
+using API_Gateway.Services.API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -14,22 +15,24 @@ namespace API_Gateway.Controllers
     [EnableCors("AllowOrigin")]
     public class UserController : ControllerBase
     {
-        private readonly IUserServiceClient _userServiceClient;
-        public UserController(IUserServiceClient userService)
+        private readonly IUserService _userServiceClient;
+        public UserController(IUserService userService)
         {
             _userServiceClient = userService;
         }
 
         [HttpGet]
         [Route("test")]
+        [AllowAnonymous]
         public async Task<IActionResult> TestUserService()
         {
-            string response = "";// await _userServiceClient.TestServiceAsync();
+            string response = "User service up and running";// await _userServiceClient.TestServiceAsync();
             return StatusCode(StatusCodes.Status200OK, new { message = response });
         }
 
         [HttpPost]
         [Route("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> LoginUser([FromForm] string username, [FromForm] string password)
         {
             UserLoginResponse response = await _userServiceClient.LoginUserAsync(username, password);
@@ -43,6 +46,7 @@ namespace API_Gateway.Controllers
 
         [HttpPost]
         [Route("logout")]
+        [AllowAnonymous]
         public async Task<IActionResult> LogoutUsers([FromForm] int userId)
         {
             var response = await _userServiceClient.LogoutUserAsync(userId);
@@ -56,7 +60,6 @@ namespace API_Gateway.Controllers
 
         [HttpGet]
         [Route("get-all-users")]
-        [Authorize]
         public async Task<IActionResult> GetAllUsers()
         {
             List<CreateUserRequest> responseMultiple = await _userServiceClient.GetAllUsersAsync();
@@ -66,7 +69,6 @@ namespace API_Gateway.Controllers
 
         // GET api/users/getById?userId=5
         [HttpGet("getById")]
-        [Authorize]
         public async Task<IActionResult> GetUserById([FromQuery] int userId)
         {
             try
@@ -85,7 +87,6 @@ namespace API_Gateway.Controllers
 
         // POST api/users/create
         [HttpPost("create")]
-        [Authorize]
         public async Task<IActionResult> CreateUser([FromForm] CreateUserRequest user)
         {
             try
@@ -113,7 +114,6 @@ namespace API_Gateway.Controllers
 
         // PUT api/users/update
         [HttpPut("update")]
-        [Authorize]
         public async Task<IActionResult> UpdateUser([FromForm] CreateUserRequest user)
         {
             try
@@ -141,7 +141,6 @@ namespace API_Gateway.Controllers
 
         // DELETE api/users/delete
         [HttpDelete("delete")]
-        [Authorize]
         public async Task<IActionResult> DeleteUser([FromForm] int id)
         {
             try
@@ -166,6 +165,7 @@ namespace API_Gateway.Controllers
 
         //Role Permissions
         [HttpGet("roles/get-by-role-path")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetRolePermissionsForUser([FromQuery] int roleId, [FromQuery] string entity)
         {
             try

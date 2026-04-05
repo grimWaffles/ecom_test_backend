@@ -17,7 +17,7 @@ public class RolePermissionSeeder
     public void SeedRolePermissions()
     {
         Console.WriteLine("Seeding in progress");
-    
+
         if (_context.RolePermissions.Any())
         {
             return;
@@ -38,7 +38,7 @@ public class RolePermissionSeeder
                     listToAdd.Add(new RolePermissions()
                     {
                         RoleId = r.Id,
-                        ApiPath = entity,
+                        ApiPath = "/api/" + entity+"/",
                         ViewPermission = r.Name.ToString().ToLower() == "admin" ? true : false,
                         AddPermission = r.Name.ToString().ToLower() == "admin" ? true : false,
                         EditPermission = r.Name.ToString().ToLower() == "admin" ? true : false,

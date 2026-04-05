@@ -5,7 +5,6 @@ using System.Security.Claims;
 
 [ApiController]
 [Route("api/sellers")]
-[Authorize]
 public class SellersController : ControllerBase
 {
     private readonly ISellerGrpcClient _grpcClient;

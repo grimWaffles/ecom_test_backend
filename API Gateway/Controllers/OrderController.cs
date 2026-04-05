@@ -13,7 +13,6 @@ namespace API_Gateway.Controllers
     using ApiGateway.Protos;
     using API_Gateway.Helpers;
 
-    //[Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class OrderController : ControllerBase

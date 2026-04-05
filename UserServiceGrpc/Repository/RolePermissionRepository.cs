@@ -89,7 +89,7 @@ public class RolePermissionsRepository : IRolePermissionsRepository
                 .AsNoTracking()
                 .FirstOrDefaultAsync(rp =>
                     rp.RoleId == roleId &&
-                    rp.ApiPath == apiPath);
+                    rp.ApiPath.Contains(apiPath));
         }
         catch (Exception ex)
         {

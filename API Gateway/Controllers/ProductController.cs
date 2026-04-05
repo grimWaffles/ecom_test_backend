@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 [ApiController]
 [Route("api/products")]
-[Authorize]
 public class ProductController : ControllerBase
 {
     private readonly IProductGrpcClient _grpcClient;

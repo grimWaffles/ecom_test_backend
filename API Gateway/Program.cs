@@ -1,9 +1,12 @@
 
+using API_Gateway.Grpc;
+using API_Gateway.Handlers;
 using API_Gateway.Helpers;
 using API_Gateway.Kafka;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Services;
+using API_Gateway.Services.API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -30,7 +33,8 @@ namespace API_Gateway
 
             //Add JWT Authentication
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options => {
+                .AddJwtBearer(options =>
+                {
                     options.TokenValidationParameters = new TokenValidationParameters()
                     {
                         ValidateIssuer = true,
@@ -42,8 +46,19 @@ namespace API_Gateway
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"] ?? ""))
                     };
                 });
+
             builder.Services.AddAuthentication();
-            builder.Services.AddAuthorization();
+
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("RolePermissionPolicy", policy =>
+                {
+                    policy.AddRequirements(new RolePermissionRequirement());
+                });
+
+                //Ensure all the endpoints require authorization by default
+                options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
+            });
 
             builder.Services.AddControllers();
 
@@ -52,8 +67,9 @@ namespace API_Gateway
             //builder.Services.AddSwaggerGen();
 
             //Add Dependency Injection
-            builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
-            builder.Services.AddScoped<IProductCategoryGrpcClient,ProductCategoryGrpcClient>();
+            builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
+            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IProductCategoryGrpcClient, ProductCategoryGrpcClient>();
             builder.Services.AddScoped<IProductGrpcClient, ProductGrpcClient>();
             builder.Services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
             builder.Services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
