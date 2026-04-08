@@ -8,7 +8,7 @@ namespace UserServiceGrpc.Database
     {
         public DbSet<UserModel> Users { get; set; }
         public DbSet<Role> Roles { get; set; }
-        public DbSet<RoleAccess> RoleAccesses { get; set; }
+        public DbSet<RolePermissions> RolePermissions { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
@@ -27,7 +27,6 @@ namespace UserServiceGrpc.Database
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Role>().Property(r => r.Name).HasConversion(r => r.ToString(), r => (UserRole)Enum.Parse(typeof(UserRole), r));
-            modelBuilder.Entity<RoleAccess>().HasNoKey();
         }
     }
 }

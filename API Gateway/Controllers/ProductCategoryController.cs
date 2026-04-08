@@ -6,7 +6,6 @@ using System.Security.Claims;
 
 [ApiController]
 [Route("api/product-categories")]
-[Authorize]
 public class ProductCategoryController : ControllerBase
 {
     private readonly IProductCategoryGrpcClient _grpcClient;

@@ -15,6 +15,8 @@ message TransactionDto {
   google.protobuf.Timestamp transaction_date = 8;
   google.protobuf.Timestamp modified_date = 9;
   int32 modified_by = 10;
+  string transaction_key = 11;
+  int32 orderId = 12;
 }
 
 message TransactionRequestSingle{
@@ -57,5 +59,7 @@ service CustomerTransactionService {
   rpc AddTransaction (TransactionDto) returns (TransactionCrudResponse);
   rpc UpdateTransaction (TransactionDto) returns (TransactionCrudResponse);
   rpc DeleteTransaction (TransactionRequestSingle) returns (TransactionCrudResponse);
+
+  rpc TestCustomerTransactionGrpcService (google.protobuf.Empty) returns (TransactionCrudResponse);
 }
 

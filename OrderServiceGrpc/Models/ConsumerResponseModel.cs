@@ -9,6 +9,7 @@ namespace OrderServiceGrpc.Models
         public bool Status { get; set; }
         public string StackTrace { get; set; }
         public OrderDto Order { get; set; }
+        public CustomerTransactionDto TrxDto { get; set; }
         public int TotalPages { get; set; }
         public int TotalOrders { get; set; }
         public List<OrderDto> ListOfOrders { get; set; }

@@ -20,8 +20,10 @@ namespace UserServiceGrpc
 
             //Add JWT Auth
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options=>{
-                    options.TokenValidationParameters = new TokenValidationParameters(){
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters()
+                    {
                         ValidateIssuer = true,
                         ValidateAudience = true,
                         ValidateLifetime = true,
@@ -31,11 +33,14 @@ namespace UserServiceGrpc
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"]))
                     };
                 });
+
             builder.Services.AddAuthentication();
             builder.Services.AddAuthorization();
 
             //Add services for dependency injection
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IRolePermissionsRepository, RolePermissionsRepository>();
+            builder.Services.AddScoped<IRolePermissionsService, RolePermissionsService>();
 
             var app = builder.Build();
 
@@ -44,31 +49,42 @@ namespace UserServiceGrpc
             app.UseAuthorization();
 
             // Configure the HTTP request pipeline.
-            app.MapGrpcService<UserService>();
+            app.MapGrpcService<UserGrpcService>();
 
             app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+
+            //Call seeder to populate permissions data
+            using (var scope = app.Services.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                RolePermissionSeeder seeder = new RolePermissionSeeder(dbContext);
+
+                seeder.SeedRolePermissions();
+            }
 
             app.Run();
         }
 
-        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration){
+        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
+        {
             string dbType = configuration["DatabaseConfig:Database"] ?? "";
             string mode = configuration["DatabaseConfig:Mode"] ?? "";
             string dbKey = "";
             string connectionString = "";
 
-            if(dbType=="" || mode == "")
+            if (dbType == "" || mode == "")
             {
                 throw new InvalidOperationException("Database configuration not set up correctly.");
             }
 
-            dbKey = (dbType.ToLower(),mode.ToLower()) switch
+            dbKey = (dbType.ToLower(), mode.ToLower()) switch
             {
-                ("mysql","local")=>"MySqlConnection",
-                ("mysql","docker")=>"MySqlDockerConnection",
-                ("sqlserver","local")=>"SqlServerConnection",
-                ("sqlserver","docker")=>"SqlServerDockerConnection",
-                _=>""
+                ("work", "local") => "SqlServerWorkConnection",
+                ("work", "docker") => "SqlServerWorkDockerConnection",
+                ("home", "local") => "SqlServerHomeConnection",
+                ("home", "docker") => "SqlServerHomeDockerConnection",
+                _ => ""
             };
 
             if (dbKey == "")
@@ -83,18 +99,9 @@ namespace UserServiceGrpc
                 throw new InvalidOperationException("Database connection string not found.");
             }
 
-            if (dbType == "mysql")
-            {
-                services.AddDbContext<AppDbContext>(options=>
-                    options.UseMySQL(connectionString)
-                );
-            }
-            else if (dbType == "sqlserver")
-            {
-                services.AddDbContext<AppDbContext>(options=>
+            services.AddDbContext<AppDbContext>(options =>
                     options.UseSqlServer(connectionString)
                 );
-            }
         }
     }
 }

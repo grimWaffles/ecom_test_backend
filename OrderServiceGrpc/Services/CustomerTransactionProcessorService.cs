@@ -24,10 +24,12 @@ namespace OrderServiceGrpc.Services
     public class CustomerTransactionProcessorService : ICustomerTransactionProcessorService
     {
         private readonly ICustomerTransactionRepository _repo;
+        private readonly ILogger<CustomerTransactionProcessorService> _logger;
 
-        public CustomerTransactionProcessorService(ICustomerTransactionRepository repo)
+        public CustomerTransactionProcessorService(ILogger<CustomerTransactionProcessorService> logger,ICustomerTransactionRepository repo)
         {
             _repo = repo;
+            _logger = logger;   
         }
 
         public async Task<int> AddTransaction(CustomerTransactionDto request, int userId)
@@ -54,7 +56,7 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{ex.Message}. StackTrace: {ex.StackTrace}");
+                _logger.LogError("Error:{Message}. StackTrace: {StackTrace}", ex.Message, ex.StackTrace);
             }
 
             return result;
@@ -84,7 +86,7 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{ex.Message}. StackTrace: {ex.StackTrace}");
+                _logger.LogError(ex, "Error:{Message}. StackTrace: {StackTrace}", ex.Message, ex.StackTrace);
             }
 
             return result;

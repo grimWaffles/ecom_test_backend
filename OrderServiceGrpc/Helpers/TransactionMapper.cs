@@ -24,7 +24,8 @@ namespace OrderServiceGrpc.Helpers
                 ModifiedBy = model.ModifiedBy,
                 TransactionKey = model.TransactionKey?.Length > 15
                     ? model.TransactionKey[..15]
-                    : model.TransactionKey ?? string.Empty
+                    : model.TransactionKey ?? string.Empty,
+                OrderId = model.OrderId,
             };
         }
 
@@ -44,7 +45,8 @@ namespace OrderServiceGrpc.Helpers
                 ModifiedBy = dto.ModifiedBy,
                 TransactionKey = dto.TransactionKey?.Length > 15
                     ? dto.TransactionKey[..15]
-                    : dto.TransactionKey
+                    : dto.TransactionKey,
+                OrderId = dto.OrderId,
             };
         }
 
@@ -63,7 +65,8 @@ namespace OrderServiceGrpc.Helpers
                 TransactionDate = entity.TransactionDate,
                 ModifiedDate = entity.ModifiedDate,
                 ModifiedBy = entity.ModifiedBy,
-                TransactionKey = entity.TransactionKey
+                TransactionKey = entity.TransactionKey,
+                OrderId = entity.OrderId,
             };
         }
 
@@ -81,7 +84,8 @@ namespace OrderServiceGrpc.Helpers
                 TransactionDate = dto.TransactionDate,
                 ModifiedDate = dto.ModifiedDate,
                 ModifiedBy = dto.ModifiedBy,
-                TransactionKey = dto.TransactionKey
+                TransactionKey = dto.TransactionKey,
+                OrderId = dto.OrderId,
             };
         }
 
@@ -100,7 +104,8 @@ namespace OrderServiceGrpc.Helpers
                 TransactionDate = Timestamp.FromDateTime(DateTime.SpecifyKind(dto.TransactionDate, DateTimeKind.Utc)),
                 ModifiedDate = Timestamp.FromDateTime(DateTime.SpecifyKind(dto.ModifiedDate, DateTimeKind.Utc)),
                 ModifiedBy = dto.ModifiedBy,
-                TransactionKey = dto.TransactionKey ?? string.Empty
+                TransactionKey = dto.TransactionKey ?? string.Empty,
+                OrderId = dto.OrderId,
             };
         }
 
@@ -118,7 +123,8 @@ namespace OrderServiceGrpc.Helpers
                 TransactionDate = proto.TransactionDate?.ToDateTime() ?? DateTime.UtcNow,
                 ModifiedDate = proto.ModifiedDate?.ToDateTime() ?? DateTime.UtcNow,
                 ModifiedBy = proto.ModifiedBy,
-                TransactionKey = proto.TransactionKey
+                TransactionKey = proto.TransactionKey,
+                OrderId = proto.OrderId,
             };
         }
     }

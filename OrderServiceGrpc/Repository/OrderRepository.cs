@@ -4,6 +4,7 @@ using Google.Protobuf;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
@@ -23,7 +24,7 @@ namespace OrderServiceGrpc.Repository
         Task<OrderModel> GetOrderById(int orderId);
         Task<int> AddSingleOrder(OrderModel request, int userId);
         Task<bool> UpdateOrder(OrderModel request, List<OrderItemModel> addList, List<OrderItemModel> deleteList, List<OrderItemModel> updateList, int userId);
-        Task<bool> DeleteSingleOrder(int requestId, int userId);
+        Task<bool> UpdateDeleteStatusForSingleOrder(int requestId, int userId);
         Task<int> GetOrderCount();
         Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
@@ -33,8 +34,9 @@ namespace OrderServiceGrpc.Repository
     public class OrderRepository : IOrderRepository
     {
         private readonly string _connectionString;
+        private readonly ILogger<OrderRepository> _logger;
 
-        public OrderRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings)
+        public OrderRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings, ILogger<OrderRepository> logger)
         {
             _connectionString = (dbConfig.Value.Database.ToLower(),dbConfig.Value.Mode.ToLower()) switch
             {
@@ -44,6 +46,8 @@ namespace OrderServiceGrpc.Repository
                 ("work", "docker") => connectionStrings.Value.SqlServerWorkDockerConnection,
                 _ => ""
             };
+
+            _logger = logger;
         }
 
         public async Task<int> AddSingleOrder(OrderModel request, int userId)
@@ -56,6 +60,8 @@ namespace OrderServiceGrpc.Repository
             await using SqlConnection conn = new SqlConnection(_connectionString);
             await conn.OpenAsync();
             await using DbTransaction t = await conn.BeginTransactionAsync();
+
+            _logger.LogInformation("AddSingleOrder: starting insert for user {UserId}, items={ItemCount}", request.UserId, request.OrderItems?.Count ?? 0);
 
             try
             {
@@ -93,50 +99,58 @@ namespace OrderServiceGrpc.Repository
                 }
 
                 await t.CommitAsync();
+
+                _logger.LogInformation("AddSingleOrder: committed order {OrderId} for user {UserId}", insertedOrderId, request.UserId);
             }
             catch (Exception e)
             {
-                await t.RollbackAsync();
+                try { await t.RollbackAsync(); } catch { /* ignore rollback exception */ }
+                _logger.LogError(e, "AddSingleOrder: failed insert for user {UserId}", request.UserId);
                 return 0;
             }
-            finally { await conn.CloseAsync(); }
+            finally
+            {
+                await conn.CloseAsync();
+            }
 
             return insertedOrderId;
         }
 
-        public async Task<bool> DeleteSingleOrder(int request, int userId)
+        public async Task<bool> UpdateDeleteStatusForSingleOrder(int request, int userId)
         {
+            const string sql = @"   update OrderItems set IsDeleted = case when IsDeleted = 1 then 0 when isDeleted = 0 then 1 end, ModifiedBy = @ModifiedBy, ModifiedDate = @ModifiedDate where OrderId = @OrderId;
+                                        update Orders set IsDeleted = case when IsDeleted = 1 then 0 when isDeleted = 0 then 1 end, ModifiedBy = @ModifiedBy, ModifiedDate = @ModifiedDate where Id = @OrderId";
+
+            DynamicParameters parameters = new DynamicParameters();
+
+            parameters.Add("@OrderId", request);
+            parameters.Add("@ModifiedBy", userId);
+            parameters.Add("@ModifiedDate", DateTime.UtcNow);
+
+            await using SqlConnection conn = new SqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using DbTransaction transaction = await conn.BeginTransactionAsync();
+
+            _logger.LogInformation("UpdateDeleteStatusForSingleOrder: toggling delete status for OrderId {OrderId} by user {UserId}", request, userId);
+
             try
             {
-                const string sql = @"update OrderItems set IsDeleted = 1, ModifiedBy = @ModifiedBy, ModifiedDate = @ModifiedDate where OrderId = @OrderId;update Orders set IsDeleted = 1, ModifiedBy = @ModifiedBy, ModifiedDate = @ModifiedDate where Id = @OrderId";
+                await conn.ExecuteAsync(sql, parameters, transaction);
 
-                DynamicParameters parameters = new DynamicParameters();
+                await transaction.CommitAsync();
 
-                parameters.Add("@OrderId", request);
-                parameters.Add("@ModifiedBy", userId);
-                parameters.Add("@ModifiedDate", DateTime.UtcNow);
-
-                await using SqlConnection conn = new SqlConnection(_connectionString);
-                await conn.OpenAsync();
-                await using DbTransaction transaction = await conn.BeginTransactionAsync();
-
-                try
-                {
-                    await conn.ExecuteAsync(sql, parameters, transaction);
-
-                    await transaction.CommitAsync();
-                }
-                catch (Exception e)
-                {
-                    await transaction.RollbackAsync();
-                    return false;
-                }
-
+                _logger.LogInformation("UpdateDeleteStatusForSingleOrder: committed toggle for OrderId {OrderId}", request);
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
+                try { await transaction.RollbackAsync(); } catch { /* ignore rollback */ }
+                _logger.LogError(e, "UpdateDeleteStatusForSingleOrder: failed for OrderId {OrderId}", request);
                 return false;
+            }
+            finally
+            {
+                await conn.CloseAsync();
             }
         }
 
@@ -172,6 +186,8 @@ namespace OrderServiceGrpc.Repository
 
             await using var transaction = await conn.BeginTransactionAsync();
 
+            _logger.LogInformation("UpdateOrder: starting update for OrderId {OrderId} by user {UserId}", request.Id, userId);
+
             try
             {
                 //Delete List Processing
@@ -184,7 +200,8 @@ namespace OrderServiceGrpc.Repository
                 deleteParams.Add("@UserId", userId);
                 deleteParams.Add("@OrderId", request.Id);
 
-                await conn.ExecuteAsync(deleteOrderItemMultipleSql, deleteParams, transaction);
+                int deleteRows = await conn.ExecuteAsync(deleteOrderItemMultipleSql, deleteParams, transaction);
+                _logger.LogInformation("UpdateOrder: deleted {Count} order items for OrderId {OrderId}", deleteRows, request.Id);
                 #endregion
 
                 //AddList Processing
@@ -207,10 +224,13 @@ namespace OrderServiceGrpc.Repository
 
                         await bulkCopy.WriteToServerAsync(dt);
                     }
+
+                    _logger.LogInformation("UpdateOrder: inserted {Count} new order items for OrderId {OrderId}", addList.Count, request.Id);
                 }
                 #endregion
 
                 //UpdateList processing
+                int updateCount = 0;
                 foreach (var item in updateList)
                 {
                     var updateParams = new DynamicParameters();
@@ -220,8 +240,9 @@ namespace OrderServiceGrpc.Repository
                     updateParams.Add("@UserId", userId);
                     updateParams.Add("@OrderId", item.OrderId);
 
-                    await conn.ExecuteAsync(updateOrderItemSingleSql, updateParams, transaction);
+                    updateCount += await conn.ExecuteAsync(updateOrderItemSingleSql, updateParams, transaction);
                 }
+                _logger.LogInformation("UpdateOrder: updated {Count} order items for OrderId {OrderId}", updateCount, request.Id);
 
                 //Main order object
                 var orderParams = new DynamicParameters();
@@ -234,17 +255,25 @@ namespace OrderServiceGrpc.Repository
                 orderParams.Add("@ModifiedDate", DateTime.UtcNow);
                 orderParams.Add("@Id", request.Id);
 
-                await conn.ExecuteAsync(updateOrderObjectSqlSingle, orderParams, transaction);
+                int orderRows = await conn.ExecuteAsync(updateOrderObjectSqlSingle, orderParams, transaction);
+                _logger.LogInformation("UpdateOrder: updated main order object rows={Rows} for OrderId {OrderId}", orderRows, request.Id);
 
                 //Commit the transaction
                 await transaction.CommitAsync();
+
+                _logger.LogInformation("UpdateOrder: committed transaction for OrderId {OrderId}", request.Id);
 
                 return true;
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                try { await transaction.RollbackAsync(); } catch { /* ignore rollback failure */ }
+                _logger.LogError(ex, "UpdateOrder: failed for OrderId {OrderId}", request.Id);
                 return false;
+            }
+            finally
+            {
+                await conn.CloseAsync();
             }
         }
 
@@ -318,6 +347,8 @@ namespace OrderServiceGrpc.Repository
                 int totalPages = reader.ReadSingle<int>();
                 int totalOrders = reader.ReadSingle<int>();
 
+                _logger.LogInformation("GetAllOrdersWithPagination: returned {Orders} orders across {Pages} pages for date range {Start}-{End}", orders.Count, totalPages, startDate, endDate);
+
                 return new PagedOrderListModel()
                 {
                     TotalOrders = totalOrders,
@@ -327,7 +358,7 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception e)
             {
-                // Optionally log e.Message
+                _logger.LogError(e, "GetAllOrdersWithPagination: failed between {StartDate} and {EndDate}", startDate, endDate);
                 return null;
             }
         }
@@ -347,18 +378,28 @@ namespace OrderServiceGrpc.Repository
 
                 GridReader reader = await conn.QueryMultipleAsync(fetchOrderSql, parameters);
 
-                OrderModel model = reader.Read<OrderModel>().First();
+                OrderModel model = reader.Read<OrderModel>().FirstOrDefault();
+
+                if (model == null)
+                {
+                    _logger.LogWarning("GetOrderById: no order found for OrderId {OrderId}", orderId);
+                    return null;
+                }
 
                 model.OrderItems = reader.Read<OrderItemModel>().ToList();
+
+                _logger.LogInformation("GetOrderById: fetched order {OrderId} with {ItemCount} items", orderId, model.OrderItems?.Count ?? 0);
 
                 return model;
             }
             catch (SqlException se)
             {
+                _logger.LogError(se, "GetOrderById: SQL failure for OrderId {OrderId}", orderId);
                 return null;
             }
             catch (Exception e)
             {
+                _logger.LogError(e, "GetOrderById: failure for OrderId {OrderId}", orderId);
                 return null;
             }
         }
@@ -368,18 +409,21 @@ namespace OrderServiceGrpc.Repository
             string sql = @"select * from OrderItems where OrderId = @OrderId and IsDeleted = 0";
 
             DynamicParameters dynamicParameters = new DynamicParameters();
-            dynamicParameters.Add("@Id", orderId);
+            dynamicParameters.Add("@OrderId", orderId);
             try
             {
                 await using var conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync(); 
 
-                await conn.OpenAsync();
+                var items = (await conn.QueryAsync<OrderItemModel>(sql, dynamicParameters)).ToList();
 
-                return (List<OrderItemModel>)await conn.QueryAsync<OrderItemModel>(sql, dynamicParameters);
+                _logger.LogInformation("GetOrderItemsForOrder: returned {Count} items for OrderId {OrderId}", items.Count, orderId);
+
+                return items;
             }
             catch (Exception e)
             {
+                _logger.LogError(e, "GetOrderItemsForOrder: failed for OrderId {OrderId}", orderId);
                 return null;
             }
         }
@@ -388,18 +432,25 @@ namespace OrderServiceGrpc.Repository
         {
             const string sql = @"INSERT INTO OrderEventLogs (OrderId, CreatedAt) VALUES (@OrderId, @CreatedAt);";
 
+            await using var conn = new SqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            // wrap the write in a transaction so callers know we either persisted the event or rolled back
+            await using DbTransaction transaction = await conn.BeginTransactionAsync();
+            var parameters = new DynamicParameters();
+            parameters.Add("@OrderId", orderId);
+            parameters.Add("@CreatedAt", DateTime.UtcNow);
+
+            _logger.LogInformation("InsertOrderCreateEvent: inserting event for OrderId {OrderId}", orderId);
+
             try
             {
-                await using var conn = new SqlConnection(_connectionString);
-                await conn.OpenAsync();
-
-                var parameters = new DynamicParameters();
-                parameters.Add("@OrderId", orderId);
-                parameters.Add("@CreatedAt", DateTime.UtcNow);
-
                 try
                 {
-                    await conn.ExecuteAsync(sql, parameters);
+                    await conn.ExecuteAsync(sql, parameters, transaction);
+                    await transaction.CommitAsync();
+
+                    _logger.LogInformation("InsertOrderCreateEvent: committed event for OrderId {OrderId}", orderId);
 
                     return new ConsumerResponseModel
                     {
@@ -409,7 +460,10 @@ namespace OrderServiceGrpc.Repository
                 }
                 catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
                 {
-                    // UNIQUE constraint violation → duplicate Kafka message
+                    // UNIQUE constraint violation → duplicate Kafka message; rollback and return idempotent success
+                    try { await transaction.RollbackAsync(); } catch { /* ignore rollback */ }
+                    _logger.LogWarning("InsertOrderCreateEvent: idempotent duplicate for OrderId {OrderId}", orderId);
+
                     return new ConsumerResponseModel
                     {
                         Status = true,
@@ -419,12 +473,19 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception ex)
             {
+                try { await transaction.RollbackAsync(); } catch { /* ignore rollback failure */ }
+                _logger.LogError(ex, "InsertOrderCreateEvent: failed for OrderId {OrderId}", orderId);
+
                 return new ConsumerResponseModel
                 {
                     Status = false,
                     Message = ex.Message,
                     StackTrace = ex.StackTrace ?? "Stack trace unavailable"
                 };
+            }
+            finally
+            {
+                await conn.CloseAsync();
             }
         }
 
@@ -436,10 +497,14 @@ namespace OrderServiceGrpc.Repository
                 await using var conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync(); 
 
-                return await conn.ExecuteScalarAsync<int>(sql);
+                int count = await conn.ExecuteScalarAsync<int>(sql);
+                _logger.LogInformation("GetOrderCount: count={Count}", count);
+
+                return count;
             }
             catch (Exception e)
             {
+                _logger.LogError(e, "GetOrderCount: failed");
                 return 0;
             }
         }

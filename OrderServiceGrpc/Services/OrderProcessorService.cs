@@ -13,7 +13,7 @@ namespace OrderServiceGrpc.Services
     {
         Task<ConsumerResponseModel> CreateOrder(OrderDto dto, int userId);
         Task<ConsumerResponseModel> UpdateOrder(OrderDto model, int userId);
-        Task<ConsumerResponseModel> DeleteOrder(int orderId, int userId);
+        Task<ConsumerResponseModel> UpdateDeleteStatusForSingleOrder(int orderId, int userId);
         Task<ConsumerResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
         Task<ConsumerResponseModel> GetOrderById(int orderId);
         Task<ConsumerResponseModel> TestOrderProcessorService();
@@ -60,9 +60,9 @@ namespace OrderServiceGrpc.Services
             }
         }
 
-        public async Task<ConsumerResponseModel> DeleteOrder(int orderId, int userId)
+        public async Task<ConsumerResponseModel> UpdateDeleteStatusForSingleOrder(int orderId, int userId)
         {
-            bool orderAdded = await _repo.DeleteSingleOrder(orderId, userId);
+            bool orderAdded = await _repo.UpdateDeleteStatusForSingleOrder(orderId, userId);
 
             return new ConsumerResponseModel()
             {
@@ -342,7 +342,7 @@ namespace OrderServiceGrpc.Services
             }
 
             //Step 5
-            ConsumerResponseModel deleteOrderResponse = await DeleteOrder(orderAddedResponse.InsertedOrderId, 1);
+            ConsumerResponseModel deleteOrderResponse = await UpdateDeleteStatusForSingleOrder(orderAddedResponse.InsertedOrderId, 1);
 
             if (deleteOrderResponse.Status == true)
             {
