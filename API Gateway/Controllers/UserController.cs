@@ -1,4 +1,5 @@
-﻿using API_Gateway.Services;
+﻿using API_Gateway.Models;
+using API_Gateway.Services;
 using API_Gateway.Services.API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
@@ -15,10 +16,14 @@ namespace API_Gateway.Controllers
     [EnableCors("AllowOrigin")]
     public class UserController : ControllerBase
     {
+        private readonly IHttpContextAccessor _contextAccessor;
         private readonly IUserService _userServiceClient;
-        public UserController(IUserService userService)
+        private readonly IAuthorizationService _authorizationService;
+        public UserController(IUserService userService, IAuthorizationService authorizationService, IHttpContextAccessor contextAccessor)
         {
             _userServiceClient = userService;
+            _authorizationService = authorizationService;
+            _contextAccessor = contextAccessor;
         }
 
         [HttpGet]
@@ -29,7 +34,7 @@ namespace API_Gateway.Controllers
             string response = "User service up and running";// await _userServiceClient.TestServiceAsync();
             return StatusCode(StatusCodes.Status200OK, new { message = response });
         }
-
+         
         [HttpPost]
         [Route("login")]
         [AllowAnonymous]
@@ -165,14 +170,28 @@ namespace API_Gateway.Controllers
 
         //Role Permissions
         [HttpGet("roles/get-by-role-path")]
-        [AllowAnonymous]
         public async Task<IActionResult> GetRolePermissionsForUser([FromQuery] int roleId, [FromQuery] string entity)
         {
             try
             {
+                ReportModel r = new ReportModel()
+                {
+                    Id = 1,
+                    ReportId = 3,
+                    ReportName = "Test Report",
+                    OwnerId = 1,
+                };
+
+                var authResult = await _authorizationService.AuthorizeAsync(User, r, "ReportResourcePolicy");
+                
+                if (!authResult.Succeeded)
+                {
+                    return StatusCode(403, new { response = new RolePermissionResponse(), message = "User does not have access" });
+                }
+
                 var response = await _userServiceClient.GetRolePermissionByRoleIdAndPathAsync(roleId, entity);
 
-                return StatusCode(StatusCodes.Status200OK, new {response = response });
+                return StatusCode(StatusCodes.Status200OK, new {response = response, message = "" });
             }
             catch(Exception ex)
             {

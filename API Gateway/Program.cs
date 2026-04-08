@@ -9,6 +9,7 @@ using API_Gateway.Services;
 using API_Gateway.Services.API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using System.Text;
@@ -31,6 +32,8 @@ namespace API_Gateway
                 });
             });
 
+            builder.Services.AddHttpContextAccessor();
+
             //Add JWT Authentication
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -47,6 +50,9 @@ namespace API_Gateway
                     };
                 });
 
+            builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
+            builder.Services.AddScoped<IAuthorizationHandler, ReportAuthorizationHandler>();
+
             builder.Services.AddAuthentication();
 
             builder.Services.AddAuthorization(options =>
@@ -54,6 +60,11 @@ namespace API_Gateway
                 options.AddPolicy("RolePermissionPolicy", policy =>
                 {
                     policy.AddRequirements(new RolePermissionRequirement());
+                });
+
+                options.AddPolicy("ReportResourcePolicy", policy =>
+                {
+                    policy.AddRequirements(new ReportResourceRequirement());
                 });
 
                 //Ensure all the endpoints require authorization by default
@@ -66,23 +77,9 @@ namespace API_Gateway
             //builder.Services.AddEndpointsApiExplorer();
             //builder.Services.AddSwaggerGen();
 
-            //Add Dependency Injection
-            builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
-            builder.Services.AddScoped<IUserService, UserService>();
-            builder.Services.AddScoped<IProductCategoryGrpcClient, ProductCategoryGrpcClient>();
-            builder.Services.AddScoped<IProductGrpcClient, ProductGrpcClient>();
-            builder.Services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
-            builder.Services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
-
-            builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
-            builder.Services.AddSingleton<IRedisService, RedisService>();
-
-            //Add AppSettings objects as Options
-            builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSection("KafkaProducerSettings"));
-            builder.Services.Configure<KafkaGlobalSetting>(builder.Configuration.GetSection("Kafka"));
-            builder.Services.Configure<MicroServiceUrl>(builder.Configuration.GetSection("MicroServiceUrls"));
-
-            builder.Services.AddScoped<TokenAuthorizationMiddleware>();
+            //DependencyResolver.RegisterMiddleware(builder.Services);
+            DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
+            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
 
             var app = builder.Build();
 
@@ -96,7 +93,7 @@ namespace API_Gateway
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
-            app.UseTokenAuthorizationMiddleware();
+            //app.UseTokenAuthorizationMiddleware();
 
             //Add Authentication and Authorization
             app.UseAuthentication();
