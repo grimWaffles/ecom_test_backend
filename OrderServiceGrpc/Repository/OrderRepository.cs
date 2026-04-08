@@ -28,7 +28,6 @@ namespace OrderServiceGrpc.Repository
         Task<int> GetOrderCount();
         Task<PagedOrderListModel> GetAllOrdersWithPagination(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId);
         Task<List<OrderItemModel>> GetOrderItemsForOrder(int orderId);
-        Task<ConsumerResponseModel> InsertOrderCreateEvent(int orderId);
     }
 
     public class OrderRepository : IOrderRepository
@@ -425,67 +424,6 @@ namespace OrderServiceGrpc.Repository
             {
                 _logger.LogError(e, "GetOrderItemsForOrder: failed for OrderId {OrderId}", orderId);
                 return null;
-            }
-        }
-
-        public async Task<ConsumerResponseModel> InsertOrderCreateEvent(int orderId)
-        {
-            const string sql = @"INSERT INTO OrderEventLogs (OrderId, CreatedAt) VALUES (@OrderId, @CreatedAt);";
-
-            await using var conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync();
-
-            // wrap the write in a transaction so callers know we either persisted the event or rolled back
-            await using DbTransaction transaction = await conn.BeginTransactionAsync();
-            var parameters = new DynamicParameters();
-            parameters.Add("@OrderId", orderId);
-            parameters.Add("@CreatedAt", DateTime.UtcNow);
-
-            _logger.LogInformation("InsertOrderCreateEvent: inserting event for OrderId {OrderId}", orderId);
-
-            try
-            {
-                try
-                {
-                    await conn.ExecuteAsync(sql, parameters, transaction);
-                    await transaction.CommitAsync();
-
-                    _logger.LogInformation("InsertOrderCreateEvent: committed event for OrderId {OrderId}", orderId);
-
-                    return new ConsumerResponseModel
-                    {
-                        Status = true,
-                        Message = "Order inserted successfully"
-                    };
-                }
-                catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
-                {
-                    // UNIQUE constraint violation → duplicate Kafka message; rollback and return idempotent success
-                    try { await transaction.RollbackAsync(); } catch { /* ignore rollback */ }
-                    _logger.LogWarning("InsertOrderCreateEvent: idempotent duplicate for OrderId {OrderId}", orderId);
-
-                    return new ConsumerResponseModel
-                    {
-                        Status = true,
-                        Message = "Order already exists (idempotent)"
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                try { await transaction.RollbackAsync(); } catch { /* ignore rollback failure */ }
-                _logger.LogError(ex, "InsertOrderCreateEvent: failed for OrderId {OrderId}", orderId);
-
-                return new ConsumerResponseModel
-                {
-                    Status = false,
-                    Message = ex.Message,
-                    StackTrace = ex.StackTrace ?? "Stack trace unavailable"
-                };
-            }
-            finally
-            {
-                await conn.CloseAsync();
             }
         }
 

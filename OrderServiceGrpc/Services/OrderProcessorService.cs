@@ -31,13 +31,6 @@ namespace OrderServiceGrpc.Services
         {
             try
             {
-                ConsumerResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
-
-                if (!eventLogResponse.Status)
-                {
-                    return eventLogResponse;
-                }
-
                 OrderModel model = OrderMapper.DtoToEntity(dto);
 
                 int insertedOrderId = await _repo.AddSingleOrder(model, userId);
@@ -114,13 +107,6 @@ namespace OrderServiceGrpc.Services
         {
             try
             {
-                ConsumerResponseModel eventLogResponse = await _repo.InsertOrderCreateEvent(dto.Id);
-
-                if (!eventLogResponse.Status)
-                {
-                    return eventLogResponse;
-                }
-
                 OrderModel requestModel = OrderMapper.DtoToEntity(dto);
 
                 OrderModel dbModel = await _repo.GetOrderById(requestModel.Id);
