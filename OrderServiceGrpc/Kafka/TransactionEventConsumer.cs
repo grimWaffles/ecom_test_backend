@@ -2,7 +2,6 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers;
-using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Configs;

@@ -3,7 +3,7 @@ using Confluent.Kafka;
 using Google.Protobuf;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Options;
-using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Configs;

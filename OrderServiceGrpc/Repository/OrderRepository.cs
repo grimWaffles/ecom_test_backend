@@ -6,7 +6,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Helpers;
+using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Entities;
@@ -34,8 +35,10 @@ namespace OrderServiceGrpc.Repository
     {
         private readonly string _connectionString;
         private readonly ILogger<OrderRepository> _logger;
-
-        public OrderRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings, ILogger<OrderRepository> logger)
+        private readonly UnitOfWorkContext _uowContext;
+        private readonly IUnitOfWork _uow;
+        
+        public OrderRepository(IOptions<DatabaseConfig> dbConfig,UnitOfWorkContext unitOfWorkContext, IOptions<DatabaseConnection> connectionStrings, ILogger<OrderRepository> logger)
         {
             _connectionString = (dbConfig.Value.Database.ToLower(),dbConfig.Value.Mode.ToLower()) switch
             {
@@ -47,6 +50,19 @@ namespace OrderServiceGrpc.Repository
             };
 
             _logger = logger;
+            _uowContext = unitOfWorkContext;
+        }
+
+        private async Task<(IDbConnection Connection, IDbTransaction? Transaction, bool OwnConnection)> GetConnectionAsync()
+        {
+            if (_uowContext.IsUnderUnitOfWork && _uow is not null)
+            {
+                return (_uow.Connection, _uow.DbTransaction, false);
+            }
+
+            SqlConnection connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            return (connection, null, true);
         }
 
         public async Task<int> AddSingleOrder(OrderModel request, int userId)
@@ -56,9 +72,14 @@ namespace OrderServiceGrpc.Repository
                                    ([OrderDate] ,[OrderCounter] ,[UserId]  ,[Status] ,[NetAmount] ,[CreatedBy] ,[CreatedDate] ,[IsDeleted],[ModifiedDate],[ModifiedBy])
                              VALUES (@OrderDate,  @OrderCounter, @UserId, @Status, @NetAmount, @CreatedBy,  @CreatedDate, @IsDeleted, @ModifiedDate,@ModifiedBy ); select Convert(int,SCOPE_IDENTITY())";
 
-            await using SqlConnection conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync();
-            await using DbTransaction t = await conn.BeginTransactionAsync();
+            //await using SqlConnection conn = new SqlConnection(_connectionString);
+            //await conn.OpenAsync();
+            //await using DbTransaction t = await conn.BeginTransactionAsync();
+
+            var (sqlConnection, dbTransaction, ownConnection) = await GetConnectionAsync();
+
+            await using SqlConnection conn = (SqlConnection)sqlConnection;
+            await using DbTransaction t = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
 
             _logger.LogInformation("AddSingleOrder: starting insert for user {UserId}, items={ItemCount}", request.UserId, request.OrderItems?.Count ?? 0);
 
@@ -97,7 +118,10 @@ namespace OrderServiceGrpc.Repository
                     await bulkCopy.WriteToServerAsync(dt);
                 }
 
-                await t.CommitAsync();
+                if (ownConnection)
+                {
+                    await t.CommitAsync();
+                }
 
                 _logger.LogInformation("AddSingleOrder: committed order {OrderId} for user {UserId}", insertedOrderId, request.UserId);
             }
@@ -109,7 +133,8 @@ namespace OrderServiceGrpc.Repository
             }
             finally
             {
-                await conn.CloseAsync();
+                if(ownConnection)
+                    await conn.DisposeAsync();
             }
 
             return insertedOrderId;
@@ -126,9 +151,14 @@ namespace OrderServiceGrpc.Repository
             parameters.Add("@ModifiedBy", userId);
             parameters.Add("@ModifiedDate", DateTime.UtcNow);
 
-            await using SqlConnection conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync();
-            await using DbTransaction transaction = await conn.BeginTransactionAsync();
+            //await using SqlConnection conn = new SqlConnection(_connectionString);
+            //await conn.OpenAsync();
+            //await using DbTransaction transaction = await conn.BeginTransactionAsync();
+
+            var (sqlConnection, dbTransaction, ownConnection) = await GetConnectionAsync();
+
+            await using SqlConnection conn = (SqlConnection)sqlConnection;
+            await using DbTransaction transaction = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
 
             _logger.LogInformation("UpdateDeleteStatusForSingleOrder: toggling delete status for OrderId {OrderId} by user {UserId}", request, userId);
 
@@ -136,7 +166,8 @@ namespace OrderServiceGrpc.Repository
             {
                 await conn.ExecuteAsync(sql, parameters, transaction);
 
-                await transaction.CommitAsync();
+                if(ownConnection)
+                    await transaction.CommitAsync();
 
                 _logger.LogInformation("UpdateDeleteStatusForSingleOrder: committed toggle for OrderId {OrderId}", request);
                 return true;
@@ -149,7 +180,8 @@ namespace OrderServiceGrpc.Repository
             }
             finally
             {
-                await conn.CloseAsync();
+                if(ownConnection)
+                    await conn.DisposeAsync();
             }
         }
 
@@ -180,10 +212,14 @@ namespace OrderServiceGrpc.Repository
                                                         from OrderItems o
                                                         where o.Id = @Id and o.OrderId = @OrderId";
 
-            await using var conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync();
+            //await using var conn = new SqlConnection(_connectionString);
+            //await conn.OpenAsync();
+            //await using var transaction = await conn.BeginTransactionAsync();
 
-            await using var transaction = await conn.BeginTransactionAsync();
+            var (sqlConnection, dbTransaction, ownConnection) = await GetConnectionAsync();
+
+            await using SqlConnection conn = (SqlConnection)sqlConnection;
+            await using DbTransaction transaction = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
 
             _logger.LogInformation("UpdateOrder: starting update for OrderId {OrderId} by user {UserId}", request.Id, userId);
 
@@ -258,7 +294,8 @@ namespace OrderServiceGrpc.Repository
                 _logger.LogInformation("UpdateOrder: updated main order object rows={Rows} for OrderId {OrderId}", orderRows, request.Id);
 
                 //Commit the transaction
-                await transaction.CommitAsync();
+                if (ownConnection)
+                    await transaction.CommitAsync();
 
                 _logger.LogInformation("UpdateOrder: committed transaction for OrderId {OrderId}", request.Id);
 
@@ -272,7 +309,8 @@ namespace OrderServiceGrpc.Repository
             }
             finally
             {
-                await conn.CloseAsync();
+                if (ownConnection)
+                    await conn.DisposeAsync();
             }
         }
 

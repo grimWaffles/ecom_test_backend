@@ -7,7 +7,6 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using OrderServiceGrpc.Helpers.cs;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;

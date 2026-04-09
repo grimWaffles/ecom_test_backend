@@ -3,7 +3,7 @@ using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 
-namespace OrderServiceGrpc.Helpers.cs
+namespace OrderServiceGrpc.Helpers.Converters
 {
     public static class CustomerConverter
     {

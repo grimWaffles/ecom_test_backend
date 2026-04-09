@@ -1,4 +1,4 @@
-﻿using OrderServiceGrpc.Helpers;
+﻿using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;

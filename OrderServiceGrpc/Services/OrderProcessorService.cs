@@ -1,4 +1,5 @@
-﻿using OrderServiceGrpc.Helpers.cs;
+﻿using OrderServiceGrpc.Helpers;
+using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
@@ -21,10 +22,11 @@ namespace OrderServiceGrpc.Services
     public class OrderProcessorService : IOrderProcessorService
     {
         private readonly IOrderRepository _repo;
-
-        public OrderProcessorService(IOrderRepository orderRepository)
+        private readonly IUnitOfWork _uow;
+        public OrderProcessorService(IOrderRepository orderRepository, IUnitOfWork unitOfWork)
         {
             _repo = orderRepository;
+            _uow = unitOfWork;
         }
 
         public async Task<ConsumerResponseModel> CreateOrder(OrderDto dto, int userId)
@@ -33,17 +35,44 @@ namespace OrderServiceGrpc.Services
             {
                 OrderModel model = OrderMapper.DtoToEntity(dto);
 
+                await _uow.BeginTransactionAsync();
+
+                //Insert #1 - Order and OrderItems
                 int insertedOrderId = await _repo.AddSingleOrder(model, userId);
+
+                //Insert #2 - Outbox entry
+                OrderOutbox outboxEntry = new OrderOutbox()
+                {
+                    AggregateId = insertedOrderId,
+                    AggregateType = "Order",
+                    EventType = "OrderCreated",
+                    Topic = "order-create-success",
+                    PartitionKey = insertedOrderId.ToString(),
+                    Payload = System.Text.Json.JsonSerializer.Serialize(OrderMapper.EntityToMessage(model)),
+                    Headers = "{}",
+                    StatusId = 1, // Assuming 1 is the status for 'Pending'
+                    RetryCount = 0,
+                    CreatedAt = DateTime.UtcNow,
+                    ScheduledAt = DateTime.UtcNow
+                };
+
+                await _uow.Outbox.CreateAsync(outboxEntry);
+
+                //Commit both inserts together
+                await _uow.CommitAsync();
 
                 return new ConsumerResponseModel()
                 {
                     Status = insertedOrderId == 0 ? false : true,
-                    Message = insertedOrderId>0 ? "Added successfully" : "Failed to add",
+                    Message = insertedOrderId > 0 ? "Added successfully" : "Failed to add",
                     InsertedOrderId = insertedOrderId
                 };
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
+                //Rollback both inserts together
+                await _uow.RollbackAsync();
+
                 return new ConsumerResponseModel
                 {
                     Status = false,
@@ -55,13 +84,49 @@ namespace OrderServiceGrpc.Services
 
         public async Task<ConsumerResponseModel> UpdateDeleteStatusForSingleOrder(int orderId, int userId)
         {
-            bool orderAdded = await _repo.UpdateDeleteStatusForSingleOrder(orderId, userId);
-
-            return new ConsumerResponseModel()
+            try
             {
-                Status = orderAdded,
-                Message = orderAdded ? "Deleted successfully" : "Failed to delete"
-            };
+                await _uow.BeginTransactionAsync();
+
+                bool orderAdded = await _repo.UpdateDeleteStatusForSingleOrder(orderId, userId);
+
+                //Insert #2 - Outbox entry
+                OrderOutbox outboxEntry = new OrderOutbox()
+                {
+                    AggregateId = orderId,
+                    AggregateType = "Order",
+                    EventType = "OrderDeleted",
+                    Topic = "order-delete-success",
+                    PartitionKey = orderId.ToString(),
+                    Payload = System.Text.Json.JsonSerializer.Serialize(new { orderId = orderId, userId = userId }),
+                    Headers = "{}",
+                    StatusId = 1, // Assuming 1 is the status for 'Pending'
+                    RetryCount = 0,
+                    CreatedAt = DateTime.UtcNow,
+                    ScheduledAt = DateTime.UtcNow
+                };
+
+                await _uow.Outbox.CreateAsync(outboxEntry);
+
+                await _uow.CommitAsync();
+
+                return new ConsumerResponseModel()
+                {
+                    Status = orderAdded,
+                    Message = orderAdded ? "Deleted successfully" : "Failed to delete"
+                };
+            }
+            catch (Exception e)
+            {
+                await _uow.RollbackAsync();
+
+                return new ConsumerResponseModel()
+                {
+                    Status = false,
+                    Message = e.Message,
+                    StackTrace = e.StackTrace
+                };
+            }
         }
 
         public async Task<ConsumerResponseModel> GetAllOrders(DateTime startDate, DateTime endDate, int pageSize, int pageNumber, int userId)
@@ -111,7 +176,7 @@ namespace OrderServiceGrpc.Services
 
                 OrderModel dbModel = await _repo.GetOrderById(requestModel.Id);
 
-                if(requestModel.Id!= 0 && dbModel != null)
+                if (requestModel.Id != 0 && dbModel != null)
                 {
                     List<OrderItemModel> deleteList = new();
                     List<OrderItemModel> addList = new();
@@ -141,25 +206,51 @@ namespace OrderServiceGrpc.Services
                         }
                     }
 
-                    bool orderUpdated = await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
+                    await _uow.BeginTransactionAsync();
+                    await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
 
-                    return new ConsumerResponseModel()
+                    //Insert #2 - Outbox entry
+                    OrderOutbox outboxEntry = new OrderOutbox()
                     {
-                        Status = orderUpdated,
-                        Message = orderUpdated ? "Updated successfully" : "Failed to update"
+                        AggregateId = dto.Id,
+                        AggregateType = "Order",
+                        EventType = "OrderDeleted",
+                        Topic = "order-delete-success",
+                        PartitionKey = dto.Id.ToString(),
+                        Payload = System.Text.Json.JsonSerializer.Serialize(new { orderId = dto.Id, userId = userId }),
+                        Headers = "{}",
+                        StatusId = 1, // Assuming 1 is the status for 'Pending'
+                        RetryCount = 0,
+                        CreatedAt = DateTime.UtcNow,
+                        ScheduledAt = DateTime.UtcNow
                     };
+
+                    await _uow.Outbox.CreateAsync(outboxEntry);
+
+                    await _uow.CommitAsync();
                 }
                 else
                 {
                     return new ConsumerResponseModel()
                     {
                         Status = false,
-                        Message = "Failed to update"
+                        Message = "Order not found for update"
                     };
                 }
+
+                return new ConsumerResponseModel()
+                {
+                    Status = true,
+                    Message = "Updated successfully"
+                };
             }
-            catch(Exception e)
+            catch (Exception e)
             {
+                if (_uow.DbTransaction != null)
+                {
+                    await _uow.RollbackAsync();
+                }
+
                 return new ConsumerResponseModel()
                 {
                     Status = false,
@@ -209,13 +300,13 @@ namespace OrderServiceGrpc.Services
 
             StringBuilder testLog = new StringBuilder();
 
-            DateTime startDate = new DateTime(2021,01,01), endDate = new DateTime(2026,12,31);
+            DateTime startDate = new DateTime(2021, 01, 01), endDate = new DateTime(2026, 12, 31);
             int pageSize = 10, pageNumber = 1;
 
             //Step 1
-            ConsumerResponseModel response = await GetAllOrders(startDate,endDate,pageSize,pageNumber,0);
+            ConsumerResponseModel response = await GetAllOrders(startDate, endDate, pageSize, pageNumber, 0);
 
-            if(response.ListOfOrders.Count()>0 && response.TotalOrders>0 && response.TotalPages> 0)
+            if (response.ListOfOrders.Count() > 0 && response.TotalOrders > 0 && response.TotalPages > 0)
             {
                 testLog.AppendLine("Step 1: GetAllOrders - Passed");
             }
@@ -231,8 +322,8 @@ namespace OrderServiceGrpc.Services
             }
 
             //Step 2 
-            int orderId = response.ListOfOrders.Where(x=> x.Items.Count>2).First().Id;
-            
+            int orderId = response.ListOfOrders.Where(x => x.Items.Count > 2).First().Id;
+
             if (orderId == 0)
             {
                 return new ConsumerResponseModel()
@@ -285,10 +376,10 @@ namespace OrderServiceGrpc.Services
             }
 
             //Step 4
-            decimal initialItemCount = 0, finalItemCount = 0, initialNetAmount = 0, finalNetAmount = 0;  
+            decimal initialItemCount = 0, finalItemCount = 0, initialNetAmount = 0, finalNetAmount = 0;
 
             ConsumerResponseModel insertedDto = await GetOrderById(orderAddedResponse.InsertedOrderId);
-            
+
             OrderDto dtoToUpdate = insertedDto.Order;
 
             OrderModel modelToUpdate = OrderMapper.DtoToEntity(dtoToUpdate);
@@ -310,9 +401,9 @@ namespace OrderServiceGrpc.Services
 
             ConsumerResponseModel updatedDto = await GetOrderById(modelToUpdate.Id);
 
-            finalItemCount = updatedDto.Order.Items.Count; finalNetAmount = (decimal) updatedDto.Order.NetAmount; 
+            finalItemCount = updatedDto.Order.Items.Count; finalNetAmount = (decimal)updatedDto.Order.NetAmount;
 
-            if (updateOrderResponse.Status == true && (finalItemCount==initialItemCount) && (finalNetAmount!=initialNetAmount))
+            if (updateOrderResponse.Status == true && (finalItemCount == initialItemCount) && (finalNetAmount != initialNetAmount))
             {
                 testLog.AppendLine("Step 4: UpdateOrder - Passed");
             }
