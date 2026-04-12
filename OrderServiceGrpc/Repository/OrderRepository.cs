@@ -4,8 +4,11 @@ using Google.Protobuf;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OrderServiceGrpc.Database;
 using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models;
@@ -17,6 +20,7 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Transactions;
 using static Dapper.SqlMapper;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace OrderServiceGrpc.Repository
 {
@@ -33,12 +37,12 @@ namespace OrderServiceGrpc.Repository
 
     public class OrderRepository : IOrderRepository
     {
+        private readonly AppDbContext _appDbContext;
         private readonly string _connectionString;
         private readonly ILogger<OrderRepository> _logger;
         private readonly UnitOfWorkContext _uowContext;
-        private readonly IUnitOfWork _uow;
         
-        public OrderRepository(IOptions<DatabaseConfig> dbConfig,UnitOfWorkContext unitOfWorkContext, IOptions<DatabaseConnection> connectionStrings, ILogger<OrderRepository> logger)
+        public OrderRepository(AppDbContext appDbContext,IOptions<DatabaseConfig> dbConfig,UnitOfWorkContext unitOfWorkContext, IOptions<DatabaseConnection> connectionStrings, ILogger<OrderRepository> logger)
         {
             _connectionString = (dbConfig.Value.Database.ToLower(),dbConfig.Value.Mode.ToLower()) switch
             {
@@ -51,13 +55,16 @@ namespace OrderServiceGrpc.Repository
 
             _logger = logger;
             _uowContext = unitOfWorkContext;
+            _appDbContext = appDbContext;
         }
 
         private async Task<(IDbConnection Connection, IDbTransaction? Transaction, bool OwnConnection)> GetConnectionAsync()
         {
-            if (_uowContext.IsUnderUnitOfWork && _uow is not null)
+            if (_uowContext.IsUnderUnitOfWork)
             {
-                return (_uow.Connection, _uow.DbTransaction, false);
+                if (_appDbContext.Database.GetDbConnection().State != ConnectionState.Open)
+                    await _appDbContext.Database.OpenConnectionAsync();
+                return (_appDbContext.Database.GetDbConnection(), _appDbContext.Database.CurrentTransaction?.GetDbTransaction(), false);
             }
 
             SqlConnection connection = new SqlConnection(_connectionString);
@@ -72,69 +79,125 @@ namespace OrderServiceGrpc.Repository
                                    ([OrderDate] ,[OrderCounter] ,[UserId]  ,[Status] ,[NetAmount] ,[CreatedBy] ,[CreatedDate] ,[IsDeleted],[ModifiedDate],[ModifiedBy])
                              VALUES (@OrderDate,  @OrderCounter, @UserId, @Status, @NetAmount, @CreatedBy,  @CreatedDate, @IsDeleted, @ModifiedDate,@ModifiedBy ); select Convert(int,SCOPE_IDENTITY())";
 
-            //await using SqlConnection conn = new SqlConnection(_connectionString);
-            //await conn.OpenAsync();
-            //await using DbTransaction t = await conn.BeginTransactionAsync();
+            (IDbConnection? sqlConnection, IDbTransaction? dbTransaction, bool ownConnection) = await GetConnectionAsync();
 
-            var (sqlConnection, dbTransaction, ownConnection) = await GetConnectionAsync();
-
-            await using SqlConnection conn = (SqlConnection)sqlConnection;
-            await using DbTransaction t = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
-
-            _logger.LogInformation("AddSingleOrder: starting insert for user {UserId}, items={ItemCount}", request.UserId, request.OrderItems?.Count ?? 0);
-
-            try
+            if (ownConnection)
             {
-                DynamicParameters iop = new DynamicParameters();
+                await using SqlConnection conn = (SqlConnection)sqlConnection;
+                await using DbTransaction t = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
 
-                iop.Add("@OrderDate", request.OrderDate);
-                iop.Add("@OrderCounter", request.OrderCounter);
-                iop.Add("@UserId", request.UserId);
-                iop.Add("@Status", request.Status);
-                iop.Add("@NetAmount", request.NetAmount);
-                iop.Add("@ModifiedDate", DateTime.UtcNow);
-                iop.Add("@ModifiedBy", userId);
-                iop.Add("@CreatedBy", userId);
-                iop.Add("@CreatedDate", DateTime.UtcNow);
-                iop.Add("@IsDeleted", false);
+                _logger.LogInformation("AddSingleOrder: starting insert for user {UserId}, items={ItemCount}", request.UserId, request.OrderItems?.Count ?? 0);
 
-                insertedOrderId = await conn.ExecuteScalarAsync<int>(insertOrderSql, iop, t);
-
-                foreach (var item in request.OrderItems)
+                try
                 {
-                    item.OrderId = insertedOrderId;
-                    item.CreatedDate = DateTime.UtcNow;
-                    item.CreatedBy = userId;
-                    item.ModifiedDate = DateTime.UtcNow;
-                    item.ModifiedBy = userId;
-                }
+                    DynamicParameters iop = new DynamicParameters();
 
-                using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)t))
-                {
-                    bulkCopy.DestinationTableName = "OrderItems";
+                    iop.Add("@OrderDate", request.OrderDate);
+                    iop.Add("@OrderCounter", request.OrderCounter);
+                    iop.Add("@UserId", request.UserId);
+                    iop.Add("@Status", request.Status);
+                    iop.Add("@NetAmount", request.NetAmount);
+                    iop.Add("@ModifiedDate", DateTime.UtcNow);
+                    iop.Add("@ModifiedBy", userId);
+                    iop.Add("@CreatedBy", userId);
+                    iop.Add("@CreatedDate", DateTime.UtcNow);
+                    iop.Add("@IsDeleted", false);
 
-                    DataTable dt = DataTableConverter.OrderItemsToDataTable(request.OrderItems);
+                    insertedOrderId = await conn.ExecuteScalarAsync<int>(insertOrderSql, iop, t);
 
-                    await bulkCopy.WriteToServerAsync(dt);
-                }
+                    foreach (var item in request.OrderItems)
+                    {
+                        item.OrderId = insertedOrderId;
+                        item.CreatedDate = DateTime.UtcNow;
+                        item.CreatedBy = userId;
+                        item.ModifiedDate = DateTime.UtcNow;
+                        item.ModifiedBy = userId;
+                    }
 
-                if (ownConnection)
-                {
+                    using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)t))
+                    {
+                        bulkCopy.DestinationTableName = "OrderItems";
+
+                        DataTable dt = DataTableConverter.OrderItemsToDataTable(request.OrderItems);
+
+                        await bulkCopy.WriteToServerAsync(dt);
+                    }
+
                     await t.CommitAsync();
-                }
 
-                _logger.LogInformation("AddSingleOrder: committed order {OrderId} for user {UserId}", insertedOrderId, request.UserId);
-            }
-            catch (Exception e)
-            {
-                try { await t.RollbackAsync(); } catch { /* ignore rollback exception */ }
-                _logger.LogError(e, "AddSingleOrder: failed insert for user {UserId}", request.UserId);
-                return 0;
-            }
-            finally
-            {
-                if(ownConnection)
+                    _logger.LogInformation("AddSingleOrder: committed order {OrderId} for user {UserId}", insertedOrderId, request.UserId);
+                }
+                catch (Exception e)
+                {
+                    try { await t.RollbackAsync(); } catch { /* ignore rollback exception */ }
+                    _logger.LogError(e, "AddSingleOrder: failed insert for user {UserId}", request.UserId);
+                    throw;
+                }
+                finally
+                {
                     await conn.DisposeAsync();
+                }
+            }
+            else
+            {
+                SqlConnection conn = (SqlConnection)sqlConnection;
+                DbTransaction t = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
+
+                _logger.LogInformation("AddSingleOrder: starting insert for user {UserId}, items={ItemCount}", request.UserId, request.OrderItems?.Count ?? 0);
+
+                try
+                {
+                    DynamicParameters iop = new DynamicParameters();
+
+                    iop.Add("@OrderDate", request.OrderDate);
+                    iop.Add("@OrderCounter", request.OrderCounter);
+                    iop.Add("@UserId", request.UserId);
+                    iop.Add("@Status", request.Status);
+                    iop.Add("@NetAmount", request.NetAmount);
+                    iop.Add("@ModifiedDate", DateTime.UtcNow);
+                    iop.Add("@ModifiedBy", userId);
+                    iop.Add("@CreatedBy", userId);
+                    iop.Add("@CreatedDate", DateTime.UtcNow);
+                    iop.Add("@IsDeleted", false);
+
+                    insertedOrderId = await conn.ExecuteScalarAsync<int>(insertOrderSql, iop, t);
+
+                    foreach (var item in request.OrderItems)
+                    {
+                        item.OrderId = insertedOrderId;
+                        item.CreatedDate = DateTime.UtcNow;
+                        item.CreatedBy = userId;
+                        item.ModifiedDate = DateTime.UtcNow;
+                        item.ModifiedBy = userId;
+                    }
+
+                    using (SqlBulkCopy bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, (SqlTransaction)t))
+                    {
+                        bulkCopy.DestinationTableName = "OrderItems";
+
+                        DataTable dt = DataTableConverter.OrderItemsToDataTable(request.OrderItems);
+
+                        await bulkCopy.WriteToServerAsync(dt);
+                    }
+
+                    if (ownConnection)
+                    {
+                        await t.CommitAsync();
+                    }
+
+                    _logger.LogInformation("AddSingleOrder: committed order {OrderId} for user {UserId}", insertedOrderId, request.UserId);
+                }
+                catch (Exception e)
+                {
+                    try { await t.RollbackAsync(); } catch { /* ignore rollback exception */ }
+                    _logger.LogError(e, "AddSingleOrder: failed insert for user {UserId}", request.UserId);
+                    return 0;
+                }
+                finally
+                {
+                    if (ownConnection)
+                        await conn.DisposeAsync();
+                }
             }
 
             return insertedOrderId;

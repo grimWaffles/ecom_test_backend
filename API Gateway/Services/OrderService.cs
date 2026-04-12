@@ -74,17 +74,19 @@ namespace API_Gateway.Services
         //Kafka Producers
         public async Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request)
         {
-            KafkaProducerResult result = await _kafkaEventProducer.ProduceEventAsync(
-                order_create_topic,
-                request.Order.Id.ToString(),
-                JsonSerializer.Serialize(request.Order));
+            //KafkaProducerResult result = await _kafkaEventProducer.ProduceEventAsync(
+            //    order_create_topic,
+            //    request.Order.Id.ToString(),
+            //    JsonSerializer.Serialize(request.Order));
 
-            return new OrderResponse()
-            {
-                Status = result.Status,
-                Message = result.ErrorMessage,
-                Order = request.Order
-            };
+            //return new OrderResponse()
+            //{
+            //    Status = result.Status,
+            //    Message = result.ErrorMessage,
+            //    Order = request.Order
+            //};
+            OrderResponse res = await _orderClient.CreateOrderAsync(request);
+            return res;
         }
 
         public async Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request)
@@ -149,19 +151,44 @@ namespace API_Gateway.Services
                     //});
 
                     //await Task.WhenAll(t1, t2);
+                    //return new OrderResponse()
+                    //{
+                    //    Status = true,
+                    //    Message = $"Produced messages for {orderList.Count} orders.",
+                    //    Order = null
+                    //};
                     #endregion
 
                     #region Produce Events Sequentially
 
-                    await FireAllOrderProduceEvents(orderList);
+                    //await FireAllOrderProduceEvents(orderList);
+                    //return new OrderResponse()
+                    //{
+                    //    Status = true,
+                    //    Message = $"Produced messages for {orderList.Count} orders.",
+                    //    Order = null
+                    //};
+                    #endregion
 
+                    #region Call the create function for the outbox approach
+                    Order orderToCreate = orderList.Where(o=> !o.IsDeleted && o.Items.Count()>2 ).FirstOrDefault();
+                    CreateOrderRequest createOrderRequest = new CreateOrderRequest() { Order = orderToCreate, UserId = 1 };
+                    
+                    OrderResponse fnResponse = await CreateOrderAsync(createOrderRequest);
+
+                    return new OrderResponse()
+                    {
+                        Status = fnResponse.Status,
+                        Message = fnResponse.Message,
+                        Order = fnResponse.Order,
+                    };
                     #endregion
                 }
 
                 return new OrderResponse()
                 {
-                    Status = true,
-                    Message = $"Produced messages for {orderList.Count} orders.",
+                    Status = false,
+                    Message = $"No orders found",
                     Order = null
                 };
             }

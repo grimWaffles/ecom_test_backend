@@ -68,7 +68,7 @@ namespace API_Gateway
                 });
 
                 //Ensure all the endpoints require authorization by default
-                options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
+                //options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
             });
 
             builder.Services.AddControllers();

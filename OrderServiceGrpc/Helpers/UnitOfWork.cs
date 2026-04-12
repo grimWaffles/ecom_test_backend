@@ -42,10 +42,9 @@ namespace OrderServiceGrpc.Helpers
         public async Task BeginTransactionAsync()
         {
             _logger.LogInformation("UnitOfWork — beginning transaction");
-            //_transaction = await _context.Database.BeginTransactionAsync();
             
-            if(_context.Database.GetDbConnection().State != ConnectionState.Open)
-                await _context.Database.GetDbConnection().OpenAsync();
+            //if(_context.Database.GetDbConnection().State != ConnectionState.Open)
+                //await _context.Database.GetDbConnection().OpenAsync();
             
             _transaction = await _context.Database.BeginTransactionAsync();
             
@@ -63,8 +62,6 @@ namespace OrderServiceGrpc.Helpers
             _logger.LogInformation("UnitOfWork — committing transaction");
             try
             {
-                await _context.SaveChangesAsync();
-
                 if (_transaction is not null)
                 {
                     await _transaction.CommitAsync();

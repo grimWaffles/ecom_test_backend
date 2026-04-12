@@ -38,7 +38,7 @@ namespace OrderServiceGrpc.Services
                 await _uow.BeginTransactionAsync();
 
                 //Insert #1 - Order and OrderItems
-                int insertedOrderId = await _repo.AddSingleOrder(model, userId);
+                int insertedOrderId = await _uow.Orders.AddSingleOrder(model, userId);
 
                 //Insert #2 - Outbox entry
                 OrderOutbox outboxEntry = new OrderOutbox()
@@ -57,6 +57,8 @@ namespace OrderServiceGrpc.Services
                 };
 
                 await _uow.Outbox.CreateAsync(outboxEntry);
+
+                await _uow.SaveChangesAsync();
 
                 //Commit both inserts together
                 await _uow.CommitAsync();
@@ -79,6 +81,10 @@ namespace OrderServiceGrpc.Services
                     Message = ex.Message,
                     StackTrace = ex.StackTrace ?? "Stack trace unavailable"
                 };
+            }
+            finally
+            {
+                await _uow.DisposeAsync();
             }
         }
 
