@@ -173,8 +173,8 @@ namespace API_Gateway.Services
                     #region Call the create function for the outbox approach
                     Order orderToCreate = orderList.Where(o=> !o.IsDeleted && o.Items.Count()>2 ).FirstOrDefault();
                     CreateOrderRequest createOrderRequest = new CreateOrderRequest() { Order = orderToCreate, UserId = 1 };
-                    
-                    OrderResponse fnResponse = await CreateOrderAsync(createOrderRequest);
+
+                    OrderResponse fnResponse = await _orderClient.CreateOrderAsync(createOrderRequest);//await CreateOrderAsync(createOrderRequest);
 
                     return new OrderResponse()
                     {
