@@ -34,9 +34,13 @@ namespace OrderServiceGrpc.Repository
             _logger.LogInformation("Fetching outbox records with ScheduledAt >= {Date} and StatusId IN (1, 4)", date);
             try
             {
-                List<OrderOutbox> records = await _context.OrderOutbox
+                IQueryable<OrderOutbox> recordQuery = _context.OrderOutbox
                     .Where(o => (o.ProcessedAt == null) && (o.StatusId == 1 || o.StatusId == 4))
                     .OrderBy(o => o.CreatedAt)
+                    .AsQueryable();
+
+                List<OrderOutbox> records = await recordQuery
+                    .Take(5)
                     .AsNoTracking()
                     .ToListAsync();
 

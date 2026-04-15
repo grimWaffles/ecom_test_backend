@@ -85,7 +85,7 @@ builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
 
 //builder.Services.AddHostedService<OrderEventConsumer>();
 //builder.Services.AddHostedService<TransactionEventConsumer>();
-builder.Services.AddHostedService<OutboxExecutor>();
+//builder.Services.AddHostedService<OutboxExecutor>();
 
 var app = builder.Build();
 
