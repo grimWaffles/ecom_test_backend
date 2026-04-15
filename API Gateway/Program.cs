@@ -2,7 +2,6 @@
 using API_Gateway.Grpc;
 using API_Gateway.Handlers;
 using API_Gateway.Helpers;
-using API_Gateway.Kafka;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Services;

@@ -1,10 +1,8 @@
 ﻿using API_Gateway.Grpc;
-using API_Gateway.Kafka;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Services;
 using API_Gateway.Services.API_Gateway.Services;
-using Confluent.Kafka;
 using System.Runtime.CompilerServices;
 
 namespace API_Gateway.Helpers
@@ -21,7 +19,6 @@ namespace API_Gateway.Helpers
             services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
             services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
 
-            services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
             services.AddSingleton<IRedisService, RedisService>();
         }
 
@@ -32,9 +29,6 @@ namespace API_Gateway.Helpers
 
         public static void RegisterConfigOptions(this IServiceCollection services, IConfiguration config)
         {
-            //Add AppSettings objects as Options
-            services.Configure<KafkaProducerSettings>(config.GetSection("KafkaProducerSettings"));
-            services.Configure<KafkaGlobalSetting>(config.GetSection("Kafka"));
             services.Configure<MicroServiceUrl>(config.GetSection("MicroServiceUrls"));
         }
     }

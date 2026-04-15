@@ -18,11 +18,9 @@ namespace API_Gateway.Controllers
     public class OrderController : ControllerBase
     {
         private readonly IOrderGrpcClient _grpcClient;
-        private readonly IKafkaEventProducer _orderEvent;
-        public OrderController(IOrderGrpcClient grpcClient, IKafkaEventProducer orderEvent)
+        public OrderController(IOrderGrpcClient grpcClient)
         {
             _grpcClient = grpcClient;
-            _orderEvent = orderEvent;
         }
 
         // Get userId from JWT token
