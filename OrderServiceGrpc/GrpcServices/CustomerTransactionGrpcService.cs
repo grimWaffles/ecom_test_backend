@@ -7,15 +7,16 @@ using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
+using OrderServiceGrpc.Services;
 using System.ComponentModel;
 
-namespace OrderServiceGrpc.Services
+namespace OrderServiceGrpc.GrpcServices
 {
-    public class CustomerTransactionGrpcService : CustomerTransactionService.CustomerTransactionServiceBase
+    public class CustomerTransactionGrpcService : Protos.CustomerTransactionService.CustomerTransactionServiceBase
     {
-        private readonly ICustomerTransactionProcessorService _transactionProcessorService;
+        private readonly ICustomerTransactionService _transactionProcessorService;
 
-        public CustomerTransactionGrpcService(ICustomerTransactionProcessorService transactionProcessorService)
+        public CustomerTransactionGrpcService(ICustomerTransactionService transactionProcessorService)
         {
             _transactionProcessorService = transactionProcessorService;
         }

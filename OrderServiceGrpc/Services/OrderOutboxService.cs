@@ -25,6 +25,29 @@ namespace OrderServiceGrpc.Services
             _logger = logger;
         }
 
+        private void ValidateOrderOutboxEntity(OrderOutbox entity)
+        {
+            ArgumentNullException.ThrowIfNull(entity, nameof(entity));
+
+            if (entity.AggregateId <= 0)
+                throw new ArgumentException("AggregateId must be a positive integer.", nameof(entity.AggregateId));
+
+            if (string.IsNullOrWhiteSpace(entity.AggregateType))
+                throw new ArgumentException("AggregateType is required.", nameof(entity.AggregateType));
+
+            if (string.IsNullOrWhiteSpace(entity.EventType))
+                throw new ArgumentException("EventType is required.", nameof(entity.EventType));
+
+            if (string.IsNullOrWhiteSpace(entity.Topic))
+                throw new ArgumentException("Topic is required.", nameof(entity.Topic));
+
+            if (string.IsNullOrWhiteSpace(entity.Payload))
+                throw new ArgumentException("Payload is required.", nameof(entity.Payload));
+
+            if (string.IsNullOrWhiteSpace(entity.PartitionKey))
+                throw new ArgumentException("PartitionKey is required.", nameof(entity.PartitionKey));
+        }
+
         public async Task<IEnumerable<OrderOutbox>> GetRecentRecordsToPublishAfterDateAsync(DateTime date)
         {
             _logger.LogInformation("Service — fetching publishable outbox records after {Date}", date);
@@ -62,12 +85,6 @@ namespace OrderServiceGrpc.Services
                 {
                     _logger.LogWarning("Invalid pageNumber {PageNumber} — defaulting to 1", pageNumber);
                     pageNumber = 1;
-                }
-
-                if (pageSize < 1 || pageSize > 100)
-                {
-                    _logger.LogWarning("Invalid pageSize {PageSize} — clamping to range [1, 100]", pageSize);
-                    pageSize = Math.Clamp(pageSize, 1, 100);
                 }
 
                 (IEnumerable<OrderOutbox> Items, int TotalCount) result = await _repository.GetAllRecordsAsync(pageNumber, pageSize, statusId, aggregateType);
@@ -110,35 +127,24 @@ namespace OrderServiceGrpc.Services
         {
             _logger.LogInformation(
                 "Service — creating OrderOutbox — AggregateId: {AggregateId}, EventType: {EventType}, Topic: {Topic}",
-                entity.AggregateId, entity.EventType, entity.Topic);
+                entity?.AggregateId, entity?.EventType, entity?.Topic);
+            
+            // Validate before entering try-catch for performance
             try
             {
-                if (entity.AggregateId <= 0)
-                    throw new ArgumentException("AggregateId must be a positive integer.", nameof(entity));
-
-                if (string.IsNullOrWhiteSpace(entity.AggregateType))
-                    throw new ArgumentException("AggregateType is required.", nameof(entity));
-
-                if (string.IsNullOrWhiteSpace(entity.EventType))
-                    throw new ArgumentException("EventType is required.", nameof(entity));
-
-                if (string.IsNullOrWhiteSpace(entity.Topic))
-                    throw new ArgumentException("Topic is required.", nameof(entity));
-
-                if (string.IsNullOrWhiteSpace(entity.Payload))
-                    throw new ArgumentException("Payload is required.", nameof(entity));
-
-                if (string.IsNullOrWhiteSpace(entity.PartitionKey))
-                    throw new ArgumentException("PartitionKey is required.", nameof(entity));
-
-                OrderOutbox created = await _repository.CreateAsync(entity);
-                _logger.LogInformation("Service — created OrderOutbox with Id: {Id}", created.Id);
-                return created;
+                ValidateOrderOutboxEntity(entity);
             }
             catch (ArgumentException ex)
             {
                 _logger.LogError(ex, "Service — validation failed creating OrderOutbox");
                 throw;
+            }
+
+            try
+            {
+                OrderOutbox created = await _repository.CreateAsync(entity);
+                _logger.LogInformation("Service — created OrderOutbox with Id: {Id}", created.Id);
+                return created;
             }
             catch (Exception ex)
             {
@@ -149,12 +155,24 @@ namespace OrderServiceGrpc.Services
 
         public async Task<OrderOutbox> UpdateAsync(OrderOutbox entity)
         {
-            _logger.LogInformation("Service — updating OrderOutbox with Id: {Id}", entity.Id);
+            _logger.LogInformation("Service — updating OrderOutbox with Id: {Id}", entity?.Id);
+            
+            // Validate before entering try-catch for performance
             try
             {
-                if (entity.Id <= 0)
-                    throw new ArgumentException("Id must be a positive integer.", nameof(entity));
+                if (entity?.Id <= 0)
+                    throw new ArgumentException("Id must be a positive integer.", nameof(entity.Id));
 
+                ValidateOrderOutboxEntity(entity);
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogError(ex, "Service — validation failed updating OrderOutbox with Id: {Id}", entity?.Id);
+                throw;
+            }
+
+            try
+            {
                 OrderOutbox? existing = await _repository.GetByIdAsync(entity.Id);
                 if (existing is null)
                     throw new KeyNotFoundException($"OrderOutbox with Id {entity.Id} was not found.");
@@ -162,11 +180,6 @@ namespace OrderServiceGrpc.Services
                 OrderOutbox updated = await _repository.UpdateAsync(entity);
                 _logger.LogInformation("Service — updated OrderOutbox with Id: {Id}", updated.Id);
                 return updated;
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogError(ex, "Service — validation failed updating OrderOutbox with Id: {Id}", entity.Id);
-                throw;
             }
             catch (KeyNotFoundException ex)
             {

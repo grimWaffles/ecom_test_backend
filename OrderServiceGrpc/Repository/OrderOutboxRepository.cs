@@ -35,9 +35,8 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 List<OrderOutbox> records = await _context.OrderOutbox
-                    .Include(o => o.Status)
-                    .Where(o => o.ScheduledAt >= date && (o.StatusId == 1 || o.StatusId == 4))
-                    .OrderBy(o => o.ScheduledAt)
+                    .Where(o => (o.ProcessedAt == null) && (o.StatusId == 1 || o.StatusId == 4))
+                    .OrderBy(o => o.CreatedAt)
                     .AsNoTracking()
                     .ToListAsync();
 

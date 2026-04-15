@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using OrderServiceGrpc.Database;
+using OrderServiceGrpc.GrpcServices;
 using OrderServiceGrpc.Helpers;
-using OrderServiceGrpc.Kafka;
+using OrderServiceGrpc.Kafka.Producers;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Configs;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
+using OrderServiceGrpc.Services.BackgroundServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -67,18 +69,23 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<UnitOfWorkContext>();
 
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
-builder.Services.AddScoped<ICustomerTransactionProcessorService, CustomerTransactionProcessorService>();
+builder.Services.AddScoped<ICustomerTransactionService, CustomerTransactionService>();
 
-builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 builder.Services.AddScoped<IOrderOutboxService, OrderOutboxService>();
 builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
+
+builder.Services.AddScoped<IOrderOutboxService, OrderOutboxService>();
+builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
+
 builder.Services.AddScoped<IOutboxStatusService, OutboxStatusService>();
 builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
 
 //builder.Services.AddHostedService<OrderEventConsumer>();
 //builder.Services.AddHostedService<TransactionEventConsumer>();
+builder.Services.AddHostedService<OutboxExecutor>();
 
 var app = builder.Build();
 

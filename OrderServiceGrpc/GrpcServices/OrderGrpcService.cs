@@ -8,14 +8,15 @@ using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
+using OrderServiceGrpc.Services;
 
-namespace OrderServiceGrpc.Services
+namespace OrderServiceGrpc.GrpcServices
 {
     public class OrderGrpcService : Protos.OrderGrpcService.OrderGrpcServiceBase
     {
-        private readonly IOrderProcessorService _service;
+        private readonly IOrderService _service;
 
-        public OrderGrpcService(IOrderProcessorService orderProcessorService)
+        public OrderGrpcService(IOrderService orderProcessorService)
         {
             _service = orderProcessorService;
         }

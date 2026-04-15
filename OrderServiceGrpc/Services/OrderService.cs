@@ -10,7 +10,7 @@ using System.Text;
 
 namespace OrderServiceGrpc.Services
 {
-    public interface IOrderProcessorService
+    public interface IOrderService
     {
         Task<ConsumerResponseModel> CreateOrder(OrderDto dto, int userId);
         Task<ConsumerResponseModel> UpdateOrder(OrderDto model, int userId);
@@ -19,11 +19,11 @@ namespace OrderServiceGrpc.Services
         Task<ConsumerResponseModel> GetOrderById(int orderId);
         Task<ConsumerResponseModel> TestOrderProcessorService();
     }
-    public class OrderProcessorService : IOrderProcessorService
+    public class OrderService : IOrderService
     {
         private readonly IOrderRepository _repo;
         private readonly IUnitOfWork _uow;
-        public OrderProcessorService(IOrderRepository orderRepository, IUnitOfWork unitOfWork)
+        public OrderService(IOrderRepository orderRepository, IUnitOfWork unitOfWork)
         {
             _repo = orderRepository;
             _uow = unitOfWork;

@@ -10,7 +10,7 @@ using System.Transactions;
 
 namespace OrderServiceGrpc.Services
 {
-    public interface ICustomerTransactionProcessorService
+    public interface ICustomerTransactionService
     {
         Task<CustomerTransactionDto> GetTransactionById(int id);
         Task<List<CustomerTransactionDto>> GetAllTransactions();
@@ -21,12 +21,12 @@ namespace OrderServiceGrpc.Services
         Task<ConsumerResponseModel> TestCustomerTransactionProcessorService();
     }
 
-    public class CustomerTransactionProcessorService : ICustomerTransactionProcessorService
+    public class CustomerTransactionService : ICustomerTransactionService
     {
         private readonly ICustomerTransactionRepository _repo;
-        private readonly ILogger<CustomerTransactionProcessorService> _logger;
+        private readonly ILogger<CustomerTransactionService> _logger;
 
-        public CustomerTransactionProcessorService(ILogger<CustomerTransactionProcessorService> logger,ICustomerTransactionRepository repo)
+        public CustomerTransactionService(ILogger<CustomerTransactionService> logger,ICustomerTransactionRepository repo)
         {
             _repo = repo;
             _logger = logger;   

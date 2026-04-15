@@ -2,6 +2,7 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 using OrderServiceGrpc.Helpers;
+using OrderServiceGrpc.Kafka.Producers;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Configs;
@@ -12,7 +13,7 @@ using OrderServiceGrpc.Services;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
-namespace OrderServiceGrpc.Kafka
+namespace OrderServiceGrpc.Kafka.Consumers
 {
     public class TransactionEventConsumer : BackgroundService
     {
@@ -255,7 +256,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 using (var scope = _serviceProvider.CreateScope())
                 {
-                    ICustomerTransactionProcessorService processorService = scope.ServiceProvider.GetRequiredService<ICustomerTransactionProcessorService>();
+                    ICustomerTransactionService processorService = scope.ServiceProvider.GetRequiredService<ICustomerTransactionService>();
 
                     if (topic == "order-create-success")
                     {
