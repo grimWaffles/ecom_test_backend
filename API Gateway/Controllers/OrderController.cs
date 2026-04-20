@@ -86,6 +86,15 @@ namespace API_Gateway.Controllers
             return Ok(response);
         }
 
+        [HttpGet]
+        [Route("integration-test")]
+        public async Task<IActionResult> TestOrderServiceGrpc()
+        {
+            var response = await _grpcClient.TestOrderServiceAsync(new Google.Protobuf.WellKnownTypes.Empty());
+
+            return Ok(response);
+        }
+
         //Event Driven Approach
         [HttpPost]
         [Route("publish-new-order")]

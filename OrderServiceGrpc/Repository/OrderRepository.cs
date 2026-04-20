@@ -219,8 +219,8 @@ namespace OrderServiceGrpc.Repository
 
             var (sqlConnection, dbTransaction, ownConnection) = await GetConnectionAsync();
 
-            await using SqlConnection conn = (SqlConnection)sqlConnection;
-            await using DbTransaction transaction = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
+            SqlConnection conn = (SqlConnection)sqlConnection;
+            DbTransaction transaction = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
 
             _logger.LogInformation("UpdateOrder: starting update for OrderId {OrderId} by user {UserId}", request.Id, userId);
 
@@ -409,7 +409,11 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 await using var conn = new SqlConnection(_connectionString);
-                await conn.OpenAsync();
+                
+                if(conn.State == ConnectionState.Closed)
+                {
+                    await conn.OpenAsync();
+                }
 
                 DynamicParameters parameters = new DynamicParameters();
                 parameters.Add("@OrderId", orderId);

@@ -77,15 +77,12 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderOutboxService, OrderOutboxService>();
 builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
 
-builder.Services.AddScoped<IOrderOutboxService, OrderOutboxService>();
-builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
-
 builder.Services.AddScoped<IOutboxStatusService, OutboxStatusService>();
 builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
 
+//builder.Services.AddHostedService<OutboxExecutor>();
 //builder.Services.AddHostedService<OrderEventConsumer>();
 //builder.Services.AddHostedService<TransactionEventConsumer>();
-//builder.Services.AddHostedService<OutboxExecutor>();
 
 var app = builder.Build();
 

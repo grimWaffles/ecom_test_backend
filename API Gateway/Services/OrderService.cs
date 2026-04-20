@@ -15,7 +15,7 @@ namespace API_Gateway.Services
         Task<OrderListResponse> GetAllOrdersAsync(OrderListRequest request);
         Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request);
         Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request);
-
+        Task<OrderResponse> TestOrderServiceAsync(Empty empty);
         //Custom Function
         Task<OrderResponse> GenerateCustomManualOrder();
     }
@@ -131,6 +131,11 @@ namespace API_Gateway.Services
                     Order = null
                 };
             }
+        }
+
+        public async Task<OrderResponse> TestOrderServiceAsync(Empty empty)
+        {
+            return await _orderClient.TestOrderGrpcServiceAsync(empty);
         }
     }
 }
