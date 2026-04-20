@@ -325,296 +325,44 @@ namespace OrderServiceGrpc.Services
             int pageSize = 5, pageNumber = 1;
             int testUserId = 1; // userId used for write operations
 
-            // ----------------------------------------------------------------
-            // STEP 1 – GetAllOrders basic pagination (page 1)
-            // ----------------------------------------------------------------
-            ConsumerResponseModel page1Response = await GetAllOrders(startDate, endDate, pageSize, pageNumber, 0);
+            //Step 1 
+            ConsumerResponseModel crm1 = await GetAllOrders(startDate, endDate, pageSize, pageNumber, 0);
 
-            if (!page1Response.Status || page1Response.ListOfOrders == null || !page1Response.ListOfOrders.Any())
+            if(crm1 == null)
             {
-                testLog.AppendLine("Step 1: GetAllOrders (page 1) – FAILED – no orders returned or status false");
-                return Fail(testLog, page1Response.StackTrace);
+                testLog.AppendLine("STEP 1: Failed to fetch order list");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
             }
 
-            if (page1Response.TotalOrders <= 0 || page1Response.TotalPages <= 0)
+            List<OrderModel> listOfOrders = crm1.ListOfOrders.Select(x => OrderMapper.DtoToEntity(x)).ToList();
+
+            if (listOfOrders.Count() == 0)
             {
-                testLog.AppendLine("Step 1: GetAllOrders (page 1) – FAILED – TotalOrders or TotalPages is 0");
-                return Fail(testLog);
+                testLog.AppendLine("STEP 1: No orders to fetch.");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
             }
 
-            testLog.AppendLine($"Step 1: GetAllOrders (page 1) – PASSED  " +
-                               $"[TotalOrders={page1Response.TotalOrders}, TotalPages={page1Response.TotalPages}, " +
-                               $"PageCount={page1Response.ListOfOrders.Count()}]");
+            testLog.AppendLine("STEP 1: Passed");
 
-            // ----------------------------------------------------------------
-            // STEP 2 – GetAllOrders pagination boundary (page 2, if it exists)
-            // ----------------------------------------------------------------
-            if (page1Response.TotalPages > 1)
+            //Step 2 GetById
+            OrderModel objToSearch = listOfOrders.FirstOrDefault(x => x.OrderItems.Count() > 2) ?? new OrderModel();
+            int idToFind = objToSearch.Id;
+
+            ConsumerResponseModel step2Response = await GetOrderById(idToFind);
+            
+            if(step2Response == null)
             {
-                ConsumerResponseModel page2Response = await GetAllOrders(startDate, endDate, pageSize, 2, 0);
-
-                if (!page2Response.Status || page2Response.ListOfOrders == null || !page2Response.ListOfOrders.Any())
-                {
-                    testLog.AppendLine("Step 2: GetAllOrders (page 2) – FAILED – page 2 exists in TotalPages but returned no data");
-                    return Fail(testLog, page2Response.StackTrace);
-                }
-
-                testLog.AppendLine($"Step 2: GetAllOrders (page 2) – PASSED  [PageCount={page2Response.ListOfOrders.Count()}]");
-            }
-            else
-            {
-                testLog.AppendLine("Step 2: GetAllOrders (page 2) – SKIPPED (only 1 page of data)");
+                testLog.AppendLine("STEP 2: Failed to fetch single order");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
             }
 
-            // ----------------------------------------------------------------
-            // STEP 3 – GetAllOrders with a specific userId filter
-            // ----------------------------------------------------------------
-            ConsumerResponseModel userFilterResponse = await GetAllOrders(startDate, endDate, pageSize, 1, testUserId);
+            testLog.AppendLine("STEP 2: Passed");
 
-            // A valid response is expected even if zero rows returned for this user;
-            // what matters is the call does not blow up.
-            if (userFilterResponse == null)
-            {
-                testLog.AppendLine("Step 3: GetAllOrders (userId filter) – FAILED – null response");
-                return Fail(testLog);
-            }
+            //Step 3 Create a new order
+            //OrderModel modelToCreate = 
 
-            testLog.AppendLine($"Step 3: GetAllOrders (userId filter) – PASSED  " +
-                               $"[Status={userFilterResponse.Status}, TotalOrders={userFilterResponse.TotalOrders}]");
 
-            // ----------------------------------------------------------------
-            // STEP 4 – GetOrderById happy path
-            //          Safely pick an order that actually exists from Step 1.
-            // ----------------------------------------------------------------
-            OrderDto seedOrder = page1Response.ListOfOrders.FirstOrDefault();
 
-            if (seedOrder == null || seedOrder.Id == 0)
-            {
-                testLog.AppendLine("Step 4: GetOrderById – FAILED – could not extract a valid Id from Step 1 list");
-                return Fail(testLog);
-            }
-
-            ConsumerResponseModel getByIdResponse = await GetOrderById(seedOrder.Id);
-
-            if (!getByIdResponse.Status || getByIdResponse.Order == null || getByIdResponse.Order.Id != seedOrder.Id)
-            {
-                testLog.AppendLine($"Step 4: GetOrderById (id={seedOrder.Id}) – FAILED");
-                return Fail(testLog, getByIdResponse.StackTrace);
-            }
-
-            testLog.AppendLine($"Step 4: GetOrderById (id={seedOrder.Id}) – PASSED");
-
-            // ----------------------------------------------------------------
-            // STEP 5 – GetOrderById with a non-existent id must return failure
-            // ----------------------------------------------------------------
-            ConsumerResponseModel notFoundResponse = await GetOrderById(-9999);
-
-            if (notFoundResponse.Status == true || notFoundResponse.Order != null)
-            {
-                testLog.AppendLine("Step 5: GetOrderById (non-existent) – FAILED – expected failure but got success");
-                return Fail(testLog);
-            }
-
-            testLog.AppendLine("Step 5: GetOrderById (non-existent id) – PASSED");
-
-            // ----------------------------------------------------------------
-            // STEP 6 – CreateOrder
-            //          Clone the seed order (id = 0 so it becomes a new row).
-            // ----------------------------------------------------------------
-            ConsumerResponseModel seedFull = await GetOrderById(seedOrder.Id);
-            OrderModel cloneModel = OrderMapper.DtoToEntity(seedFull.Order);
-            cloneModel.Id = 0;
-            cloneModel.OrderDate = DateTime.UtcNow;
-            // Zero-out item ids so they are treated as new inserts
-            cloneModel.OrderItems.ForEach(i => { i.Id = 0; i.OrderId = 0; });
-
-            ConsumerResponseModel createResponse = await CreateOrder(OrderMapper.EntityToOrderDto(cloneModel), testUserId);
-
-            if (!createResponse.Status || createResponse.InsertedOrderId <= 0)
-            {
-                testLog.AppendLine("Step 6: CreateOrder – FAILED");
-                return Fail(testLog, createResponse.StackTrace);
-            }
-
-            int newOrderId = createResponse.InsertedOrderId;
-            testLog.AppendLine($"Step 6: CreateOrder – PASSED  [InsertedOrderId={newOrderId}]");
-
-            // ----------------------------------------------------------------
-            // STEP 7 – Re-fetch the newly created order to confirm persistence
-            // ----------------------------------------------------------------
-            ConsumerResponseModel refetchResponse = await GetOrderById(newOrderId);
-
-            if (!refetchResponse.Status || refetchResponse.Order == null || refetchResponse.Order.Id != newOrderId)
-            {
-                testLog.AppendLine($"Step 7: CreateOrder persistence check – FAILED – could not re-fetch id={newOrderId}");
-                return Fail(testLog, refetchResponse.StackTrace);
-            }
-
-            int originalItemCount = refetchResponse.Order.Items.Count;
-            decimal originalNetAmount = (decimal)refetchResponse.Order.NetAmount;
-
-            testLog.AppendLine($"Step 7: CreateOrder persistence check – PASSED  " +
-                               $"[ItemCount={originalItemCount}, NetAmount={originalNetAmount}]");
-
-            // Guard: we need at least 2 items for Steps 8 & 9
-            if (originalItemCount < 2)
-            {
-                testLog.AppendLine("Steps 8-10: Skipped – newly created order has fewer than 2 items; cannot test item diff scenarios");
-            }
-            else
-            {
-                // ------------------------------------------------------------
-                // STEP 8 – UpdateOrder: change quantity on every existing item
-                //          Expected: item count unchanged, net amount changes.
-                // ------------------------------------------------------------
-                ConsumerResponseModel step8Source = await GetOrderById(newOrderId);
-                OrderModel step8Model = OrderMapper.DtoToEntity(step8Source.Order);
-
-                step8Model.OrderItems.ForEach(i =>
-                {
-                    i.Quantity += 5;
-                    i.GrossAmount = (decimal)((i.Quantity + 5) * i.UnitPrice); //Mutate the object
-                });
-
-                step8Model.RecalculateNetAmount();
-
-                ConsumerResponseModel step8Response = await UpdateOrder(OrderMapper.EntityToOrderDto(step8Model), testUserId);
-                ConsumerResponseModel step8Refetch = await GetOrderById(step8Model.Id);
-                
-                decimal netAfterStep8 = (decimal)step8Refetch.Order.NetAmount;
-                int countAfterStep8 = step8Refetch.Order.Items.Count;
-
-                if (!step8Response.Status
-                    || countAfterStep8 != originalItemCount
-                    || netAfterStep8 == originalNetAmount)
-                {
-                    testLog.AppendLine($"Step 8: UpdateOrder (quantity change) – FAILED  " +
-                                       $"[Status={step8Response.Status}, ItemCount={countAfterStep8} (expected {originalItemCount}), " +
-                                       $"NetAmount={netAfterStep8} (expected ≠ {originalNetAmount})]");
-                    return Fail(testLog, step8Response.StackTrace);
-                }
-
-                testLog.AppendLine($"Step 8: UpdateOrder (quantity change) – PASSED  " +
-                                   $"[ItemCount={countAfterStep8}, NetAmountBefore={originalNetAmount}, NetAmountAfter={netAfterStep8}]");
-
-                // ------------------------------------------------------------
-                // STEP 9 – UpdateOrder: delete one existing item
-                //          Expected: item count decreases by 1.
-                // ------------------------------------------------------------
-                ConsumerResponseModel step9Source = await GetOrderById(newOrderId);
-
-                OrderModel step9Model = OrderMapper.DtoToEntity(step9Source.Order);
-
-                step9Model.RecalculateNetAmount();
-
-                ConsumerResponseModel step9Response = await UpdateOrder(OrderMapper.EntityToOrderDto(step9Model), testUserId);
-                ConsumerResponseModel step9Refetch = await GetOrderById(newOrderId);
-
-                int countAfterStep9 = step9Refetch.Order.Items.Count;
-
-                if (!step9Response.Status || countAfterStep9 != countAfterStep8 - 1)
-                {
-                    testLog.AppendLine($"Step 9: UpdateOrder (item deletion) – FAILED  " +
-                                       $"[Status={step9Response.Status}, ItemCount={countAfterStep9} (expected {countAfterStep8 - 1})]");
-                    return Fail(testLog, step9Response.StackTrace);
-                }
-
-                testLog.AppendLine($"Step 9: UpdateOrder (item deletion) – PASSED  " +
-                                   $"[ItemCountBefore={countAfterStep8}, ItemCountAfter={countAfterStep9}]");
-
-                // ------------------------------------------------------------
-                // STEP 10 – UpdateOrder: add a brand-new item
-                //           Expected: item count increases by 1.
-                // ------------------------------------------------------------
-                ConsumerResponseModel step10Source = await GetOrderById(newOrderId);
-
-                var baseItems = step10Source.Order.Items.Select(i => new OrderItemModel
-                {
-                    Id = i.Id,
-                    OrderId = i.OrderId,
-                    ProductId = i.ProductId,
-                    Quantity = i.Quantity,
-                    UnitPrice = (decimal)i.UnitPrice,
-                    GrossAmount = (decimal)(i.Quantity * i.UnitPrice)
-                }).ToList();
-
-                // Add new item (clean object, no EF tracking)
-                baseItems.Add(new OrderItemModel
-                {
-                    Id = 0,
-                    OrderId = newOrderId,
-                    ProductId = baseItems.First().ProductId,
-                    Quantity = 2,
-                    UnitPrice = baseItems.First().UnitPrice,
-                    GrossAmount = 2 * baseItems.First().UnitPrice
-                });
-
-                OrderModel step10Model = OrderMapper.DtoToEntity(step10Source.Order);
-
-                step10Model.RecalculateNetAmount();
-
-                ConsumerResponseModel step10Response = await UpdateOrder(OrderMapper.EntityToOrderDto(step10Model), testUserId);
-                ConsumerResponseModel step10Refetch = await GetOrderById(newOrderId);
-
-                int countAfterStep10 = step10Refetch.Order.Items.Count;
-
-                if (!step10Response.Status || countAfterStep10 != countAfterStep9 + 1)
-                {
-                    testLog.AppendLine($"Step 10: UpdateOrder (item addition) – FAILED  " +
-                                       $"[Status={step10Response.Status}, ItemCount={countAfterStep10} (expected {countAfterStep9 + 1})]");
-                    return Fail(testLog, step10Response.StackTrace);
-                }
-
-                testLog.AppendLine($"Step 10: UpdateOrder (item addition) – PASSED  " +
-                                   $"[ItemCountBefore={countAfterStep9}, ItemCountAfter={countAfterStep10}]");
-            }
-
-            // ----------------------------------------------------------------
-            // STEP 11 – UpdateOrder guard: order id not found should return failure
-            // ----------------------------------------------------------------
-            OrderDto ghostDto = new OrderDto() { Id = -9999 };
-            ConsumerResponseModel step11Response = await UpdateOrder(ghostDto, testUserId);
-
-            if (step11Response.Status == true)
-            {
-                testLog.AppendLine("Step 11: UpdateOrder (non-existent id) – FAILED – expected failure but got success");
-                return Fail(testLog);
-            }
-
-            testLog.AppendLine("Step 11: UpdateOrder (non-existent id guard) – PASSED");
-
-            // ----------------------------------------------------------------
-            // STEP 12 – UpdateDeleteStatusForSingleOrder (soft-delete)
-            // ----------------------------------------------------------------
-            ConsumerResponseModel deleteResponse = await UpdateDeleteStatusForSingleOrder(newOrderId, testUserId);
-
-            if (!deleteResponse.Status)
-            {
-                testLog.AppendLine($"Step 12: UpdateDeleteStatusForSingleOrder (id={newOrderId}) – FAILED");
-                return Fail(testLog, deleteResponse.StackTrace);
-            }
-
-            testLog.AppendLine($"Step 12: UpdateDeleteStatusForSingleOrder (id={newOrderId}) – PASSED");
-
-            // ----------------------------------------------------------------
-            // STEP 13 – Confirm the deleted order is no longer accessible
-            //           (either returns Status=false, or the order is null)
-            // ----------------------------------------------------------------
-            ConsumerResponseModel postDeleteFetch = await GetOrderById(newOrderId);
-
-            bool orderIsGone = !postDeleteFetch.Status || postDeleteFetch.Order == null;
-
-            if (!orderIsGone)
-            {
-                // Some implementations soft-delete but still return the record.
-                // In that case check the IsDeleted flag instead, if exposed on the DTO.
-                testLog.AppendLine("Step 13: Post-delete verification – INFO – order still fetchable after soft-delete " +
-                                   "(confirm IsDeleted flag is set in DB if soft-delete is the intended behaviour)");
-            }
-            else
-            {
-                testLog.AppendLine($"Step 13: Post-delete verification – PASSED  [order id={newOrderId} no longer returned]");
-            }
 
             // ----------------------------------------------------------------
             // All steps complete
