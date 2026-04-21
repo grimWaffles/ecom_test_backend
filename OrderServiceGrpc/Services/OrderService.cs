@@ -82,9 +82,99 @@ namespace OrderServiceGrpc.Services
                     StackTrace = ex.StackTrace ?? "Stack trace unavailable"
                 };
             }
-            finally
+        }
+
+        public async Task<ConsumerResponseModel> UpdateOrder(OrderDto dto, int userId)
+        {
+            try
             {
-                await _uow.DisposeAsync();
+                OrderModel requestModel = OrderMapper.DtoToEntity(dto);
+
+                OrderModel dbModel = await _repo.GetOrderById(requestModel.Id);
+
+                if (requestModel.Id != 0 && dbModel != null)
+                {
+                    List<OrderItemModel> deleteList = new();
+                    List<OrderItemModel> addList = new();
+                    List<OrderItemModel> updateList = new();
+
+                    //Check for deleted items
+                    deleteList = dbModel.OrderItems.Where(d => !requestModel.OrderItems.Any(r => r.Id == d.Id)).Select(x => PrepareItemToDelete(x, requestModel.Id, userId)).ToList();
+
+                    //Check for added items
+                    addList = requestModel.OrderItems.Where(i => i.Id == 0).Select(x => PrepareItemToAdd(x, requestModel.Id, userId)).ToList();
+
+                    //Check for updated AND existing items
+                    Dictionary<int, OrderItemModel> dbLookup = dbModel.OrderItems.ToDictionary(i => i.Id);
+
+                    foreach (OrderItemModel req in requestModel.OrderItems.Where(i => i.Id != 0))
+                    {
+                        if (dbLookup.TryGetValue(req.Id, out var db))
+                        {
+                            if (HasChanges(req, db))
+                            {
+                                req.GrossAmount = req.Quantity * req.UnitPrice;
+                                req.ModifiedBy = userId;
+                                req.ModifiedDate = DateTime.Now;
+
+                                updateList.Add(req);
+                            }
+                        }
+                    }
+
+                    await _uow.BeginTransactionAsync();
+                    await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
+
+                    //Insert #2 - Outbox entry
+                    OrderOutbox outboxEntry = new OrderOutbox()
+                    {
+                        AggregateId = dto.Id,
+                        AggregateType = "Order",
+                        EventType = "OrderUpdated",
+                        Topic = "order-update-success",
+                        PartitionKey = dto.Id.ToString(),
+                        Payload = System.Text.Json.JsonSerializer.Serialize(OrderMapper.EntityToMessage(dbModel)),
+                        Headers = "{}",
+                        StatusId = 1, // Assuming 1 is the status for 'Pending'
+                        RetryCount = 0,
+                        CreatedAt = DateTime.UtcNow,
+                        ScheduledAt = DateTime.UtcNow
+                    };
+
+                    await _uow.Outbox.CreateAsync(outboxEntry);
+
+                    await _uow.SaveChangesAsync();
+
+                    await _uow.CommitAsync();
+                }
+                else
+                {
+                    return new ConsumerResponseModel()
+                    {
+                        Status = false,
+                        Message = "Order not found for update"
+                    };
+                }
+
+                return new ConsumerResponseModel()
+                {
+                    Status = true,
+                    Message = "Updated successfully"
+                };
+            }
+            catch (Exception e)
+            {
+                if (_uow.DbTransaction != null)
+                {
+                    await _uow.RollbackAsync();
+                }
+
+                return new ConsumerResponseModel()
+                {
+                    Status = false,
+                    Message = e.Message,
+                    StackTrace = e.StackTrace
+                };
             }
         }
 
@@ -113,6 +203,8 @@ namespace OrderServiceGrpc.Services
                 };
 
                 await _uow.Outbox.CreateAsync(outboxEntry);
+
+                await _uow.SaveChangesAsync();
 
                 await _uow.CommitAsync();
 
@@ -172,100 +264,6 @@ namespace OrderServiceGrpc.Services
                 Message = "Success",
                 Order = OrderMapper.EntityToOrderDto(model)
             };
-        }
-
-        public async Task<ConsumerResponseModel> UpdateOrder(OrderDto dto, int userId)
-        {
-            try
-            {
-                OrderModel requestModel = OrderMapper.DtoToEntity(dto);
-
-                OrderModel dbModel = await _repo.GetOrderById(requestModel.Id);
-
-                if (requestModel.Id != 0 && dbModel != null)
-                {
-                    List<OrderItemModel> deleteList = new();
-                    List<OrderItemModel> addList = new();
-                    List<OrderItemModel> updateList = new();
-
-                    //Check for deleted items
-                    deleteList = dbModel.OrderItems.Where(d => !requestModel.OrderItems.Any(r => r.Id == d.Id)).Select(x => PrepareItemToDelete(x, requestModel.Id, userId)).ToList();
-
-                    //Check for added items
-                    addList = requestModel.OrderItems.Where(i => i.Id == 0).Select(x => PrepareItemToAdd(x, requestModel.Id, userId)).ToList();
-
-                    //Check for updated AND existing items
-                    Dictionary<int, OrderItemModel> dbLookup = dbModel.OrderItems.ToDictionary(i => i.Id);
-
-                    foreach (OrderItemModel req in requestModel.OrderItems.Where(i => i.Id != 0))
-                    {
-                        if (dbLookup.TryGetValue(req.Id, out var db))
-                        {
-                            if (HasChanges(req, db))
-                            {
-                                req.GrossAmount = req.Quantity * req.UnitPrice;
-                                req.ModifiedBy = userId;
-                                req.ModifiedDate = DateTime.Now;
-
-                                updateList.Add(req);
-                            }
-                        }
-                    }
-
-                    await _uow.BeginTransactionAsync();
-                    await _repo.UpdateOrder(requestModel, addList, deleteList, updateList, userId);
-
-                    //Insert #2 - Outbox entry
-                    OrderOutbox outboxEntry = new OrderOutbox()
-                    {
-                        AggregateId = dto.Id,
-                        AggregateType = "Order",
-                        EventType = "OrderUpdated",
-                        Topic = "order-update-success",
-                        PartitionKey = dto.Id.ToString(),
-                        Payload = System.Text.Json.JsonSerializer.Serialize(new { orderId = dto.Id, userId = userId }),
-                        Headers = "{}",
-                        StatusId = 1, // Assuming 1 is the status for 'Pending'
-                        RetryCount = 0,
-                        CreatedAt = DateTime.UtcNow,
-                        ScheduledAt = DateTime.UtcNow
-                    };
-
-                    await _uow.Outbox.CreateAsync(outboxEntry);
-
-                    await _uow.SaveChangesAsync();
-
-                    await _uow.CommitAsync();
-                }
-                else
-                {
-                    return new ConsumerResponseModel()
-                    {
-                        Status = false,
-                        Message = "Order not found for update"
-                    };
-                }
-
-                return new ConsumerResponseModel()
-                {
-                    Status = true,
-                    Message = "Updated successfully"
-                };
-            }
-            catch (Exception e)
-            {
-                if (_uow.DbTransaction != null)
-                {
-                    await _uow.RollbackAsync();
-                }
-
-                return new ConsumerResponseModel()
-                {
-                    Status = false,
-                    Message = e.Message,
-                    StackTrace = e.StackTrace
-                };
-            }
         }
 
         //Helper Functions
@@ -328,7 +326,7 @@ namespace OrderServiceGrpc.Services
             //Step 1 
             ConsumerResponseModel crm1 = await GetAllOrders(startDate, endDate, pageSize, pageNumber, 0);
 
-            if(crm1 == null)
+            if (crm1 == null)
             {
                 testLog.AppendLine("STEP 1: Failed to fetch order list");
                 return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
@@ -346,11 +344,17 @@ namespace OrderServiceGrpc.Services
 
             //Step 2 GetById
             OrderModel objToSearch = listOfOrders.FirstOrDefault(x => x.OrderItems.Count() > 2) ?? new OrderModel();
+            if (objToSearch.Id == 0)
+            {
+                testLog.AppendLine("STEP 2: No orders found with more than two items");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
             int idToFind = objToSearch.Id;
 
             ConsumerResponseModel step2Response = await GetOrderById(idToFind);
-            
-            if(step2Response == null)
+
+            if (step2Response == null)
             {
                 testLog.AppendLine("STEP 2: Failed to fetch single order");
                 return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
@@ -359,10 +363,70 @@ namespace OrderServiceGrpc.Services
             testLog.AppendLine("STEP 2: Passed");
 
             //Step 3 Create a new order
-            //OrderModel modelToCreate = 
+            OrderModel modelToCreate = OrderMapper.DtoToEntity(step2Response.Order);
+            modelToCreate.Id = 0;
 
+            ConsumerResponseModel insertResult = await CreateOrder(OrderMapper.EntityToOrderDto(modelToCreate), testUserId);
 
+            if (insertResult == null)
+            {
+                testLog.AppendLine("STEP 3: Failed to create order");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
 
+            int insertedOrderId = insertResult.InsertedOrderId;
+
+            ConsumerResponseModel newInsertedModelResponse = await GetOrderById(insertedOrderId);
+
+            if (newInsertedModelResponse.Order == null)
+            {
+                testLog.AppendLine("STEP 3: Failed to verify inserted order");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 3: Passed");
+
+            //Step 4 Updating an order
+            OrderDto modelToUpdate = newInsertedModelResponse.Order;
+
+            modelToUpdate.Items.ForEach(x => x.Quantity += 10);
+            modelToUpdate.NetAmount = 0;
+
+            foreach(OrderItemDto dto in modelToUpdate.Items)
+            {
+                modelToUpdate.NetAmount += dto.UnitPrice * dto.Quantity;
+            }
+
+            ConsumerResponseModel updateResponse1 = await UpdateOrder(modelToUpdate, testUserId);
+
+            if (updateResponse1 == null)
+            {
+                testLog.AppendLine("STEP 4: Failed to update order");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            ConsumerResponseModel updatedModelResponse1 = await GetOrderById(modelToUpdate.Id);
+
+            OrderModel updatedModel1 = OrderMapper.DtoToEntity(updatedModelResponse1.Order);
+
+            if (updatedModel1.NetAmount <= (decimal)step2Response.Order.NetAmount)
+            {
+                testLog.AppendLine("STEP 4: Failed to verify updated quantity");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 4: Passed");
+
+            //Step 5 Deleting orders
+            ConsumerResponseModel deleteResponse = await UpdateDeleteStatusForSingleOrder(updatedModel1.Id, testUserId);
+
+            if (!deleteResponse.Status)
+            {
+                testLog.AppendLine("STEP 5: Failed to delete order");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 5: Passed");
 
             // ----------------------------------------------------------------
             // All steps complete

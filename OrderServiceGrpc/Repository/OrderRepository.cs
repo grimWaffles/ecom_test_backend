@@ -121,20 +121,24 @@ namespace OrderServiceGrpc.Repository
                     await bulkCopy.WriteToServerAsync(dt);
                 }
 
-                if(ownConnection)
+                if (ownConnection)
                     await t.CommitAsync();
 
                 _logger.LogInformation("AddSingleOrder: committed order {OrderId} for user {UserId}", insertedOrderId, request.UserId);
             }
             catch (Exception e)
             {
-                try { await t.RollbackAsync(); } catch { /* ignore rollback exception */ }
+                if (ownConnection)
+                {
+                    await t.RollbackAsync();
+                }
+
                 _logger.LogError(e, "AddSingleOrder: failed insert for user {UserId}", request.UserId);
                 throw;
             }
             finally
             {
-                if(ownConnection)
+                if (ownConnection)
                     await conn.DisposeAsync();
             }
 
@@ -158,8 +162,8 @@ namespace OrderServiceGrpc.Repository
 
             var (sqlConnection, dbTransaction, ownConnection) = await GetConnectionAsync();
 
-            await using SqlConnection conn = (SqlConnection)sqlConnection;
-            await using DbTransaction transaction = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
+            SqlConnection conn = (SqlConnection)sqlConnection;
+            DbTransaction transaction = (DbTransaction)(dbTransaction ?? await conn.BeginTransactionAsync());
 
             _logger.LogInformation("UpdateDeleteStatusForSingleOrder: toggling delete status for OrderId {OrderId} by user {UserId}", request, userId);
 
@@ -175,7 +179,11 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception e)
             {
-                try { await transaction.RollbackAsync(); } catch { /* ignore rollback */ }
+                if (ownConnection)
+                {
+                    await transaction.RollbackAsync();
+                }
+
                 _logger.LogError(e, "UpdateDeleteStatusForSingleOrder: failed for OrderId {OrderId}", request);
                 return false;
             }
@@ -228,16 +236,19 @@ namespace OrderServiceGrpc.Repository
             {
                 //Delete List Processing
                 #region Deleting order items in bulk
-                string listOfIdsToDelete = "(" + string.Join(",", deleteList.Select(x => x.Id)) + ")";
+                if (deleteList.Count() > 0)
+                {
+                    string listOfIdsToDelete = "(" + string.Join(",", deleteList.Select(x => x.Id)) + ")";
 
-                deleteOrderItemMultipleSql = deleteOrderItemMultipleSql + listOfIdsToDelete;
+                    deleteOrderItemMultipleSql = deleteOrderItemMultipleSql + listOfIdsToDelete;
 
-                var deleteParams = new DynamicParameters();
-                deleteParams.Add("@UserId", userId);
-                deleteParams.Add("@OrderId", request.Id);
+                    var deleteParams = new DynamicParameters();
+                    deleteParams.Add("@UserId", userId);
+                    deleteParams.Add("@OrderId", request.Id);
 
-                int deleteRows = await conn.ExecuteAsync(deleteOrderItemMultipleSql, deleteParams, transaction);
-                _logger.LogInformation("UpdateOrder: deleted {Count} order items for OrderId {OrderId}", deleteRows, request.Id);
+                    int deleteRows = await conn.ExecuteAsync(deleteOrderItemMultipleSql, deleteParams, transaction);
+                    _logger.LogInformation("UpdateOrder: deleted {Count} order items for OrderId {OrderId}", deleteRows, request.Id);
+                }
                 #endregion
 
                 //AddList Processing
@@ -304,9 +315,13 @@ namespace OrderServiceGrpc.Repository
             }
             catch (Exception ex)
             {
-                try { await transaction.RollbackAsync(); } catch { /* ignore rollback failure */ }
+                if (ownConnection)
+                {
+                    await transaction.RollbackAsync();
+                }
+
                 _logger.LogError(ex, "UpdateOrder: failed for OrderId {OrderId}", request.Id);
-                return false;
+                throw;
             }
             finally
             {
@@ -409,8 +424,8 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 await using var conn = new SqlConnection(_connectionString);
-                
-                if(conn.State == ConnectionState.Closed)
+
+                if (conn.State == ConnectionState.Closed)
                 {
                     await conn.OpenAsync();
                 }
