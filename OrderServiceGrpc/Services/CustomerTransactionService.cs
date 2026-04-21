@@ -13,9 +13,10 @@ namespace OrderServiceGrpc.Services
     public interface ICustomerTransactionService
     {
         Task<CustomerTransactionDto> GetTransactionById(int id);
-        Task<List<CustomerTransactionDto>> GetAllTransactions();
+        //Task<List<CustomerTransactionDto>> GetAllTransactions();
         Task<int> AddTransaction(CustomerTransactionDto request, int userId);
         Task<bool> UpdateTransaction(CustomerTransactionDto request, int userId);
+        Task<bool> UpdateTransactionUsingOrderId(CustomerTransactionDto request, int userId);
         Task<bool> DeleteTransaction(CustomerTransactionDto request, int userId);
         Task<PagedTransactionResultFromService> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
         Task<ConsumerResponseModel> TestCustomerTransactionProcessorService();
@@ -92,24 +93,24 @@ namespace OrderServiceGrpc.Services
             return result;
         }
 
-        public async Task<List<CustomerTransactionDto>> GetAllTransactions()
-        {
-            try
-            {
-                List<CustomerTransactionModel> list = await _repo.GetAllTransactions();
+        //public async Task<List<CustomerTransactionDto>> GetAllTransactions()
+        //{
+        //    try
+        //    {
+        //        List<CustomerTransactionModel> list = await _repo.GetAllTransactions();
 
-                if (list == null)
-                {
-                    return null;
-                }
+        //        if (list == null)
+        //        {
+        //            return null;
+        //        }
 
-                return list.Select(x => TransactionMapper.EntityToDto(x)).ToList();
-            }
-            catch (Exception ex)
-            {
-                return null;
-            }
-        }
+        //        return list.Select(x => TransactionMapper.EntityToDto(x)).ToList();
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return null;
+        //    }
+        //}
 
         public async Task<PagedTransactionResultFromService> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType)
         {
@@ -180,136 +181,162 @@ namespace OrderServiceGrpc.Services
             }
         }
 
-        //Integration smoke test
-        public async Task<ConsumerResponseModel> TestCustomerTransactionProcessorService()
+        public async Task<bool> UpdateTransactionUsingOrderId(CustomerTransactionDto request, int userId)
         {
-            /* Test Process for CustomerTransactionProcessorService
-             * 1) Get list of transactions
-             * 2) Select 1 Id and fetch the single transaction using the function
-             * 3) Insert the transaction and check if the Insert is successful
-             * 4) Update the new transaction and check if the Update is successful
-             * 5) Delete the transaction and check if the delete is successful
-             */
             try
             {
-                int userId = 1; // Assuming a userId for testing
+                bool result = await _repo.UpdateTransactionUsingOrderId(TransactionMapper.DtoToEntity(request), userId);
 
-                StringBuilder sb = new StringBuilder();
-
-                //Step 1 Get the list of transactions
-                DateTime startDate = new DateTime(2020, 1, 1), endDate = new DateTime(2026, 12, 31);
-                int pageNumber = 1, pageSize = 10;
-
-                PagedTransactionResultFromService transactions = await GetAllTransactionsWithPagination(startDate, endDate, pageNumber, pageSize, "");
-
-                if (transactions.ListOfTransactions == null)
-                {
-                    return new ConsumerResponseModel()
-                    {
-                        Status = false,
-                        Message = "Step 1: GetAll - Failed"
-                    };
-                }
-                else
-                {
-                    sb.AppendLine("Step 1: GetAll - Passed");
-                }
-
-                //Step 2 
-                CustomerTransactionDto transaction = await GetTransactionById(transactions.ListOfTransactions[0].Id);
-                if (transaction == null)
-                {
-                    return new ConsumerResponseModel()
-                    {
-                        Status = false,
-                        Message = "Step 2: GetById - Failed"
-                    };
-                }
-                else
-                {
-                    sb.AppendLine("Step 2: GetById - Passed");
-                }
-
-                //Step 3
-                CustomerTransactionDto newTransactionDto = transaction;
-
-                CustomerTransactionModel transactionToAdd = TransactionMapper.DtoToEntity(newTransactionDto);
-
-                transactionToAdd.Id = 0;
-
-                int newId = await AddTransaction(newTransactionDto, userId);
-
-                if (newId <= 0)
-                {
-                    return new ConsumerResponseModel()
-                    {
-                        Status = false,
-                        Message = "Step 3: Add - Failed"
-                    };
-                }
-                else
-                {
-                    sb.AppendLine("Step 3: Add - Passed");
-                }
-
-                //Step 4 Update the transaction
-                int idToUpdate = newId;
-
-
-                CustomerTransactionDto dtoToUpdate = await GetTransactionById(idToUpdate);
-
-                CustomerTransactionModel modelToUpdate = TransactionMapper.DtoToEntity(dtoToUpdate);
-
-                modelToUpdate.Amount += 10;
-
-                bool updateResult = await UpdateTransaction(TransactionMapper.EntityToDto(modelToUpdate), userId);
-
-                if (!updateResult)
-                {
-                    return new ConsumerResponseModel()
-                    {
-                        Status = false,
-                        Message = "Step 4: Update - Failed"
-                    };
-                }
-                else
-                {
-                    sb.AppendLine("Step 4: Update - Passed");
-                }
-
-                //Step 5 Delete the transaction
-                bool deleteResult = await DeleteTransaction(TransactionMapper.EntityToDto(modelToUpdate), userId);
-
-
-                CustomerTransactionDto deletedDto = await GetTransactionById(modelToUpdate.Id);
-
-                if (!deleteResult || !deletedDto.IsDeleted)
-                {
-                    return new ConsumerResponseModel()
-                    {
-                        Status = false,
-                        Message = "Step 5: Delete - Failed"
-                    };
-                }
-                else
-                {
-                    sb.AppendLine("Step 5: Delete - Passed");
-                }
-
-                return new ConsumerResponseModel()
-                {
-                    Status = true,
-                    Message = sb.ToString()
-                };
+                return result;
             }
             catch (Exception ex)
             {
-                return new ConsumerResponseModel()
-                {
-                    Message = "Test Failed",
-                    Status = false,
-                };
+                return false;
             }
+        }
+
+        //Integration smoke test
+        public async Task<ConsumerResponseModel> TestCustomerTransactionProcessorService()
+        {
+            StringBuilder testLog = new StringBuilder();
+            testLog.AppendLine("=== Customer Transaction Integration Test Started ===");
+
+            DateTime startDate = new DateTime(2021, 01, 01);
+            DateTime endDate = new DateTime(2026, 12, 31);
+            int pageSize = 5, pageNumber = 1;
+            int testUserId = 1;
+            string transactionType = "DEPOSIT"; // adjust to a valid type in your system
+
+            // ----------------------------------------------------------------
+            // Step 1: Get paginated list of transactions
+            // ----------------------------------------------------------------
+            PagedTransactionResultFromService step1Response = await GetAllTransactionsWithPagination(
+                startDate, endDate, pageNumber, pageSize, transactionType);
+
+            if (step1Response == null || !step1Response.Status)
+            {
+                testLog.AppendLine("STEP 1: Failed to fetch transaction list");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            if (step1Response.ListOfTransactions == null || !step1Response.ListOfTransactions.Any())
+            {
+                testLog.AppendLine("STEP 1: No transactions found");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 1: Passed");
+
+            // ----------------------------------------------------------------
+            // Step 2: Get a single transaction by ID
+            // ----------------------------------------------------------------
+            CustomerTransactionDto objToSearch = step1Response.ListOfTransactions.FirstOrDefault();
+
+            if (objToSearch == null || objToSearch.Id == 0)
+            {
+                testLog.AppendLine("STEP 2: No valid transaction found to fetch by ID");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            CustomerTransactionDto step2Response = await GetTransactionById(objToSearch.Id);
+
+            if (step2Response == null)
+            {
+                testLog.AppendLine("STEP 2: Failed to fetch transaction by ID");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 2: Passed");
+
+            // ----------------------------------------------------------------
+            // Step 3: Create a new transaction (clone from fetched, reset ID)
+            // ----------------------------------------------------------------
+            CustomerTransactionDto modelToCreate = new CustomerTransactionDto()
+            {
+                UserId = step2Response.UserId,
+                TransactionType = step2Response.TransactionType,
+                TransactionDate = DateTime.UtcNow, // fresh date to generate a unique key
+                Amount = step2Response.Amount
+                // leave Id and TransactionKey unset — repo generates them
+            };
+
+            int insertedTransactionId = await AddTransaction(modelToCreate, testUserId);
+
+            if (insertedTransactionId <= 0)
+            {
+                testLog.AppendLine("STEP 3: Failed to create transaction");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            // Verify the insert by reading it back
+            CustomerTransactionDto insertedTransaction = await GetTransactionById(insertedTransactionId);
+
+            if (insertedTransaction == null)
+            {
+                testLog.AppendLine("STEP 3: Failed to verify inserted transaction");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 3: Passed");
+
+            // ----------------------------------------------------------------
+            // Step 4: Update the newly created transaction
+            // ----------------------------------------------------------------
+            CustomerTransactionDto modelToUpdate = insertedTransaction;
+            decimal originalAmount = modelToUpdate.Amount;
+            modelToUpdate.Amount += 100; // apply a detectable change
+
+            bool updateResult = await UpdateTransaction(modelToUpdate, testUserId);
+
+            if (!updateResult)
+            {
+                testLog.AppendLine("STEP 4: Failed to update transaction");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            // Verify the update by reading it back
+            CustomerTransactionDto updatedTransaction = await GetTransactionById(insertedTransactionId);
+
+            if (updatedTransaction == null || updatedTransaction.Amount <= originalAmount)
+            {
+                testLog.AppendLine("STEP 4: Failed to verify updated transaction amount");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 4: Passed");
+
+            // ----------------------------------------------------------------
+            // Step 5: Delete the transaction
+            // ----------------------------------------------------------------
+            bool deleteResult = await DeleteTransaction(updatedTransaction, testUserId);
+
+            if (!deleteResult)
+            {
+                testLog.AppendLine("STEP 5: Failed to delete transaction");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            // Verify deletion — should no longer be retrievable
+            CustomerTransactionDto deletedCheck = await GetTransactionById(insertedTransactionId);
+
+            if (deletedCheck != null)
+            {
+                testLog.AppendLine("STEP 5: Transaction still exists after delete — verification failed");
+                return new ConsumerResponseModel() { Status = false, Message = testLog.ToString() };
+            }
+
+            testLog.AppendLine("STEP 5: Passed");
+
+            // ----------------------------------------------------------------
+            // All steps complete
+            // ----------------------------------------------------------------
+            testLog.AppendLine("=== Customer Transaction Integration Test Finished ===");
+
+            return new ConsumerResponseModel()
+            {
+                Status = true,
+                Message = testLog.ToString()
+            };
         }
     }
 }

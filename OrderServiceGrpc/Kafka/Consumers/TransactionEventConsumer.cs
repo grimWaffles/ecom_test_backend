@@ -288,33 +288,35 @@ namespace OrderServiceGrpc.Kafka.Consumers
                     else if (topic == "order-update-success")
                     {
                         //To-do
-                        //CustomerTransactionDto trxDto = new CustomerTransactionDto()
-                        //{
-                        //    UserId = request.UserId,
-                        //    TransactionType = "PURCHASE",
-                        //    Amount = (decimal)request.Amount,
-                        //    CreatedDate = DateTime.Now,
-                        //    CreatedBy = request.UserId,
-                        //    IsDeleted = false,
-                        //    TransactionDate = DateTime.Now,
-                        //    ModifiedDate = DateTime.Now,
-                        //    ModifiedBy = request.UserId,
-                        //    OrderId = request.OrderId,
-                        //    TransactionKey = ""
-                        //};
+                        CustomerTransactionDto trxDto = new CustomerTransactionDto()
+                        {
+                            UserId = request.UserId,
+                            TransactionType = "PURCHASE",
+                            Amount = (decimal)request.Amount,
+                            CreatedDate = DateTime.Now,
+                            CreatedBy = request.UserId,
+                            IsDeleted = false,
+                            TransactionDate = DateTime.Now,
+                            ModifiedDate = DateTime.Now,
+                            ModifiedBy = request.UserId,
+                            OrderId = request.OrderId,
+                            TransactionKey = ""
+                        };
 
-                        //bool updateResult = await processorService.UpdateTransaction(trxDto, request.UserId);
-                        //return new ConsumerResponseModel()
-                        //{
-                        //    Status = updateResult,
-                        //    Message = updateResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} updated successfully" : $"Failed to update transaction with ID: {trxDto.Id}"
-                        //};
+                        bool updateResult = await processorService.UpdateTransactionUsingOrderId(trxDto, request.UserId);
+
                         return new ConsumerResponseModel()
                         {
-                            Status = true,
-                            Message = $"KAFKA TRX CONSUMER: Received update event for OrderID: {request.OrderId}. Transaction update logic not implemented yet.",
-                            TrxDto = new CustomerTransactionDto()
+                            Status = updateResult,
+                            Message = updateResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} updated successfully" : $"Failed to update transaction with ID: {trxDto.Id}"
                         };
+
+                        //return new ConsumerResponseModel()
+                        //{
+                        //    Status = true,
+                        //    Message = $"KAFKA TRX CONSUMER: Received update event for OrderID: {request.OrderId}. Transaction update logic not implemented yet.",
+                        //    TrxDto = new CustomerTransactionDto()
+                        //};
                     }
 
                     else if (topic == "order-delete-success")

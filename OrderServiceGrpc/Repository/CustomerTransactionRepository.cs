@@ -22,6 +22,7 @@ namespace OrderServiceGrpc.Repository
         Task<List<CustomerTransactionModel>> GetAllTransactions();
         Task<int> AddTransaction(CustomerTransactionModel request, int userId);
         Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId);
+        Task<bool> UpdateTransactionUsingOrderId(CustomerTransactionModel request, int userId);
         Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId);
         Task<int> GetTransactionCount();
         Task<PagedTransactionResultFromRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
@@ -36,7 +37,7 @@ namespace OrderServiceGrpc.Repository
 
         public CustomerTransactionRepository(IOptions<DatabaseConfig> dbConfig, IOptions<DatabaseConnection> connectionStrings, ILogger<CustomerTransactionRepository> logger)
         {
-           _connectionString = (dbConfig.Value.Database.ToLower(),dbConfig.Value.Mode.ToLower()) switch
+            _connectionString = (dbConfig.Value.Database.ToLower(), dbConfig.Value.Mode.ToLower()) switch
             {
                 ("home", "local") => connectionStrings.Value.SqlServerHomeConnection,
                 ("home", "docker") => connectionStrings.Value.SqlServerHomeDockerConnection,
@@ -74,6 +75,7 @@ namespace OrderServiceGrpc.Repository
                             ); select SCOPE_IDENTITY();";
 
             DynamicParameters parameters = new DynamicParameters();
+
             parameters.Add("@UserId", request.UserId);
             parameters.Add("@TransactionType", request.TransactionType);
             parameters.Add("@TransactionDate", DateTime.Now);
@@ -81,15 +83,15 @@ namespace OrderServiceGrpc.Repository
             parameters.Add("@CreatedDate", DateTime.Now);
             parameters.Add("@CreatedBy", userId);
             parameters.Add("@IsDeleted", false);
-            parameters.Add("@TransactionKey", request.TransactionKey ?? "" );
-            parameters.Add("@OrderId", request.OrderId);
+            parameters.Add("@TransactionKey", request.TransactionKey ?? "");
+            parameters.Add("@OrderId", request.OrderId == 0 ? null : request.OrderId);
 
             try
             {
                 await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
-
                 await using var tx = await conn.BeginTransactionAsync();
+
                 try
                 {
                     var result = await conn.ExecuteScalarAsync(sql, parameters, tx);
@@ -97,17 +99,14 @@ namespace OrderServiceGrpc.Repository
                     await tx.CommitAsync();
 
                     _logger.LogInformation("AddTransaction: created transaction Id {TransactionId} for user {UserId}", newId, request.UserId);
+
                     return newId;
                 }
                 catch (Exception ex)
                 {
-                    try { await tx.RollbackAsync(); } catch { /* ignore rollback errors */ }
+                    await tx.RollbackAsync();
                     _logger.LogError(ex, "AddTransaction: failed to add transaction for user {UserId}", request.UserId);
                     return -1;
-                }
-                finally
-                {
-                    await conn.CloseAsync();
                 }
             }
             catch (Exception ex)
@@ -152,13 +151,9 @@ namespace OrderServiceGrpc.Repository
                 }
                 catch (Exception ex)
                 {
-                    try { await tx.RollbackAsync(); } catch { /* ignore rollback errors */ }
+                    await tx.RollbackAsync();
                     _logger.LogError(ex, "DeleteTransaction: failed for TransactionId {Id} by user {UserId}", request.Id, userId);
                     return false;
-                }
-                finally
-                {
-                    await conn.CloseAsync();
                 }
             }
             catch (Exception ex)
@@ -176,8 +171,8 @@ namespace OrderServiceGrpc.Repository
 
                 await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
+
                 var transactions = (await conn.QueryAsync<CustomerTransactionModel>(sql)).ToList();
-                await conn.CloseAsync();
 
                 return transactions;
             }
@@ -193,15 +188,15 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where UserId = @UserId and Convert(date,TransactionDate) = Convert(date,GETDATE());";
-                
+
                 DynamicParameters parameters = new DynamicParameters();
                 parameters.Add("@UserId", userId);
 
                 await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
 
-                int totalTransactionsToday = await conn.ExecuteScalarAsync<int>(sql,parameters);
-                await conn.CloseAsync();
+                int totalTransactionsToday = await conn.ExecuteScalarAsync<int>(sql, parameters);
+
                 return totalTransactionsToday;
             }
             catch (Exception ex)
@@ -215,7 +210,7 @@ namespace OrderServiceGrpc.Repository
         {
             try
             {
-                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where TransactionKey = @TransactionKey";
+                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where TransactionKey = @TransactionKey and IsDeleted = 0";
 
                 DynamicParameters parameters = new DynamicParameters();
                 parameters.Add("@TransactionKey", trxKey);
@@ -223,7 +218,6 @@ namespace OrderServiceGrpc.Repository
                 await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
                 int trxCount = await conn.ExecuteScalarAsync<int>(sql, parameters);
-                await conn.CloseAsync();
 
                 return trxCount;
             }
@@ -257,7 +251,8 @@ namespace OrderServiceGrpc.Repository
 	                            WHERE
 									(@TransactionType = '' or TransactionType = @TransactionType) and
 									convert(date,TransactionDate) >= @StartDate and
-									convert(date,TransactionDate) <= @EndDate
+									convert(date,TransactionDate) <= @EndDate and
+                                    IsDeleted = 0
 	                            ORDER BY TransactionDate desc
 	                            OFFSET (@PageNumber-1)*(@PageSize) ROWS
 	                            FETCH NEXT @PageSize ROWS ONLY
@@ -295,7 +290,6 @@ namespace OrderServiceGrpc.Repository
                     result.TotalTransactions = totalRows;
                     result.ListOfTransactions = list;
 
-                    await conn.CloseAsync();
                     return result;
                 }
             }
@@ -314,23 +308,20 @@ namespace OrderServiceGrpc.Repository
         {
             try
             {
-                using (var db = new SqlConnection(_connectionString))
-                {
-                    string sql = @" select 
-                                        *--TransactionType, Amount, TransactionDate, UserId 
-                                    from CustomerTransactions 
-                                    where Id = @Id";
+                await using var db = new SqlConnection(_connectionString);
+                await db.OpenAsync();
 
-                    DynamicParameters p = new DynamicParameters();
-                    p.Add("@Id", id);
+                string sql = @" select 
+                                    *--TransactionType, Amount, TransactionDate, UserId 
+                                from CustomerTransactions 
+                                where Id = @Id and IsDeleted = 0";
 
-                    await db.OpenAsync();
+                DynamicParameters param = new DynamicParameters();
+                param.Add("@Id", id);
 
-                    CustomerTransactionModel model = await db.QuerySingleAsync<CustomerTransactionModel>(sql, p);
-                    
+                CustomerTransactionModel model = await db.QuerySingleAsync<CustomerTransactionModel>(sql, param);
 
-                    return model;
-                }
+                return model;
             }
             catch (Exception ex)
             {
@@ -348,7 +339,7 @@ namespace OrderServiceGrpc.Repository
 
                 await db.OpenAsync();
                 int response = await db.ExecuteScalarAsync<int>(sql);
-                
+
 
                 return response;
 
@@ -385,6 +376,61 @@ namespace OrderServiceGrpc.Repository
             parameters.Add("@ModifiedDate", DateTime.Now);
             parameters.Add("@ModifiedBy", userId);
             parameters.Add("@IsDeleted", false);
+            parameters.Add("@OrderId", request.OrderId == 0 ? null : request.OrderId);
+
+            try
+            {
+                await using SqlConnection conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync();
+
+                await using var tx = await conn.BeginTransactionAsync();
+                try
+                {
+                    int rows = await conn.ExecuteAsync(sql, parameters, tx);
+                    await tx.CommitAsync();
+
+                    bool success = rows > 0;
+                    _logger.LogInformation("UpdateTransaction: TransactionId {Id} update success: {Success} by user {UserId}", request.Id, success, userId);
+                    return success;
+                }
+                catch (Exception ex)
+                {
+                    await tx.RollbackAsync();
+                    _logger.LogError(ex, "UpdateTransaction: failed for TransactionId {Id} by user {UserId}", request.Id, userId);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UpdateTransaction: database connection failed for TransactionId {Id}", request.Id);
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateTransactionUsingOrderId(CustomerTransactionModel request, int userId)
+        {
+            string sql = @" UPDATE CustomerTransactions
+                            SET
+                                UserId = @UserId,
+                                TransactionType = @TransactionType,
+                                Amount = @Amount,
+                                IsDeleted = @IsDeleted,
+                                TransactionDate = @TransactionDate,
+                                ModifiedDate = @ModifiedDate,
+                                ModifiedBy = @ModifiedBy,
+                                OrderId = @OrderId
+                            WHERE
+                                OrderId = @Id;";
+
+            DynamicParameters parameters = new DynamicParameters();
+
+            parameters.Add("@UserId", request.UserId);
+            parameters.Add("@TransactionType", request.TransactionType);
+            parameters.Add("@TransactionDate", request.TransactionDate);
+            parameters.Add("@Amount", request.Amount);
+            parameters.Add("@ModifiedDate", DateTime.Now);
+            parameters.Add("@ModifiedBy", userId);
+            parameters.Add("@IsDeleted", false);
             parameters.Add("@OrderId", request.OrderId);
 
             try
@@ -404,7 +450,7 @@ namespace OrderServiceGrpc.Repository
                 }
                 catch (Exception ex)
                 {
-                    try { await tx.RollbackAsync(); } catch { /* ignore rollback errors */ }
+                    await tx.RollbackAsync();
                     _logger.LogError(ex, "UpdateTransaction: failed for TransactionId {Id} by user {UserId}", request.Id, userId);
                     return false;
                 }

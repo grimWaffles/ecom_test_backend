@@ -18,6 +18,7 @@ namespace API_Gateway.Helpers
             services.AddScoped<IProductGrpcClient, ProductGrpcClient>();
             services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
             services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
+            services.AddScoped<ICustomerTransactionGrpcClient, CustomerTransactionGrpcClient>();
 
             services.AddSingleton<IRedisService, RedisService>();
         }
