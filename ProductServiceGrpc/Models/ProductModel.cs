@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ProductServiceGrpc.Models
 {
-    public class ProductModel
+    public class ProductModel : BaseModel 
     {
         public ProductModel()
         {
@@ -40,18 +40,8 @@ namespace ProductServiceGrpc.Models
         [Required]
         public int ProductCategoryId { get; set; }
 
-        [Required]
-        public int CreatedBy { get; set; }
-
-        public DateTime CreatedDate { get; set; }
-
-        public DateTime? ModifiedDate { get; set; }
-
-        public int? ModifiedBy { get; set; }
-
-        public bool IsDeleted { get; set; } = false;
-
         public virtual SellerModel Seller { get; set; }
+
         public virtual ProductCategoryModel ProductCategory { get; set; }
 
         [NotMapped]

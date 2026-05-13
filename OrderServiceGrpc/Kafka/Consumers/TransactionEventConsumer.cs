@@ -60,7 +60,7 @@ namespace OrderServiceGrpc.Kafka.Consumers
             _transactionEventConsumerSettings = tecSettings.Value;
             _eventProducer = kafkaEventProducer;
 
-            foreach(string topic in _transactionEventConsumerSettings.TopicsToConsume)
+            foreach (string topic in _transactionEventConsumerSettings.TopicsToConsume)
             {
                 string ct = topic.Replace("order", "transaction");
                 ct = ct.Replace("success", "failed");
@@ -138,7 +138,7 @@ namespace OrderServiceGrpc.Kafka.Consumers
 
             catch (Exception e)
             {
-                _logger.LogCritical("KAFKA TRX CONSUMER: Failed to subscribe to topics. Exception: {Message}. StackTrace: {StackTrace}",e.Message, e.StackTrace);
+                _logger.LogCritical("KAFKA TRX CONSUMER: Failed to subscribe to topics. Exception: {Message}. StackTrace: {StackTrace}", e.Message, e.StackTrace);
                 await CloseAndDisposeConsumerAndProducer();
                 return;
             }
@@ -170,16 +170,16 @@ namespace OrderServiceGrpc.Kafka.Consumers
                     //Deserialize message value to OrderEventMessage
                     OrderEventMessage oem = JsonSerializer.Deserialize<OrderEventMessage>(result.Message.Value) ?? new OrderEventMessage();
 
-                    if(oem.OrderId == 0)
+                    if (oem.OrderId == 0)
                     {
                         _logger.LogError("KAFKA TRX CONSUMER: Failed to deserialize message from topic {Topic}. Message value: {MessageValue}", result.Topic, result.Message.Value);
                         continue; // Skip processing and do not commit offset, allowing for retry
                     }
 
                     //Implementing Max Retries if valid topic
-                    if (topicExists && oem.OrderId>0)
+                    if (topicExists && oem.OrderId > 0)
                     {
-                        processedMessage = await ProcessMessageResult(result.Topic,oem, stoppingToken);
+                        processedMessage = await ProcessMessageResult(result.Topic, oem, stoppingToken);
                     }
 
                     //TODO: Produce next event in saga processing
@@ -215,7 +215,7 @@ namespace OrderServiceGrpc.Kafka.Consumers
                 }
             }
         }
-        private async Task<ConsumerResponseModel> ProcessMessageResult(string topic,OrderEventMessage result, CancellationToken stoppingToken)
+        private async Task<ConsumerResponseModel> ProcessMessageResult(string topic, OrderEventMessage result, CancellationToken stoppingToken)
         {
             ConsumerResponseModel repoResponse = new ConsumerResponseModel();
 
@@ -223,7 +223,7 @@ namespace OrderServiceGrpc.Kafka.Consumers
             {
                 try
                 {
-                    repoResponse = await ProcessTransactionEvent(topic,result, stoppingToken);
+                    repoResponse = await ProcessTransactionEvent(topic, result, stoppingToken);
 
                     if (repoResponse.Status == true)
                     {
@@ -258,91 +258,17 @@ namespace OrderServiceGrpc.Kafka.Consumers
                 {
                     ICustomerTransactionService processorService = scope.ServiceProvider.GetRequiredService<ICustomerTransactionService>();
 
-                    if (topic == "order-create-success")
+                    return topic switch
                     {
-                        CustomerTransactionDto trxDto = new CustomerTransactionDto()
-                        {
-                            UserId = request.UserId,
-                            TransactionType = "PURCHASE",
-                            Amount = (decimal)request.Amount,
-                            CreatedDate = DateTime.Now,
-                            CreatedBy = request.UserId,
-                            IsDeleted = false,
-                            TransactionDate = DateTime.Now,
-                            ModifiedDate = DateTime.Now,
-                            ModifiedBy = request.UserId,
-                            TransactionKey = "",
-                            OrderId = request.OrderId
-                        };
-
-                        int insertedId = await processorService.AddTransaction(trxDto, request.UserId);
-
-                        return new ConsumerResponseModel()
-                        {
-                            Status = insertedId > 0,
-                            Message = insertedId > 0 ? $"KAFKA TRX CONSUMER: Transaction created with ID: {insertedId}" : "Failed to create transaction",
-                            TrxDto = trxDto,
-                        };
-                    }
-
-                    else if (topic == "order-update-success")
-                    {
-                        //To-do
-                        CustomerTransactionDto trxDto = new CustomerTransactionDto()
-                        {
-                            UserId = request.UserId,
-                            TransactionType = "PURCHASE",
-                            Amount = (decimal)request.Amount,
-                            CreatedDate = DateTime.Now,
-                            CreatedBy = request.UserId,
-                            IsDeleted = false,
-                            TransactionDate = DateTime.Now,
-                            ModifiedDate = DateTime.Now,
-                            ModifiedBy = request.UserId,
-                            OrderId = request.OrderId,
-                            TransactionKey = ""
-                        };
-
-                        bool updateResult = await processorService.UpdateTransactionUsingOrderId(trxDto, request.UserId);
-
-                        return new ConsumerResponseModel()
-                        {
-                            Status = updateResult,
-                            Message = updateResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} updated successfully" : $"Failed to update transaction with ID: {trxDto.Id}"
-                        };
-
-                        //return new ConsumerResponseModel()
-                        //{
-                        //    Status = true,
-                        //    Message = $"KAFKA TRX CONSUMER: Received update event for OrderID: {request.OrderId}. Transaction update logic not implemented yet.",
-                        //    TrxDto = new CustomerTransactionDto()
-                        //};
-                    }
-
-                    else if (topic == "order-delete-success")
-                    {
-                        CustomerTransactionDto trxDto = new CustomerTransactionDto()
-                        {
-                            UserId = request.UserId,
-                            OrderId = request.OrderId
-                        };
-
-                        bool deleteResult = await processorService.DeleteTransaction(trxDto, request.UserId);
-                        return new ConsumerResponseModel()
-                        {
-                            Status = deleteResult,
-                            Message = deleteResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} deleted successfully" : $"Failed to delete transaction with ID: {trxDto.Id}",
-                            TrxDto = trxDto,
-                        };
-                    }
-                    else
-                    {
-                        return new ConsumerResponseModel()
+                        "order-create-success" => await HandleOrderCreate(processorService, request),
+                        "order-update-success" => await HandleOrderUpdate(processorService, request),
+                        "order-delete-success" => await HandleOrderDelete(processorService, request),
+                        _ => new ConsumerResponseModel()
                         {
                             Status = false,
                             Message = $"KAFKA TRX CONSUMER: Error: Invalid topic provided in message-{topic}"
-                        };
-                    }
+                        }
+                    };
                 }
             }
             catch (Exception e)
@@ -354,6 +280,76 @@ namespace OrderServiceGrpc.Kafka.Consumers
                     StackTrace = e.StackTrace ?? ""
                 };
             }
+        }
+
+        private async Task<ConsumerResponseModel> HandleOrderUpdate(ICustomerTransactionService processorService, OrderEventMessage request)
+        {
+            CustomerTransactionDto trxDto = new CustomerTransactionDto()
+            {
+                UserId = request.UserId,
+                TransactionType = "PURCHASE",
+                Amount = (decimal)request.Amount,
+                CreatedDate = DateTime.Now,
+                CreatedBy = request.UserId,
+                IsDeleted = false,
+                TransactionDate = DateTime.Now,
+                ModifiedDate = DateTime.Now,
+                ModifiedBy = request.UserId,
+                OrderId = request.OrderId,
+                TransactionKey = ""
+            };
+
+            bool updateResult = await processorService.UpdateTransactionUsingOrderId(trxDto, request.UserId);
+
+            return new ConsumerResponseModel()
+            {
+                Status = updateResult,
+                Message = updateResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} updated successfully" : $"Failed to update transaction with ID: {trxDto.Id}"
+            };
+        }
+
+        private async Task<ConsumerResponseModel> HandleOrderCreate(ICustomerTransactionService processorService, OrderEventMessage request)
+        {
+            CustomerTransactionDto trxDto = new CustomerTransactionDto()
+            {
+                UserId = request.UserId,
+                TransactionType = "PURCHASE",
+                Amount = (decimal)request.Amount,
+                CreatedDate = DateTime.Now,
+                CreatedBy = request.UserId,
+                IsDeleted = false,
+                TransactionDate = DateTime.Now,
+                ModifiedDate = DateTime.Now,
+                ModifiedBy = request.UserId,
+                TransactionKey = "",
+                OrderId = request.OrderId
+            };
+
+            int insertedId = await processorService.AddTransaction(trxDto, request.UserId);
+
+            return new ConsumerResponseModel()
+            {
+                Status = insertedId > 0,
+                Message = insertedId > 0 ? $"KAFKA TRX CONSUMER: Transaction created with ID: {insertedId}" : "Failed to create transaction",
+                TrxDto = trxDto,
+            };
+        }
+
+        private async Task<ConsumerResponseModel> HandleOrderDelete(ICustomerTransactionService processorService, OrderEventMessage request)
+        {
+            CustomerTransactionDto trxDto = new CustomerTransactionDto()
+            {
+                UserId = request.UserId,
+                OrderId = request.OrderId
+            };
+
+            bool deleteResult = await processorService.DeleteTransaction(trxDto, request.UserId);
+            return new ConsumerResponseModel()
+            {
+                Status = deleteResult,
+                Message = deleteResult ? $"KAFKA TRX CONSUMER: Transaction with ID: {trxDto.Id} deleted successfully" : $"Failed to delete transaction with ID: {trxDto.Id}",
+                TrxDto = trxDto,
+            };
         }
 
         private async Task<bool> ProduceCompensatingEvent(string topic, OrderEventMessage oem, CancellationToken stoppingToken)
