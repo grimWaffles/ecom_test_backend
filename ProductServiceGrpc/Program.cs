@@ -51,10 +51,10 @@ public class Program
 
         dbKey = (dbType.ToLower(), mode.ToLower()) switch
         {
-            ("mysql", "local") => "MySqlConnection",
-            ("mysql", "docker") => "MySqlDockerConnection",
-            ("sqlserver", "local") => "SqlServerConnection",
-            ("sqlserver", "docker") => "SqlServerDockerConnection",
+            ("work", "local") => "SqlServerWorkConnection",
+            ("work", "docker") => "SqlServerWorkDockerConnection",
+            ("home", "local") => "SqlServerHomeConnection",
+            ("home", "docker") => "SqlServerHomeDockerConnection",
             _ => ""
         };
 
@@ -70,17 +70,8 @@ public class Program
             throw new InvalidOperationException("Database connection string not found.");
         }
 
-        if (dbType == "mysql")
-        {
-            services.AddDbContext<AppDbContext>(options =>
-                options.UseMySQL(connectionString)
-            );
-        }
-        else if (dbType == "sqlserver")
-        {
-            services.AddDbContext<AppDbContext>(options =>
+        services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlServer(connectionString)
             );
-        }
     }
 }

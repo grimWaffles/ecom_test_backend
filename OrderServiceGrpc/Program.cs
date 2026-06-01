@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderServiceGrpc.Database;
 using OrderServiceGrpc.GrpcServices;
 using OrderServiceGrpc.Helpers;
+using OrderServiceGrpc.Kafka.Consumers;
 using OrderServiceGrpc.Kafka.Producers;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Configs;
@@ -80,9 +81,9 @@ builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
 builder.Services.AddScoped<IOutboxStatusService, OutboxStatusService>();
 builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
 
-//builder.Services.AddHostedService<OutboxExecutor>();
-//builder.Services.AddHostedService<OrderEventConsumer>();
-//builder.Services.AddHostedService<TransactionEventConsumer>();
+builder.Services.AddHostedService<OutboxExecutor>();
+builder.Services.AddHostedService<OrderEventConsumer>();
+builder.Services.AddHostedService<TransactionEventConsumer>();
 
 var app = builder.Build();
 

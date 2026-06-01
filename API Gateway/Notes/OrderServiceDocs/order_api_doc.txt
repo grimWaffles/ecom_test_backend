@@ -1,0 +1,328 @@
+﻿================================================================================
+API DOCUMENTATION - ORDER CONTROLLER
+====================================
+
+BASE URL: api/order
+
+================================================================================
+ENDPOINT 1: Create Order
+========================
+
+Endpoint: /create
+Method: POST
+Authentication: Required
+
+Request:
+Content-Type: application/json
+
+Request Body:
+{
+"items": [
+{
+"productId": "integer",
+"quantity": "integer",
+"price": "decimal"
+}
+],
+"total": "decimal",
+"shippingAddress": "string"
+}
+
+Note:
+- UserId and CreatedBy are set on the server side.
+
+Response:
+200 OK
+{
+"orderId": "integer",
+"status": "string",
+"order": {}
+}
+
+Error:
+- Appropriate error status code depending on the failure.
+
+Example Request:
+POST /api/order/create
+
+{
+"items": [
+{ "productId": 12, "quantity": 2, "price": 29.99 },
+{ "productId": 7, "quantity": 1, "price": 79.99 }
+],
+"total": 139.97,
+"shippingAddress": "123 Main St"
+}
+
+Example Response (200):
+{
+"orderId": 101,
+"status": "Created",
+"order": {
+"id": 101,
+"userId": 42,
+"items": [],
+"total": 139.97,
+"shippingAddress": "123 Main St"
+}
+}
+
+================================================================================
+ENDPOINT 2: Get Order By ID
+===========================
+
+Endpoint: /get/{id}
+Method: GET
+Authentication: Required
+
+Request:
+Path Parameters:
+- id (integer): Order ID
+
+Response:
+200 OK
+{
+"order": {}
+}
+
+404 Not Found
+
+Example Request:
+GET /api/order/get/101
+
+Example Response (200):
+{
+"order": {
+"id": 101,
+"userId": 42,
+"items": [
+{ "productId": 12, "quantity": 2, "price": 29.99 },
+{ "productId": 7, "quantity": 1, "price": 79.99 }
+],
+"total": 139.97,
+"shippingAddress": "123 Main St",
+"status": "Created"
+}
+}
+
+================================================================================
+ENDPOINT 3: Get User Orders
+===========================
+
+Endpoint: /user
+Method: GET
+Authentication: Required
+
+Request:
+Query Parameters:
+- page (integer): Page number
+- pageSize (integer): Number of records per page
+- sort (string, optional): Sort criteria
+- filters (object, optional): Filter criteria
+
+Note:
+- UserId is set on the server side.
+
+Response:
+200 OK
+{
+"orders": [],
+"page": "integer",
+"pageSize": "integer",
+"totalCount": "integer"
+}
+
+Example Request:
+GET /api/order/user?page=1&pageSize=10
+
+Example Response (200):
+{
+"orders": [
+{ "id": 101, "total": 139.97, "status": "Created" },
+{ "id": 88, "total": 49.99, "status": "Shipped" }
+],
+"page": 1,
+"pageSize": 10,
+"totalCount": 2
+}
+
+================================================================================
+ENDPOINT 4: Get All Orders
+==========================
+
+Endpoint: /all
+Method: GET
+Authentication: Required
+
+Request:
+Query Parameters:
+- page (integer): Page number
+- pageSize (integer): Number of records per page
+- filters (object, optional): Filter criteria
+
+Note:
+- UserId is set on the server side.
+
+Response:
+200 OK
+{
+"orders": [],
+"page": "integer",
+"pageSize": "integer",
+"totalCount": "integer"
+}
+
+Example Request:
+GET /api/order/all?page=1&pageSize=20
+
+Example Response (200):
+{
+"orders": [
+{ "id": 101, "userId": 42, "total": 139.97 },
+{ "id": 102, "userId": 55, "total": 19.99 }
+],
+"page": 1,
+"pageSize": 20,
+"totalCount": 2
+}
+
+================================================================================
+ENDPOINT 5: Update Order
+========================
+
+Endpoint: /update
+Method: PUT
+Authentication: Required
+
+Request:
+Content-Type: application/json
+
+Request Body:
+{
+"id": "integer",
+"items": [],
+"total": "decimal",
+"status": "string"
+}
+
+Note:
+- UserId and ModifiedBy are set on the server side.
+
+Response:
+200 OK
+{
+"orderId": "integer",
+"status": "string",
+"order": {}
+}
+
+Error:
+- Appropriate error status code depending on the failure.
+
+Example Request:
+PUT /api/order/update
+
+{
+"id": 101,
+"items": [],
+"total": 149.97,
+"status": "Confirmed"
+}
+
+Example Response (200):
+{
+"orderId": 101,
+"status": "Updated",
+"order": {
+"id": 101,
+"total": 149.97,
+"status": "Confirmed"
+}
+}
+
+================================================================================
+ENDPOINT 6: Delete Order
+========================
+
+Endpoint: /delete/{id}
+Method: DELETE
+Authentication: Required
+
+Request:
+Path Parameters:
+- id (integer): Order ID
+
+Response:
+200 OK
+{
+"deleted": "boolean",
+"orderId": "integer"
+}
+
+Error:
+- Appropriate error status code depending on the failure.
+
+Example Request:
+DELETE /api/order/delete/101
+
+Example Response (200):
+{
+"deleted": true,
+"orderId": 101
+}
+
+================================================================================
+ENDPOINT 7: Integration Test
+============================
+
+Endpoint: /integration-test
+Method: GET
+Authentication: Not Required
+
+Request:
+
+* No parameters required
+
+Response:
+200 OK
+{
+"message": "string",
+"timestamp": "datetime"
+}
+
+Example Request:
+GET /api/order/integration-test
+
+Example Response (200):
+{
+"message": "Order service reachable",
+"timestamp": "2026-06-01T12:00:00Z"
+}
+
+================================================================================
+ENDPOINT 8: Publish New Order Event
+===================================
+
+Endpoint: /publish-new-order
+Method: POST
+Authentication: Required
+
+Request:
+
+* No request body required
+
+Response:
+200 OK
+{
+"result": "string",
+"eventId": "string"
+}
+
+Example Request:
+POST /api/order/publish-new-order
+
+Example Response (200):
+{
+"result": "EventPublished",
+"eventId": "evt_12345"
+}

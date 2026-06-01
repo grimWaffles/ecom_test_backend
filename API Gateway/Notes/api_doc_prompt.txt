@@ -1,0 +1,8 @@
+﻿- create a api document for each endpoint,
+- we do not need descriptions of the endpoint
+- add the title of the controller
+- the endpoint excluding the base url
+- the method type GET, POST, DELETE
+- the request content including type (FromBody, FromForm)
+- the response content
+- an example of a request and a response 

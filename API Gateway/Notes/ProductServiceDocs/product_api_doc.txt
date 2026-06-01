@@ -1,0 +1,229 @@
+﻿================================================================================
+API DOCUMENTATION - PRODUCT CONTROLLER
+======================================
+
+BASE URL: api/products
+
+================================================================================
+ENDPOINT 1: Create Product
+==========================
+
+Endpoint: /create
+Method: POST
+Authentication: Required
+
+Request:
+Content-Type: multipart/form-data
+
+Form Fields:
+- name (string): Product name
+- description (string): Product description
+- price (decimal): Product price
+- stock (integer): Available stock quantity
+- categoryId (integer): Category ID
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"description": "string",
+"price": "decimal",
+"stock": "integer",
+"categoryId": "integer"
+}
+
+400 Bad Request
+"Product creation failed: validation error"
+
+401 Unauthorized
+
+Example Request:
+curl -X POST "http://<base-url>/api/products/create" 
+-F "name=Wireless Mouse" 
+-F "description=Ergonomic wireless mouse" 
+-F "price=29.99" 
+-F "stock=150" 
+-F "categoryId=2"
+
+Example Response (200):
+{
+"id": 12,
+"name": "Wireless Mouse",
+"description": "Ergonomic wireless mouse",
+"price": 29.99,
+"stock": 150,
+"categoryId": 2
+}
+
+Example Response (400):
+"Product creation failed: validation error"
+
+================================================================================
+ENDPOINT 2: Get Product By ID
+=============================
+
+Endpoint: /{id}
+Method: GET
+Authentication: Not Required
+
+Request:
+Path Parameters:
+- id (integer): Product ID
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"description": "string",
+"price": "decimal",
+"stock": "integer",
+"categoryId": "integer"
+}
+
+404 Not Found
+
+Example Request:
+GET /api/products/12
+
+Example Response (200):
+{
+"id": 12,
+"name": "Wireless Mouse",
+"description": "Ergonomic wireless mouse",
+"price": 29.99,
+"stock": 150,
+"categoryId": 2
+}
+
+Example Response (404):
+(No body)
+
+================================================================================
+ENDPOINT 3: Get All Products
+============================
+
+Endpoint: /all
+Method: GET
+Authentication: Not Required
+
+Request:
+
+* No parameters required
+
+Response:
+200 OK
+[
+{
+"id": "integer",
+"name": "string",
+"price": "decimal"
+}
+]
+
+Example Request:
+GET /api/products/all
+
+Example Response:
+[
+{
+"id": 12,
+"name": "Wireless Mouse",
+"price": 29.99
+},
+{
+"id": 13,
+"name": "Mechanical Keyboard",
+"price": 79.99
+}
+]
+
+================================================================================
+ENDPOINT 4: Update Product
+==========================
+
+Endpoint: /update/{id}
+Method: PUT
+Authentication: Required
+
+Request:
+Content-Type: multipart/form-data
+
+Path Parameters:
+- id (integer): Product ID
+
+Form Fields:
+- name (string): Product name
+- description (string): Product description
+- price (decimal): Product price
+- stock (integer): Available stock quantity
+- categoryId (integer): Category ID
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"description": "string",
+"price": "decimal",
+"stock": "integer",
+"categoryId": "integer"
+}
+
+400 Bad Request
+"Product update failed: not authorized or validation error"
+
+401 Unauthorized
+
+Example Request:
+curl -X PUT "http://<base-url>/api/products/update/12" 
+-F "name=Wireless Mouse Pro" 
+-F "price=34.99" 
+-F "stock=140"
+
+Example Response (200):
+{
+"id": 12,
+"name": "Wireless Mouse Pro",
+"description": "Ergonomic wireless mouse with extra features",
+"price": 34.99,
+"stock": 140,
+"categoryId": 2
+}
+
+Example Response (400):
+"Product update failed: not authorized or validation error"
+
+================================================================================
+ENDPOINT 5: Delete Product
+==========================
+
+Endpoint: /delete/{id}
+Method: DELETE
+Authentication: Required
+
+Request:
+Path Parameters:
+- id (integer): Product ID
+
+Note:
+- User ID is retrieved from authentication claims on the server side.
+
+Response:
+200 OK
+(No body)
+
+400 Bad Request
+"Product deletion failed: permission denied"
+
+401 Unauthorized
+
+Example Request:
+DELETE /api/products/delete/12
+
+Example Response (200):
+(No body)
+
+Example Response (400):
+"Product deletion failed: permission denied"

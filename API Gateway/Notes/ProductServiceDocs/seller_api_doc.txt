@@ -1,0 +1,219 @@
+﻿================================================================================
+API DOCUMENTATION - SELLERS CONTROLLER
+======================================
+
+BASE URL: api/sellers
+
+================================================================================
+ENDPOINT 1: Create Seller
+=========================
+
+Endpoint: /create
+Method: POST
+Authentication: Required
+
+Request:
+Content-Type: multipart/form-data
+
+Form Fields:
+- name (string): Seller name
+- email (string): Seller email
+- phone (string): Seller phone number
+- address (string): Seller address
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"email": "string",
+"phone": "string",
+"address": "string"
+}
+
+400 Bad Request
+"Seller creation failed: validation error"
+
+401 Unauthorized
+
+Example Request:
+curl -X POST "http://<base-url>/api/sellers/create" 
+-F "name=Acme Store" 
+-F "email=[owner@acme.com](mailto:owner@acme.com)" 
+-F "phone=+1234567890" 
+-F "address=123 Main St"
+
+Example Response (200):
+{
+"id": 5,
+"name": "Acme Store",
+"email": "[owner@acme.com](mailto:owner@acme.com)",
+"phone": "+1234567890",
+"address": "123 Main St"
+}
+
+Example Response (400):
+"Seller creation failed: validation error"
+
+================================================================================
+ENDPOINT 2: Get Seller By ID
+============================
+
+Endpoint: /{id}
+Method: GET
+Authentication: Not Required
+
+Request:
+Path Parameters:
+- id (integer): Seller ID
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"email": "string",
+"phone": "string",
+"address": "string"
+}
+
+404 Not Found
+
+Example Request:
+GET /api/sellers/5
+
+Example Response (200):
+{
+"id": 5,
+"name": "Acme Store",
+"email": "[owner@acme.com](mailto:owner@acme.com)",
+"phone": "+1234567890",
+"address": "123 Main St"
+}
+
+Example Response (404):
+(No body)
+
+================================================================================
+ENDPOINT 3: Get All Sellers
+===========================
+
+Endpoint: /all
+Method: GET
+Authentication: Not Required
+
+Request:
+
+* No parameters required
+
+Response:
+200 OK
+[
+{
+"id": "integer",
+"name": "string",
+"email": "string"
+}
+]
+
+Example Request:
+GET /api/sellers/all
+
+Example Response:
+[
+{
+"id": 5,
+"name": "Acme Store",
+"email": "[owner@acme.com](mailto:owner@acme.com)"
+},
+{
+"id": 6,
+"name": "Beta Shop",
+"email": "[contact@betashop.com](mailto:contact@betashop.com)"
+}
+]
+
+================================================================================
+ENDPOINT 4: Update Seller
+=========================
+
+Endpoint: /update/{id}
+Method: PUT
+Authentication: Required
+
+Request:
+Content-Type: multipart/form-data
+
+Path Parameters:
+- id (integer): Seller ID
+
+Form Fields:
+- name (string): Seller name
+- email (string): Seller email
+- phone (string): Seller phone number
+- address (string): Seller address
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"email": "string",
+"phone": "string",
+"address": "string"
+}
+
+400 Bad Request
+"Seller update failed: not authorized or validation error"
+
+401 Unauthorized
+
+Example Request:
+curl -X PUT "http://<base-url>/api/sellers/update/5" 
+-F "name=Acme Store Updated" 
+-F "email=[newowner@acme.com](mailto:newowner@acme.com)"
+
+Example Response (200):
+{
+"id": 5,
+"name": "Acme Store Updated",
+"email": "[newowner@acme.com](mailto:newowner@acme.com)",
+"phone": "+1234567890",
+"address": "123 Main St"
+}
+
+Example Response (400):
+"Seller update failed: not authorized or validation error"
+
+================================================================================
+ENDPOINT 5: Delete Seller
+=========================
+
+Endpoint: /delete/{id}
+Method: DELETE
+Authentication: Required
+
+Request:
+Path Parameters:
+- id (integer): Seller ID
+
+Note:
+- User ID is retrieved from authentication claims on the server side.
+
+Response:
+200 OK
+(No body)
+
+400 Bad Request
+"Seller deletion failed: permission denied"
+
+401 Unauthorized
+
+Example Request:
+DELETE /api/sellers/delete/5
+
+Example Response (200):
+(No body)
+
+Example Response (400):
+"Seller deletion failed: permission denied"

@@ -76,7 +76,7 @@ namespace API_Gateway
             //builder.Services.AddEndpointsApiExplorer();
             //builder.Services.AddSwaggerGen();
 
-            //DependencyResolver.RegisterMiddleware(builder.Services);
+            DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
 

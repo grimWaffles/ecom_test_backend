@@ -31,7 +31,7 @@ namespace API_Gateway.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> TestUserService()
         {
-            string response = "User service up and running";// await _userServiceClient.TestServiceAsync();
+            string response = await _userServiceClient.TestServiceAsync();
             return StatusCode(StatusCodes.Status200OK, new { message = response });
         }
          
