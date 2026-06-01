@@ -1,15 +1,19 @@
 
+using API_Gateway.Database;
 using API_Gateway.Grpc;
 using API_Gateway.Handlers;
 using API_Gateway.Helpers;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
+using API_Gateway.Repository;
 using API_Gateway.Services;
 using API_Gateway.Services.API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OrderServiceGrpc.Models.ConfigModels;
 using StackExchange.Redis;
 using System.Text;
 namespace API_Gateway
@@ -19,6 +23,45 @@ namespace API_Gateway
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
+            builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
+
+            //Configure the database context
+            string dbType = builder.Configuration["DatabaseConfig:Database"] ?? "";
+            string mode = builder.Configuration["DatabaseConfig:Mode"] ?? "";
+            string dbKey = "";
+            string connectionString = "";
+
+            if (dbType == "" || mode == "")
+            {
+                throw new InvalidOperationException("Database configuration not set up correctly.");
+            }
+
+            dbKey = (dbType.ToLower(), mode.ToLower()) switch
+            {
+                ("work", "local") => "SqlServerWorkConnection",
+                ("work", "docker") => "SqlServerWorkDockerConnection",
+                ("home", "local") => "SqlServerHomeConnection",
+                ("home", "docker") => "SqlServerHomeDockerConnection",
+                _ => ""
+            };
+
+            if (dbKey == "")
+            {
+                throw new InvalidOperationException("Database key not found.");
+            }
+
+            connectionString = builder.Configuration.GetConnectionString(dbKey) ?? "";
+
+            if (connectionString == "")
+            {
+                throw new InvalidOperationException("Database connection string not found.");
+            }
+
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(connectionString)
+            );
 
             builder.Services.AddCors(options =>
             {
@@ -72,10 +115,6 @@ namespace API_Gateway
 
             builder.Services.AddControllers();
 
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            //builder.Services.AddEndpointsApiExplorer();
-            //builder.Services.AddSwaggerGen();
-
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
@@ -92,7 +131,9 @@ namespace API_Gateway
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
-            //app.UseTokenAuthorizationMiddleware();
+            //Use Custom Middlewares
+            app.UseTokenAuthorizationMiddleware();
+            app.UseRequestLogMiddleware();
 
             //Add Authentication and Authorization
             app.UseAuthentication();

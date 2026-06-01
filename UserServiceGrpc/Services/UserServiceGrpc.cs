@@ -132,14 +132,11 @@ namespace UserServiceGrpc.Services
 
         public override async Task<CreateUserRequest> GetUserByIdAsync(UserRequestSingle request, ServerCallContext context)
         {
-            UserModel user = await _repo.GetUserById(request.Id);
+            UserModel user = await _repo.GetUserById(request.UserId);
 
             if (user == null)
             {
-                return new CreateUserRequest()
-                {
-                    Id = 0
-                };
+                return null;
             }
 
             return ConvertModelToRequest(user);

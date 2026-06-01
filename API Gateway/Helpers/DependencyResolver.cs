@@ -1,6 +1,7 @@
 ﻿using API_Gateway.Grpc;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
+using API_Gateway.Repository;
 using API_Gateway.Services;
 using API_Gateway.Services.API_Gateway.Services;
 using System.Runtime.CompilerServices;
@@ -19,6 +20,12 @@ namespace API_Gateway.Helpers
             services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
             services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
             services.AddScoped<ICustomerTransactionGrpcClient, CustomerTransactionGrpcClient>();
+
+            // ── Repository ─────────────────────────────────────────────────────────────
+            services.AddScoped<IRequestLogRepository, RequestLogRepository>();
+
+            // ── Service ────────────────────────────────────────────────────────────────
+            services.AddScoped<IRequestLogService, RequestLogService>();
 
             services.AddSingleton<IRedisService, RedisService>();
         }
