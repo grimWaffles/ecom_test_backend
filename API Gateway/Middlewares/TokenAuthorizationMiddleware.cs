@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 
 namespace API_Gateway.Middlewares
 {
-    // You may need to install the Microsoft.AspNetCore.Http.Abstractions package into your project
     public class TokenAuthorizationMiddleware : IMiddleware
     {
         private readonly ILogger<TokenAuthorizationMiddleware> _logger;

@@ -1,8 +1,14 @@
-using OrderServiceGrpc.Kafka;
+using Microsoft.EntityFrameworkCore;
+using OrderServiceGrpc.Database;
+using OrderServiceGrpc.GrpcServices;
+using OrderServiceGrpc.Helpers;
+using OrderServiceGrpc.Kafka.Consumers;
+using OrderServiceGrpc.Kafka.Producers;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Configs;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
+using OrderServiceGrpc.Services.BackgroundServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,16 +27,62 @@ builder.Services.Configure<KafkaProducerSettings>(builder.Configuration.GetSecti
 builder.Services.Configure<OrderEventConsumerSettings>(builder.Configuration.GetSection("OrderEventConsumerSettings"));
 builder.Services.Configure<TransactionEventConsumerSettings>(builder.Configuration.GetSection("TransactionEventConsumerSettings"));
 
+//Configure the database context
+string dbType = builder.Configuration["DatabaseConfig:Database"] ?? "";
+string mode = builder.Configuration["DatabaseConfig:Mode"] ?? "";
+string dbKey = "";
+string connectionString = "";
+
+if (dbType == "" || mode == "")
+{
+    throw new InvalidOperationException("Database configuration not set up correctly.");
+}
+
+dbKey = (dbType.ToLower(), mode.ToLower()) switch
+{
+    ("work", "local") => "SqlServerWorkConnection",
+    ("work", "docker") => "SqlServerWorkDockerConnection",
+    ("home", "local") => "SqlServerHomeConnection",
+    ("home", "docker") => "SqlServerHomeDockerConnection",
+    _ => ""
+};
+
+if (dbKey == "")
+{
+    throw new InvalidOperationException("Database key not found.");
+}
+
+connectionString = builder.Configuration.GetConnectionString(dbKey) ?? "";
+
+if (connectionString == "")
+{
+    throw new InvalidOperationException("Database connection string not found.");
+}
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseSqlServer(connectionString)
+    );
+
 //Dependency Injection
 builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
 
-builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
-builder.Services.AddScoped<ICustomerTransactionProcessorService, CustomerTransactionProcessorService>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<UnitOfWorkContext>();
 
-builder.Services.AddScoped<IOrderProcessorService, OrderProcessorService>();
+builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
+builder.Services.AddScoped<ICustomerTransactionService, CustomerTransactionService>();
+
+builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
- builder.Services.AddHostedService<OrderEventConsumer>();
+builder.Services.AddScoped<IOrderOutboxService, OrderOutboxService>();
+builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
+
+builder.Services.AddScoped<IOutboxStatusService, OutboxStatusService>();
+builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
+
+builder.Services.AddHostedService<OutboxExecutor>();
+builder.Services.AddHostedService<OrderEventConsumer>();
 builder.Services.AddHostedService<TransactionEventConsumer>();
 
 var app = builder.Build();

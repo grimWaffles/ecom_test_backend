@@ -1,0 +1,399 @@
+================================================================================
+API DOCUMENTATION - USER CONTROLLER
+================================================================================
+
+BASE URL: api/users
+
+================================================================================
+ENDPOINT 1: Test Service
+================================================================================
+Endpoint: /test
+Method: GET
+Authentication: Not Required
+
+Request:
+  - No parameters required
+
+Response:
+  Content-Type: application/json
+  {
+    "message": "string"
+  }
+
+Example Request:
+  GET /api/users/test
+
+Example Response:
+  {
+    "message": "Service is running."
+  }
+
+================================================================================
+ENDPOINT 2: Login User
+================================================================================
+Endpoint: /login
+Method: POST
+Authentication: Not Required
+
+Request:
+  Content-Type: application/x-www-form-urlencoded
+  - username (FromForm): string [required]
+  - password (FromForm): string [required]
+
+Response:
+  Content-Type: application/json
+  Success (200):
+  {
+    "data": {
+      "userId": integer,
+      "username": string,
+      "accessToken": string,
+      "roleId": integer,
+      "roleName": string,
+      "errorMessage": string
+    },
+    "message": "Login Successful"
+  }
+
+  Failure (401):
+  {
+    "error": "Unauthorized"
+  }
+
+Example Request:
+  POST /api/users/login
+  Content-Type: application/x-www-form-urlencoded
+  
+  username=john_doe&password=securePassword123
+
+Example Response:
+  {
+    "data": {
+      "userId": 1,
+      "username": "john_doe",
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "roleId": 1,
+      "roleName": "Admin",
+      "errorMessage": ""
+    },
+    "message": "Login Successful"
+  }
+
+================================================================================
+ENDPOINT 3: Logout User
+================================================================================
+Endpoint: /logout
+Method: POST
+Authentication: Not Required
+
+Request:
+  Content-Type: application/x-www-form-urlencoded
+  - userId (FromForm): integer [required]
+
+Response:
+  Content-Type: application/json
+  Success (200):
+  {
+    "data": {
+      "userId": integer,
+      "errorMessage": string
+    }
+  }
+
+  Failure (500):
+  {
+    "data": null
+  }
+
+Example Request:
+  POST /api/users/logout
+  Content-Type: application/x-www-form-urlencoded
+  
+  userId=1
+
+Example Response:
+  {
+    "data": {
+      "userId": 1,
+      "errorMessage": "Logout successful"
+    }
+  }
+
+================================================================================
+ENDPOINT 4: Get All Users
+================================================================================
+Endpoint: /get-all-users
+Method: GET
+Authentication: Required
+
+Request:
+  - No parameters required
+
+Response:
+  Content-Type: application/json
+  {
+    "data": [
+      {
+        "id": integer,
+        "username": string,
+        "email": string,
+        "password": string,
+        "mobileNo": string,
+        "roleId": integer,
+        "isDeleted": integer
+      }
+    ],
+    "message": string
+  }
+
+Example Request:
+  GET /api/users/get-all-users
+  Authorization: Bearer <token>
+
+Example Response:
+  {
+    "data": [
+      {
+        "id": 1,
+        "username": "john_doe",
+        "email": "john@example.com",
+        "password": "hashed_password",
+        "mobileNo": "1234567890",
+        "roleId": 1,
+        "isDeleted": 0
+      },
+      {
+        "id": 2,
+        "username": "jane_smith",
+        "email": "jane@example.com",
+        "password": "hashed_password",
+        "mobileNo": "0987654321",
+        "roleId": 2,
+        "isDeleted": 0
+      }
+    ],
+    "message": ""
+  }
+
+================================================================================
+ENDPOINT 5: Get User By ID
+================================================================================
+Endpoint: /getById
+Method: GET
+Authentication: Required
+
+Request:
+  - userId (FromQuery): integer [required]
+
+Response:
+  Content-Type: application/json
+  Success (200):
+  {
+    "id": integer,
+    "username": string,
+    "email": string,
+    "password": string,
+    "mobileNo": string,
+    "roleId": integer,
+    "isDeleted": integer
+  }
+
+  Failure (500):
+  {
+    "error": "User not found or null response" | "Exception message"
+  }
+
+Example Request:
+  GET /api/users/getById?userId=1
+  Authorization: Bearer <token>
+
+Example Response:
+  {
+    "id": 1,
+    "username": "john_doe",
+    "email": "john@example.com",
+    "password": "hashed_password",
+    "mobileNo": "1234567890",
+    "roleId": 1,
+    "isDeleted": 0
+  }
+
+================================================================================
+ENDPOINT 6: Create User
+================================================================================
+Endpoint: /create
+Method: POST
+Authentication: Required
+
+Request:
+  Content-Type: application/x-www-form-urlencoded
+  - username (FromForm): string [required]
+  - email (FromForm): string [required]
+  - password (FromForm): string [required]
+  - mobileNo (FromForm): string [required]
+  - roleId (FromForm): integer [required]
+
+Response:
+  Content-Type: application/json
+  Success (200):
+  {
+    "status": integer,
+    "errorMesage": string
+  }
+
+  Failure (500):
+  {
+    "error": "Exception message"
+  }
+
+Example Request:
+  POST /api/users/create
+  Content-Type: application/x-www-form-urlencoded
+  Authorization: Bearer <token>
+  
+  username=new_user&email=newuser@example.com&password=password123&mobileNo=5555555555&roleId=2
+
+Example Response:
+  {
+    "status": 1,
+    "errorMesage": "User added successfully"
+  }
+
+================================================================================
+ENDPOINT 7: Update User
+================================================================================
+Endpoint: /update
+Method: PUT
+Authentication: Required
+
+Request:
+  Content-Type: application/x-www-form-urlencoded
+  - id (FromForm): integer [required]
+  - username (FromForm): string [required]
+  - email (FromForm): string [required]
+  - password (FromForm): string [required]
+  - mobileNo (FromForm): string [required]
+  - roleId (FromForm): integer [required]
+
+Response:
+  Content-Type: application/json
+  Success (200):
+  {
+    "status": integer,
+    "errorMesage": string
+  }
+
+  Failure (500):
+  {
+    "error": "Exception message"
+  }
+
+Example Request:
+  PUT /api/users/update
+  Content-Type: application/x-www-form-urlencoded
+  Authorization: Bearer <token>
+  
+  id=1&username=john_updated&email=john_new@example.com&password=newPassword123&mobileNo=1111111111&roleId=1
+
+Example Response:
+  {
+    "status": 1,
+    "errorMesage": "User updated successfully"
+  }
+
+================================================================================
+ENDPOINT 8: Delete User
+================================================================================
+Endpoint: /delete
+Method: DELETE
+Authentication: Required
+
+Request:
+  Content-Type: application/x-www-form-urlencoded
+  - id (FromForm): integer [required]
+
+Response:
+  Content-Type: application/json
+  Success (200):
+  {
+    "status": integer,
+    "errorMesage": string
+  }
+
+  Failure (500):
+  {
+    "error": "Exception message"
+  }
+
+Example Request:
+  DELETE /api/users/delete
+  Content-Type: application/x-www-form-urlencoded
+  Authorization: Bearer <token>
+  
+  id=1
+
+Example Response:
+  {
+    "status": 1,
+    "errorMesage": "User updated successfully"
+  }
+
+================================================================================
+ENDPOINT 9: Get Role Permissions By Role ID and Path
+================================================================================
+Endpoint: /roles/get-by-role-path
+Method: GET
+Authentication: Required
+
+Request:
+  - roleId (FromQuery): integer [required]
+  - entity (FromQuery): string [required]
+
+Response:
+  Content-Type: application/json
+  Success (200):
+  {
+    "response": {
+      "roleId": integer,
+      "moduleName": string,
+      "frmDetail": string,
+      "viewPermission": boolean,
+      "addPermission": boolean,
+      "editPermission": boolean,
+      "deletePermission": boolean
+    },
+    "message": string
+  }
+
+  Failure (403):
+  {
+    "response": {},
+    "message": "User does not have access"
+  }
+
+  Failure (500):
+  {
+    "error": "Exception message"
+  }
+
+Example Request:
+  GET /api/users/roles/get-by-role-path?roleId=1&entity=admin
+  Authorization: Bearer <token>
+
+Example Response:
+  {
+    "response": {
+      "roleId": 1,
+      "moduleName": "admin",
+      "frmDetail": "Users",
+      "viewPermission": true,
+      "addPermission": true,
+      "editPermission": true,
+      "deletePermission": true
+    },
+    "message": ""
+  }
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

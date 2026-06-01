@@ -1,7 +1,6 @@
 ﻿using API_Gateway.Helpers;
 using API_Gateway.Models;
 using ApiGateway.Protos;
-using Confluent.Kafka;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Options;
@@ -16,7 +15,7 @@ namespace API_Gateway.Services
         Task<OrderListResponse> GetAllOrdersAsync(OrderListRequest request);
         Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request);
         Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request);
-
+        Task<OrderResponse> TestOrderServiceAsync(Empty empty);
         //Custom Function
         Task<OrderResponse> GenerateCustomManualOrder();
     }
@@ -24,14 +23,9 @@ namespace API_Gateway.Services
     public class OrderGrpcClient : IOrderGrpcClient
     {
         private readonly OrderGrpcService.OrderGrpcServiceClient _orderClient;
-        private readonly IKafkaEventProducer _kafkaEventProducer;
-
-        private readonly string order_create_topic = "order-create";
-        private readonly string order_update_topic = "order-update";
-
         private readonly MicroServiceUrl _urls;
 
-        public OrderGrpcClient(IOptions<MicroServiceUrl> microserviceUrls, IKafkaEventProducer kafkaEventProducer)
+        public OrderGrpcClient(IOptions<MicroServiceUrl> microserviceUrls)
         {
             //gRPC 
             _urls = microserviceUrls.Value;
@@ -53,9 +47,6 @@ namespace API_Gateway.Services
             });
 
             _orderClient = new OrderGrpcService.OrderGrpcServiceClient(channel);
-
-            //Kafka
-            _kafkaEventProducer = kafkaEventProducer;
         }
 
         //gRPC Endpoints
@@ -73,34 +64,10 @@ namespace API_Gateway.Services
 
         //Kafka Producers
         public async Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request)
-        {
-            KafkaProducerResult result = await _kafkaEventProducer.ProduceEventAsync(
-                order_create_topic,
-                request.Order.Id.ToString(),
-                JsonSerializer.Serialize(request.Order));
-
-            return new OrderResponse()
-            {
-                Status = result.Status,
-                Message = result.ErrorMessage,
-                Order = request.Order
-            };
-        }
+            => await _orderClient.CreateOrderAsync(request);
 
         public async Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request)
-        {
-            KafkaProducerResult result = await _kafkaEventProducer.ProduceEventAsync(
-                order_update_topic,
-                request.Order.Id.ToString(),
-                JsonSerializer.Serialize(request.Order));
-
-            return new OrderResponse()
-            {
-                Status = result.Status,
-                Message = result.ErrorMessage,
-                Order = request.Order
-            };
-        }
+           => await _orderClient.UpdateOrderAsync(request);
 
         public async Task<OrderResponse> GenerateCustomManualOrder()
         {
@@ -133,35 +100,24 @@ namespace API_Gateway.Services
                 }
                 if (orderList.Count > 0)
                 {
-                    #region Multiple Order Inserting Using Threads & Tasks
-                    //List<Order> list1 = orderList.Take(orderList.Count / 2).ToList();
-                    //List<Order> list2 = orderList.Skip(orderList.Count / 2).Take(orderList.Count / 2).ToList();
+                    Order orderToCreate = orderList.FirstOrDefault(o => !o.IsDeleted && o.Items.Count() > 2);
 
-                    //DateTime startTime = DateTime.Now;
-                    //Task t1 = Task.Run(async () =>
-                    //{
-                    //    await FireAllOrderProduceEvents(list1);
-                    //});
+                    CreateOrderRequest createOrderRequest = new CreateOrderRequest() { Order = orderToCreate, UserId = 1 };
 
-                    //Task t2 = Task.Run(async () =>
-                    //{
-                    //    await FireAllOrderProduceEvents(list2);
-                    //});
+                    OrderResponse fnResponse = await _orderClient.CreateOrderAsync(createOrderRequest);//await CreateOrderAsync(createOrderRequest);
 
-                    //await Task.WhenAll(t1, t2);
-                    #endregion
-
-                    #region Produce Events Sequentially
-
-                    await FireAllOrderProduceEvents(orderList);
-
-                    #endregion
+                    return new OrderResponse()
+                    {
+                        Status = fnResponse.Status,
+                        Message = fnResponse.Message,
+                        Order = fnResponse.Order,
+                    };
                 }
 
                 return new OrderResponse()
                 {
-                    Status = true,
-                    Message = $"Produced messages for {orderList.Count} orders.",
+                    Status = false,
+                    Message = $"No orders found",
                     Order = null
                 };
             }
@@ -177,32 +133,9 @@ namespace API_Gateway.Services
             }
         }
 
-        private async Task<bool> FireAllOrderProduceEvents(List<Order> orders)
+        public async Task<OrderResponse> TestOrderServiceAsync(Empty empty)
         {
-            string topic = "order-create";
-            try
-            {
-                //List<Task> tasks = new List<Task>();
-
-                foreach (Order order in orders)
-                {
-                    //tasks.Add(new Task(async () => {
-                    //    await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), JsonSerializer.Serialize(order));
-                    //}));
-                    CreateOrderRequest request = new CreateOrderRequest() { Order = order, UserId = 1 };
-                    string payload = JsonSerializer.Serialize(request);
-
-                    await _kafkaEventProducer.ProduceEventAsync(topic, order.Id.ToString(), payload);
-                }
-
-                //await Task.WhenAll(tasks);  
-
-                return true;
-            }
-            catch (Exception e)
-            {
-                return false;
-            }
+            return await _orderClient.TestOrderGrpcServiceAsync(empty);
         }
     }
 }

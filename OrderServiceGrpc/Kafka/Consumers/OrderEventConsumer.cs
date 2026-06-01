@@ -3,7 +3,8 @@ using Confluent.Kafka;
 using Google.Protobuf;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Options;
-using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Helpers.Converters;
+using OrderServiceGrpc.Kafka.Producers;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.ConfigModels;
 using OrderServiceGrpc.Models.Configs;
@@ -15,7 +16,7 @@ using OrderServiceGrpc.Services;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
-namespace OrderServiceGrpc.Kafka
+namespace OrderServiceGrpc.Kafka.Consumers
 {
     public class OrderEventConsumer : BackgroundService
     {
@@ -314,7 +315,7 @@ namespace OrderServiceGrpc.Kafka
 
                 using (var scope = _serviceProvider.CreateScope())
                 {
-                    IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+                    IOrderService processorService = scope.ServiceProvider.GetRequiredService<IOrderService>();
 
                     ConsumerResponseModel repoResponse = (result.Topic.Replace("order-", "")) switch
                     {
@@ -356,7 +357,7 @@ namespace OrderServiceGrpc.Kafka
             {
                 using (var scope = _serviceProvider.CreateScope())
                 {
-                    IOrderProcessorService processorService = scope.ServiceProvider.GetRequiredService<IOrderProcessorService>();
+                    IOrderService processorService = scope.ServiceProvider.GetRequiredService<IOrderService>();
 
                     ConsumerResponseModel repoResponse = new ConsumerResponseModel();
 

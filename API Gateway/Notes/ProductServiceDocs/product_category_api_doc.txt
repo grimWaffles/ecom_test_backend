@@ -1,0 +1,214 @@
+﻿================================================================================
+API DOCUMENTATION - PRODUCT CATEGORY CONTROLLER
+===============================================
+
+BASE URL: api/product-categories
+
+================================================================================
+ENDPOINT 1: Create Product Category
+===================================
+
+Endpoint: /create
+Method: POST
+Authentication: Required
+
+Request:
+Content-Type: multipart/form-data
+
+Form Fields:
+- name (string): Category name
+- description (string): Category description
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"description": "string"
+}
+
+500 Internal Server Error
+{
+"message": "string"
+}
+
+401 Unauthorized
+
+Example Request:
+curl -X POST "http://<base-url>/api/product-categories/create" 
+-F "name=Electronics" 
+-F "description=Gadgets and devices"
+
+Example Response (200):
+{
+"id": 3,
+"name": "Electronics",
+"description": "Gadgets and devices"
+}
+
+Example Response (500):
+{
+"message": "Category creation failed: database error"
+}
+
+================================================================================
+ENDPOINT 2: Get Product Category By ID
+======================================
+
+Endpoint: /{id}
+Method: GET
+Authentication: Not Required
+
+Request:
+Path Parameters:
+- id (integer): Product Category ID
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"description": "string"
+}
+
+404 Not Found
+
+Example Request:
+GET /api/product-categories/3
+
+Example Response (200):
+{
+"id": 3,
+"name": "Electronics",
+"description": "Gadgets and devices"
+}
+
+Example Response (404):
+(No body)
+
+================================================================================
+ENDPOINT 3: Get All Product Categories
+======================================
+
+Endpoint: /all
+Method: GET
+Authentication: Not Required
+
+Request:
+
+* No parameters required
+
+Response:
+200 OK
+[
+{
+"id": "integer",
+"name": "string",
+"description": "string"
+}
+]
+
+Example Request:
+GET /api/product-categories/all
+
+Example Response:
+[
+{
+"id": 1,
+"name": "Home",
+"description": "Home goods"
+},
+{
+"id": 3,
+"name": "Electronics",
+"description": "Gadgets and devices"
+}
+]
+
+================================================================================
+ENDPOINT 4: Update Product Category
+===================================
+
+Endpoint: /update/{id}
+Method: PUT
+Authentication: Required
+
+Request:
+Content-Type: multipart/form-data
+
+Path Parameters:
+- id (integer): Product Category ID
+
+Form Fields:
+- id (integer): Must match the route parameter
+- name (string): Category name
+- description (string): Category description
+
+Response:
+200 OK
+{
+"id": "integer",
+"name": "string",
+"description": "string"
+}
+
+400 Bad Request
+"string"
+
+500 Internal Server Error
+{
+"message": "string"
+}
+
+401 Unauthorized
+
+Example Request:
+curl -X PUT "http://<base-url>/api/product-categories/update/3" 
+-F "id=3" 
+-F "name=Electronics & Gadgets" 
+-F "description=Updated description"
+
+Example Response (200):
+{
+"id": 3,
+"name": "Electronics & Gadgets",
+"description": "Updated description"
+}
+
+Example Response (500):
+{
+"message": "Invalid information provided."
+}
+
+================================================================================
+ENDPOINT 5: Delete Product Category
+===================================
+
+Endpoint: /delete/{id}
+Method: DELETE
+Authentication: Required
+
+Request:
+Path Parameters:
+- id (integer): Product Category ID
+
+Note:
+- User ID is retrieved from authentication claims on the server side.
+
+Response:
+200 OK
+(No body)
+
+400 Bad Request
+"Category deletion failed: permission denied"
+
+401 Unauthorized
+
+Example Request:
+DELETE /api/product-categories/delete/3
+
+Example Response (200):
+(No body)
+
+Example Response (400):
+"Category deletion failed: permission denied"

@@ -3,7 +3,7 @@ using System.Data;
 using System.Reflection;
 using System.Text.Json;
 
-namespace OrderServiceGrpc.Helpers.cs
+namespace OrderServiceGrpc.Helpers.Converters
 {
     public static class DataTableConverter
     {

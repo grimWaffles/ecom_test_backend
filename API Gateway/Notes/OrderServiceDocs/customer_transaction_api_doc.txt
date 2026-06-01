@@ -1,0 +1,284 @@
+﻿================================================================================
+API DOCUMENTATION - CUSTOMER TRANSACTION CONTROLLER
+===================================================
+
+BASE URL: api/transactions
+
+================================================================================
+ENDPOINT 1: Get Transaction By ID
+=================================
+
+Endpoint: /get/{id}
+Method: GET
+Authentication: Required
+
+Request:
+Path Parameters:
+- id (integer): Transaction ID
+
+Note:
+- UserId is retrieved from the authenticated user's token on the server side.
+
+Response:
+200 OK
+{
+"id": "integer",
+"userId": "integer",
+"amount": "decimal",
+"currency": "string",
+"status": "string",
+"items": [],
+"createdDate": "datetime"
+}
+
+Error:
+- Appropriate error status code depending on the failure.
+
+Example Request:
+GET /api/transactions/get/15
+
+Example Response (200):
+{
+"id": 15,
+"userId": 42,
+"amount": 99.99,
+"currency": "USD",
+"status": "Completed",
+"items": [
+{
+"productId": 12,
+"quantity": 1,
+"price": 99.99
+}
+],
+"createdDate": "2026-06-01T12:00:00Z"
+}
+
+================================================================================
+ENDPOINT 2: Get All Transactions
+================================
+
+Endpoint: /all
+Method: GET
+Authentication: Required
+
+Request:
+Query Parameters:
+- page (integer): Page number
+- pageSize (integer): Number of records per page
+- fromDate (datetime, optional): Start date filter
+- toDate (datetime, optional): End date filter
+- filters (object, optional): Additional filter criteria
+
+Note:
+- UserId may be supplied in the request or set on the server side.
+
+Response:
+200 OK
+{
+"transactions": [],
+"page": "integer",
+"pageSize": "integer",
+"totalCount": "integer"
+}
+
+Example Request:
+GET /api/transactions/all?page=1&pageSize=20
+
+Example Response (200):
+{
+"transactions": [
+{
+"id": 15,
+"userId": 42,
+"amount": 99.99,
+"status": "Completed"
+},
+{
+"id": 16,
+"userId": 42,
+"amount": 25.00,
+"status": "Pending"
+}
+],
+"page": 1,
+"pageSize": 20,
+"totalCount": 2
+}
+
+================================================================================
+ENDPOINT 3: Create Transaction
+==============================
+
+Endpoint: /create
+Method: POST
+Authentication: Required
+
+Request:
+Content-Type: application/json
+
+Request Body:
+{
+"amount": "decimal",
+"currency": "string",
+"items": [],
+"paymentMethod": "string",
+"shippingAddress": "string"
+}
+
+Note:
+- UserId, CreatedBy, and CreatedDate are set on the server side.
+
+Response:
+200 OK
+{
+"transactionId": "integer",
+"status": "string",
+"transaction": {}
+}
+
+Error:
+- Appropriate error status code depending on the failure.
+
+Example Request:
+POST /api/transactions/create
+
+{
+"amount": 99.99,
+"currency": "USD",
+"items": [
+{
+"productId": 12,
+"quantity": 1,
+"price": 99.99
+}
+],
+"paymentMethod": "card",
+"shippingAddress": "123 Main St"
+}
+
+Example Response (200):
+{
+"transactionId": 15,
+"status": "Created",
+"transaction": {
+"id": 15,
+"userId": 42,
+"amount": 99.99,
+"status": "Created"
+}
+}
+
+================================================================================
+ENDPOINT 4: Update Transaction
+==============================
+
+Endpoint: /update
+Method: PUT
+Authentication: Required
+
+Request:
+Content-Type: application/json
+
+Request Body:
+{
+"id": "integer",
+"amount": "decimal",
+"status": "string"
+}
+
+Note:
+- UserId, ModifiedBy, and ModifiedDate are set on the server side.
+
+Response:
+200 OK
+{
+"transactionId": "integer",
+"status": "string",
+"transaction": {}
+}
+
+Error:
+- Appropriate error status code depending on the failure.
+
+Example Request:
+PUT /api/transactions/update
+
+{
+"id": 15,
+"amount": 95.00,
+"status": "Refunded"
+}
+
+Example Response (200):
+{
+"transactionId": 15,
+"status": "Updated",
+"transaction": {
+"id": 15,
+"amount": 95.00,
+"status": "Refunded"
+}
+}
+
+================================================================================
+ENDPOINT 5: Delete Transaction
+==============================
+
+Endpoint: /delete/{id}
+Method: DELETE
+Authentication: Required
+
+Request:
+Path Parameters:
+- id (integer): Transaction ID
+
+Note:
+- UserId is retrieved from the authenticated user's token on the server side.
+
+Response:
+200 OK
+{
+"deleted": "boolean",
+"transactionId": "integer"
+}
+
+Error:
+- Appropriate error status code depending on the failure.
+
+Example Request:
+DELETE /api/transactions/delete/15
+
+Example Response (200):
+{
+"deleted": true,
+"transactionId": 15
+}
+
+================================================================================
+ENDPOINT 6: Integration Test
+============================
+
+Endpoint: /integration-test
+Method: GET
+Authentication: Not Required
+
+Request:
+
+* No parameters required
+
+Response:
+200 OK
+{
+"message": "string",
+"timestamp": "datetime"
+}
+
+Example Request:
+GET /api/transactions/integration-test
+
+Example Response (200):
+{
+"message": "CustomerTransaction service reachable",
+"timestamp": "2026-06-01T12:00:00Z"
+}

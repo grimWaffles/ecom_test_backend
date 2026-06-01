@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ProductServiceGrpc.Models
 {
     [Index(nameof(MobileNo), nameof(Email), IsUnique = true)]
-    public class SellerModel
+    public class SellerModel : BaseModel
     {
         public SellerModel()
         {
@@ -39,17 +39,6 @@ namespace ProductServiceGrpc.Models
 
         [Precision(18, 2)]
         public decimal Rating { get; set; }
-
-        [Required]
-        public int CreatedBy { get; set; }
-
-        public DateTime CreatedDate { get; set; }
-
-        public DateTime? ModifiedDate { get; set; }
-
-        public int? ModifiedBy { get; set; }
-
-        public bool IsDeleted { get; set; } = false;
 
         public virtual ICollection<ProductModel> Products { get; set; }
     }

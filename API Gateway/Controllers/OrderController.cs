@@ -18,11 +18,9 @@ namespace API_Gateway.Controllers
     public class OrderController : ControllerBase
     {
         private readonly IOrderGrpcClient _grpcClient;
-        private readonly IKafkaEventProducer _orderEvent;
-        public OrderController(IOrderGrpcClient grpcClient, IKafkaEventProducer orderEvent)
+        public OrderController(IOrderGrpcClient grpcClient)
         {
             _grpcClient = grpcClient;
-            _orderEvent = orderEvent;
         }
 
         // Get userId from JWT token
@@ -85,6 +83,15 @@ namespace API_Gateway.Controllers
         {
             var request = new DeleteOrderRequest { Id = id };
             var response = await _grpcClient.DeleteOrderAsync(request);
+            return Ok(response);
+        }
+
+        [HttpGet]
+        [Route("integration-test")]
+        public async Task<IActionResult> TestOrderServiceGrpc()
+        {
+            var response = await _grpcClient.TestOrderServiceAsync(new Google.Protobuf.WellKnownTypes.Empty());
+
             return Ok(response);
         }
 

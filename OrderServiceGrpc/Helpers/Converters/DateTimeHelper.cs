@@ -1,6 +1,6 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 
-namespace OrderServiceGrpc.Helpers.cs
+namespace OrderServiceGrpc.Helpers.Converters
 {
     public static class DateTimeHelper
     {

@@ -2,19 +2,21 @@
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using OrderServiceGrpc.Helpers.cs;
+using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Repository;
+using OrderServiceGrpc.Services;
 
-namespace OrderServiceGrpc.Services
+namespace OrderServiceGrpc.GrpcServices
 {
     public class OrderGrpcService : Protos.OrderGrpcService.OrderGrpcServiceBase
     {
-        private readonly IOrderProcessorService _service;
+        private readonly IOrderService _service;
 
-        public OrderGrpcService(IOrderProcessorService orderProcessorService)
+        public OrderGrpcService(IOrderService orderProcessorService)
         {
             _service = orderProcessorService;
         }
@@ -32,12 +34,16 @@ namespace OrderServiceGrpc.Services
                 return new OrderResponse { Status = false, Message = "Invalid user ID" };
             }
 
-            ConsumerResponseModel response = await _service.CreateOrder(OrderMapper.ProtoToDto(request.Order), request.UserId);
+            OrderDto dto = OrderMapper.ProtoToDto(request.Order);
+
+            ConsumerResponseModel response = await _service.CreateOrder(dto, request.UserId);
+
+            dto.Id = response.InsertedOrderId;
             return new OrderResponse
             {
                 Status = response.Status,
                 Message = response.Message,
-                Order = OrderMapper.DtoToProto(response.Order)
+                Order = OrderMapper.DtoToProto(dto),
             };
         }
 
