@@ -16,6 +16,7 @@ namespace API_Gateway.Services
         Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request);
         Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request);
         Task<OrderResponse> TestOrderServiceAsync(Empty empty);
+
         //Custom Function
         Task<OrderResponse> GenerateCustomManualOrder();
     }
@@ -137,5 +138,7 @@ namespace API_Gateway.Services
         {
             return await _orderClient.TestOrderGrpcServiceAsync(empty);
         }
+
+        public async Task<OrderHealthCheckMessage> TestOrderServiceHealth() => await _orderClient.TestOrderServiceHealthAsync(new Empty());
     }
 }

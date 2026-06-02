@@ -1,80 +1,106 @@
-﻿using API_Gateway.Grpc;
-using API_Gateway.Services.API_Gateway.Services;
-using ApiGateway.Protos;
+﻿using ApiGateway.Protos;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Grpc.Net.Client;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using API_Gateway.Models;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace API_Gateway.Services
 {
-    namespace API_Gateway.Services
+    public interface IUserService
     {
-        public interface IUserService
-        {
-            // User APIs
-            Task<string> TestServiceAsync();
+        // User APIs
+        Task<string> TestServiceAsync();
 
-            Task<CreateUserRequest> GetUserByIdAsync(int userId);
-            Task<List<CreateUserRequest>> GetAllUsersAsync();
-            Task<List<CreateUserRequest>> GetAllUsersStreamAsync();
+        Task<CreateUserRequest> GetUserByIdAsync(int userId);
+        Task<List<CreateUserRequest>> GetAllUsersAsync();
+        Task<List<CreateUserRequest>> GetAllUsersStreamAsync();
 
-            Task<UserCrudResponse> CreateUserAsync(CreateUserRequest user);
-            Task<UserCrudResponse> UpdateUserAsync(CreateUserRequest user);
-            Task<UserCrudResponse> DeleteUserAsync(int id, int userId);
+        Task<UserCrudResponse> CreateUserAsync(CreateUserRequest user);
+        Task<UserCrudResponse> UpdateUserAsync(CreateUserRequest user);
+        Task<UserCrudResponse> DeleteUserAsync(int id, int userId);
 
-            Task<UserLoginResponse> LoginUserAsync(string username, string password);
-            Task<UserLoginResponse> LogoutUserAsync(int userId);
+        Task<UserLoginResponse> LoginUserAsync(string username, string password);
+        Task<UserLoginResponse> LogoutUserAsync(int userId);
 
-            // Role Permissions APIs
-            Task<RolePermissionResponse?> GetRolePermissionByIdAsync(int id);
-            Task<IEnumerable<RolePermissionResponse>> GetAllRolePermissionsAsync();
-            Task<IEnumerable<RolePermissionResponse>> GetRolePermissionsByRoleIdAsync(int roleId);
-            Task<RolePermissionResponse?> GetRolePermissionByRoleIdAndPathAsync(int roleId, string apiPath);
-            Task<RolePermissionResponse?> CreateRolePermissionAsync(CreateRolePermissionRequest dto);
-            Task<RolePermissionResponse?> UpdateRolePermissionAsync(UpdateRolePermissionRequest dto);
-            Task<bool> DeleteRolePermissionAsync(int id);
-        }
+        // Role Permissions APIs
+        Task<RolePermissionResponse?> GetRolePermissionByIdAsync(int id);
+        Task<IEnumerable<RolePermissionResponse>> GetAllRolePermissionsAsync();
+        Task<IEnumerable<RolePermissionResponse>> GetRolePermissionsByRoleIdAsync(int roleId);
+        Task<RolePermissionResponse?> GetRolePermissionByRoleIdAndPathAsync(int roleId, string apiPath);
+        Task<RolePermissionResponse?> CreateRolePermissionAsync(CreateRolePermissionRequest dto);
+        Task<RolePermissionResponse?> UpdateRolePermissionAsync(UpdateRolePermissionRequest dto);
+        Task<bool> DeleteRolePermissionAsync(int id);
     }
 
-    public class UserService : IUserService
+    public class UserService : IUserService, System.IDisposable
     {
-        private readonly IUserGrpcClient _grpc;
+        private readonly User.UserClient _client;
+        private readonly GrpcChannel _channel;
         private readonly ILogger<UserService> _logger;
 
-        public UserService(IUserGrpcClient grpc, ILogger<UserService> logger)
+        public UserService(IOptions<MicroServiceUrl> options, ILogger<UserService> logger)
         {
-            _grpc = grpc;
+            _channel = GrpcChannel.ForAddress(options.Value.GetUserServiceUrl());
+            _client = new User.UserClient(_channel);
             _logger = logger;
         }
 
-        public Task<string> TestServiceAsync()
-            => _grpc.TestServiceAsync();
+        public void Dispose()
+        {
+            _channel?.Dispose();
+        }
 
-        public Task<List<CreateUserRequest>> GetAllUsersAsync()
-            => _grpc.GetAllUsersAsync();
+        public async Task<string> TestServiceAsync()
+        {
+            var res = await _client.TestServiceAsync(new Empty());
+            return res.ServiceStatus;
+        }
 
-        public Task<List<CreateUserRequest>> GetAllUsersStreamAsync()
-            => _grpc.GetAllUsersStreamAsync();
+        public async Task<List<CreateUserRequest>> GetAllUsersAsync()
+        {
+            var res = await _client.GetAllUsersAsync(new Empty());
+            return res.Users.ToList();
+        }
+
+        public async Task<List<CreateUserRequest>> GetAllUsersStreamAsync()
+        {
+            var list = new List<CreateUserRequest>();
+            using var call = _client.GetAllUsersStream(new Empty());
+
+            while (await call.ResponseStream.MoveNext())
+            {
+                list.Add(call.ResponseStream.Current);
+            }
+
+            return list;
+        }
 
         public Task<CreateUserRequest> GetUserByIdAsync(int userId)
-            => _grpc.GetUserByIdAsync(userId);
+            => _client.GetUserByIdAsyncAsync(new UserRequestSingle() { UserId = userId}).ResponseAsync;
 
         public Task<UserCrudResponse> CreateUserAsync(CreateUserRequest user)
-            => _grpc.CreateUserAsync(user);
+            => _client.CreateUserAsync(user).ResponseAsync;
 
         public Task<UserCrudResponse> UpdateUserAsync(CreateUserRequest user)
-            => _grpc.UpdateUserAsync(user);
+            => _client.UpdateUserAsync(user).ResponseAsync;
 
         public Task<UserCrudResponse> DeleteUserAsync(int id, int userId)
-            => _grpc.DeleteUserAsync(new UserRequestSingle { Id = id, UserId = userId });
+            => _client.DeleteUserAsync(new UserRequestSingle { Id = id, UserId = userId }).ResponseAsync;
 
         public Task<UserLoginResponse> LoginUserAsync(string username, string password)
-            => _grpc.LoginUserAsync(new UserLoginRequest
+            => _client.LoginUserAsync(new UserLoginRequest
             {
                 Username = username,
                 Password = password
-            });
+            }).ResponseAsync;
 
         public Task<UserLoginResponse> LogoutUserAsync(int userId)
-            => _grpc.LogoutUserAsync(new UserRequestSingle { UserId = userId });
+            => _client.LogoutUserAsync(new UserRequestSingle { UserId = userId }).ResponseAsync;
 
         // ROLE PERMISSIONS
 
@@ -82,7 +108,7 @@ namespace API_Gateway.Services
         {
             try
             {
-                return await _grpc.GetRolePermissionByIdAsync(new GetRolePermissionByIdRequest { Id = id });
+                return await _client.GetRolePermissionByIdAsync(new GetRolePermissionByIdRequest { Id = id }).ResponseAsync;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {
@@ -93,15 +119,13 @@ namespace API_Gateway.Services
 
         public async Task<IEnumerable<RolePermissionResponse>> GetAllRolePermissionsAsync()
         {
-            var res = await _grpc.GetAllRolePermissionsAsync();
+            var res = await _client.GetAllRolePermissionsAsync(new GetAllRolePermissionsRequest()).ResponseAsync;
             return res.Items;
         }
 
         public async Task<IEnumerable<RolePermissionResponse>> GetRolePermissionsByRoleIdAsync(int roleId)
         {
-            var res = await _grpc.GetRolePermissionsByRoleIdAsync(
-                new GetRolePermissionsByRoleIdRequest { RoleId = roleId });
-
+            var res = await _client.GetRolePermissionsByRoleIdAsync(new GetRolePermissionsByRoleIdRequest { RoleId = roleId }).ResponseAsync;
             return res.Items;
         }
 
@@ -109,12 +133,11 @@ namespace API_Gateway.Services
         {
             try
             {
-                return await _grpc.GetRolePermissionByRoleIdAndPathAsync(
-                    new GetRolePermissionByRoleIdAndPathRequest
-                    {
-                        RoleId = roleId,
-                        ApiPath = apiPath
-                    });
+                return await _client.GetRolePermissionByRoleIdAndPathAsync(new GetRolePermissionByRoleIdAndPathRequest
+                {
+                    RoleId = roleId,
+                    ApiPath = apiPath
+                }).ResponseAsync;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {
@@ -126,7 +149,7 @@ namespace API_Gateway.Services
         {
             try
             {
-                return await _grpc.CreateRolePermissionAsync(dto);
+                return await _client.CreateRolePermissionAsync(dto).ResponseAsync;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
             {
@@ -138,7 +161,7 @@ namespace API_Gateway.Services
         {
             try
             {
-                return await _grpc.UpdateRolePermissionAsync(dto);
+                return await _client.UpdateRolePermissionAsync(dto).ResponseAsync;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {
@@ -150,9 +173,7 @@ namespace API_Gateway.Services
         {
             try
             {
-                var res = await _grpc.DeleteRolePermissionAsync(
-                    new DeleteRolePermissionRequest { Id = id });
-
+                var res = await _client.DeleteRolePermissionAsync(new DeleteRolePermissionRequest { Id = id }).ResponseAsync;
                 return res.Success;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)

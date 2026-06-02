@@ -16,6 +16,7 @@ namespace API_Gateway.Services
         Task<List<ProductDto>> GetAllProductsAsync();
         Task<ProductResponse> UpdateProductAsync(int userId, ProductDto dto);
         Task<ProductResponse> DeleteProductAsync(int id, int modifiedBy);
+        Task<ProductServiceTestMessage> TestProductServiceHealth();
     }
     public class ProductGrpcClient : IProductGrpcClient
     {
@@ -74,5 +75,7 @@ namespace API_Gateway.Services
             var request = new ProductDeleteRequest { Id = id, ModifiedBy = modifiedBy };
             return await _client.DeleteProductAsync(request);
         }
+
+        public async Task<ProductServiceTestMessage> TestProductServiceHealth() => await _client.TestProductServiceAsync(new Empty());
     }
 }

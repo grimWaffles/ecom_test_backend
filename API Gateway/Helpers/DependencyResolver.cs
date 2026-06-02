@@ -3,7 +3,6 @@ using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Repository;
 using API_Gateway.Services;
-using API_Gateway.Services.API_Gateway.Services;
 using System.Runtime.CompilerServices;
 
 namespace API_Gateway.Helpers
@@ -13,7 +12,6 @@ namespace API_Gateway.Helpers
         public static void RegisterServices(this IServiceCollection services, IConfiguration config)
         {
             //Add Dependency Injection
-            services.AddScoped<IUserGrpcClient, UserGrpcClient>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IProductCategoryGrpcClient, ProductCategoryGrpcClient>();
             services.AddScoped<IProductGrpcClient, ProductGrpcClient>();
