@@ -76,6 +76,16 @@ namespace API_Gateway.Services
             return await _client.DeleteProductAsync(request);
         }
 
-        public async Task<ProductServiceTestMessage> TestProductServiceHealth() => await _client.TestProductServiceAsync(new Empty());
+        public async Task<ProductServiceTestMessage> TestProductServiceHealth() 
+        {
+            try
+            {
+                return await _client.TestProductServiceAsync(new Empty());
+            }
+            catch(Exception e)
+            {
+                return new ProductServiceTestMessage() { StatusMessage = "Product service is down" };
+            }
+        }
     }
 }

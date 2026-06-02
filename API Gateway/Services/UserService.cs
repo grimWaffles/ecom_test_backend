@@ -57,8 +57,15 @@ namespace API_Gateway.Services
 
         public async Task<string> TestServiceAsync()
         {
-            var res = await _client.TestServiceAsync(new Empty());
-            return res.ServiceStatus;
+            try
+            {
+                var res = await _client.TestServiceAsync(new Empty());
+                return res.ServiceStatus;
+            }
+            catch
+            {
+                return "User service is down";
+            }
         }
 
         public async Task<List<CreateUserRequest>> GetAllUsersAsync()

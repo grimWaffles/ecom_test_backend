@@ -16,6 +16,7 @@ namespace API_Gateway.Services
         Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request);
         Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request);
         Task<OrderResponse> TestOrderServiceAsync(Empty empty);
+        Task<OrderHealthCheckMessage> TestOrderServiceHealth();
 
         //Custom Function
         Task<OrderResponse> GenerateCustomManualOrder();
@@ -139,6 +140,16 @@ namespace API_Gateway.Services
             return await _orderClient.TestOrderGrpcServiceAsync(empty);
         }
 
-        public async Task<OrderHealthCheckMessage> TestOrderServiceHealth() => await _orderClient.TestOrderServiceHealthAsync(new Empty());
+        public async Task<OrderHealthCheckMessage> TestOrderServiceHealth()
+        {
+            try
+            {
+                return await _orderClient.TestOrderServiceHealthAsync(new Empty());
+            }
+            catch (Exception e)
+            {
+                return new OrderHealthCheckMessage() { Message = "Order service is down" };
+            }
+        }
     }
 }

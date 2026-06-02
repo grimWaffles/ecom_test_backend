@@ -1,17 +1,9 @@
 ﻿using API_Gateway.Services;
-using Microsoft.AspNetCore.Authorization;
+using ApiGateway.Protos;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using System.Threading.Tasks;
-using ApiGateway.Protos;
 namespace API_Gateway.Controllers
 {
-    using Microsoft.AspNetCore.Authorization;
-    using Microsoft.AspNetCore.Mvc;
-    using System.Security.Claims;
-    using System.Threading.Tasks;
-    using ApiGateway.Protos;
-    using API_Gateway.Helpers;
 
     [ApiController]
     [Route("api/[controller]")]

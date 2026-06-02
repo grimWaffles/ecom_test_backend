@@ -11,7 +11,7 @@ namespace API_Gateway.Helpers
     {
         public static void RegisterServices(this IServiceCollection services, IConfiguration config)
         {
-            //Add Dependency Injection
+            // ── External ─────────────────────────────────────────────────────────────
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IProductCategoryGrpcClient, ProductCategoryGrpcClient>();
             services.AddScoped<IProductGrpcClient, ProductGrpcClient>();
