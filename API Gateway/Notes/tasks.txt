@@ -2,7 +2,7 @@
 2) Request Logging/Auditing -- done
 3) Correlation IDs
 4) Rate Limiting
-5) Health Checks
+5) Health Checks -- done
 6) Metrics/OpenTelemetry
 7) Resilience Policies (Polly)
 8) Error Translation

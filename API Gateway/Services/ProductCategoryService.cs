@@ -1,7 +1,9 @@
 ﻿using API_Gateway.Models;
 using ApiGateway.Protos;
 using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace API_Gateway.Services
@@ -19,9 +21,11 @@ namespace API_Gateway.Services
     {
         private readonly ProductCategory.ProductCategoryClient _client;
         private readonly MicroServiceUrl _urls;
+        private readonly ILogger<ProductCategoryGrpcClient> _logger;
 
-        public ProductCategoryGrpcClient(IOptions<MicroServiceUrl> microserviceUrls)
+        public ProductCategoryGrpcClient(IOptions<MicroServiceUrl> microserviceUrls, ILogger<ProductCategoryGrpcClient> logger)
         {
+            _logger = logger;
             _urls = microserviceUrls.Value;
 
             if (string.IsNullOrEmpty(_urls.GetProductServiceUrl()))
@@ -45,44 +49,109 @@ namespace API_Gateway.Services
 
         public async Task<ProductCategoryCreateResponse> CreateCategoryAsync(int userId, ProductCategoryDto dto)
         {
-            var request = new ProductCategoryCreateRequest
+            try
             {
-                UserId = userId,
-                Dto = dto
-            };
-            return await _client.CreateCategoryAsync(request);
+                var request = new ProductCategoryCreateRequest
+                {
+                    UserId = userId,
+                    Dto = dto
+                };
+                return await _client.CreateCategoryAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while creating product category for userId: {UserId}", userId);
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while creating product category for userId: {UserId}", userId);
+                return null;
+            }
         }
 
         public async Task<ProductCategoryDto> GetCategoryByIdAsync(int id)
         {
-            var request = new ProductCategorySingleRequest { Id = id };
-            return await _client.GetCategoryByIdAsync(request);
+            try
+            {
+                var request = new ProductCategorySingleRequest { Id = id };
+                return await _client.GetCategoryByIdAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while getting product category with id: {CategoryId}", id);
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while getting product category with id: {CategoryId}", id);
+                return null;
+            }
         }
 
         public async Task<List<ProductCategoryDto>> GetAllCategoriesAsync()
         {
-            var response = await _client.GetAllCategoriesAsync(new Empty());
-            return response.Dtos.ToList();
+            try
+            {
+                var response = await _client.GetAllCategoriesAsync(new Empty());
+                return response.Dtos.ToList();
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while getting all product categories");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while getting all product categories");
+                return null;
+            }
         }
 
         public async Task<ProductCategoryCreateResponse> UpdateCategoryAsync(int userId, ProductCategoryDto dto)
         {
-            var request = new ProductCategoryCreateRequest
+            try
             {
-                UserId = userId,
-                Dto = dto
-            };
-            return await _client.UpdateCategoryAsync(request);
+                var request = new ProductCategoryCreateRequest
+                {
+                    UserId = userId,
+                    Dto = dto
+                };
+                return await _client.UpdateCategoryAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while updating product category for userId: {UserId}", userId);
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while updating product category for userId: {UserId}", userId);
+                return null;
+            }
         }
 
         public async Task<ProductCategoryCreateResponse> DeleteCategoryAsync(int id, int userId)
         {
-            var request = new ProductCategoryDeleteRequest
+            try
             {
-                Id = id,
-                Userid = userId
-            };
-            return await _client.DeleteCategoryAsync(request);
+                var request = new ProductCategoryDeleteRequest
+                {
+                    Id = id,
+                    Userid = userId
+                };
+                return await _client.DeleteCategoryAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while deleting product category with id: {CategoryId}", id);
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while deleting product category with id: {CategoryId}", id);
+                return null;
+            }
         }
     }
 }

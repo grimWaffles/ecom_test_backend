@@ -2,7 +2,9 @@
 using API_Gateway.Models;
 using ApiGateway.Protos;
 using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 namespace API_Gateway.Services
@@ -26,10 +28,13 @@ namespace API_Gateway.Services
     {
         private readonly OrderGrpcService.OrderGrpcServiceClient _orderClient;
         private readonly MicroServiceUrl _urls;
+        private readonly ILogger<OrderGrpcClient> _logger;
+        private readonly DateTime rpcCallLimit = DateTime.Now.AddSeconds(2);
 
-        public OrderGrpcClient(IOptions<MicroServiceUrl> microserviceUrls)
+        public OrderGrpcClient(IOptions<MicroServiceUrl> microserviceUrls, ILogger<OrderGrpcClient> logger)
         {
             //gRPC 
+            _logger = logger;
             _urls = microserviceUrls.Value;
 
             if (string.IsNullOrEmpty(_urls.GetOrderServiceUrl()))
@@ -53,23 +58,113 @@ namespace API_Gateway.Services
 
         //gRPC Endpoints
         public async Task<OrderResponse> GetOrderByIdAsync(OrderIdRequest request)
-            => await _orderClient.GetOrderByIdAsync(request);
+        {
+            try
+            {
+                return await _orderClient.GetOrderByIdAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while getting order by id");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while getting order by id");
+                return null;
+            }
+        }
 
         public async Task<OrderListResponse> GetOrdersByUserAsync(OrderListRequest request)
-            => await _orderClient.GetOrdersByUserAsync(request);
+        {
+            try
+            {
+                return await _orderClient.GetOrdersByUserAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while getting orders by user");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while getting orders by user");
+                return null;
+            }
+        }
 
         public async Task<OrderListResponse> GetAllOrdersAsync(OrderListRequest request)
-            => await _orderClient.GetAllOrdersAsync(request);
+        {
+            try
+            {
+                return await _orderClient.GetAllOrdersAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while getting all orders");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while getting all orders");
+                return null;
+            }
+        }
 
         public async Task<OrderResponse> DeleteOrderAsync(DeleteOrderRequest request)
-            => await _orderClient.DeleteOrderAsync(request);
+        {
+            try
+            {
+                return await _orderClient.DeleteOrderAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while deleting order");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while deleting order");
+                return null;
+            }
+        }
 
         //Kafka Producers
         public async Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request)
-            => await _orderClient.CreateOrderAsync(request);
+        {
+            try
+            {
+                return await _orderClient.CreateOrderAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while creating order");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while creating order");
+                return null;
+            }
+        }
 
         public async Task<OrderResponse> UpdateOrderAsync(UpdateOrderRequest request)
-           => await _orderClient.UpdateOrderAsync(request);
+        {
+            try
+            {
+                return await _orderClient.UpdateOrderAsync(request);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while updating order");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while updating order");
+                return null;
+            }
+        }
 
         public async Task<OrderResponse> GenerateCustomManualOrder()
         {
@@ -137,17 +232,36 @@ namespace API_Gateway.Services
 
         public async Task<OrderResponse> TestOrderServiceAsync(Empty empty)
         {
-            return await _orderClient.TestOrderGrpcServiceAsync(empty);
+            try
+            {
+                return await _orderClient.TestOrderGrpcServiceAsync(empty);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while testing order service");
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error occurred while testing order service");
+                return null;
+            }
         }
 
         public async Task<OrderHealthCheckMessage> TestOrderServiceHealth()
         {
             try
             {
-                return await _orderClient.TestOrderServiceHealthAsync(new Empty());
+                return await _orderClient.TestOrderServiceHealthAsync(new Empty(), deadline: rpcCallLimit);
+            }
+            catch (RpcException e)
+            {
+                _logger.LogError(e, "RPC error occurred while testing order service health");
+                return new OrderHealthCheckMessage() { Message = "Order service is down" };
             }
             catch (Exception e)
             {
+                _logger.LogError(e, "Error occurred while testing order service health");
                 return new OrderHealthCheckMessage() { Message = "Order service is down" };
             }
         }

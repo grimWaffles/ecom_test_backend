@@ -62,52 +62,174 @@ namespace API_Gateway.Services
                 var res = await _client.TestServiceAsync(new Empty());
                 return res.ServiceStatus;
             }
-            catch
+            catch (RpcException ex)
             {
+                _logger.LogError(ex, "RPC error occurred while testing user service");
+                return "User service is down";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while testing user service");
                 return "User service is down";
             }
         }
 
         public async Task<List<CreateUserRequest>> GetAllUsersAsync()
         {
-            var res = await _client.GetAllUsersAsync(new Empty());
-            return res.Users.ToList();
+            try
+            {
+                var res = await _client.GetAllUsersAsync(new Empty());
+                return res.Users.ToList();
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting all users");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting all users");
+                return null;
+            }
         }
 
         public async Task<List<CreateUserRequest>> GetAllUsersStreamAsync()
         {
-            var list = new List<CreateUserRequest>();
-            using var call = _client.GetAllUsersStream(new Empty());
-
-            while (await call.ResponseStream.MoveNext())
+            try
             {
-                list.Add(call.ResponseStream.Current);
-            }
+                var list = new List<CreateUserRequest>();
+                using var call = _client.GetAllUsersStream(new Empty());
 
-            return list;
+                while (await call.ResponseStream.MoveNext())
+                {
+                    list.Add(call.ResponseStream.Current);
+                }
+
+                return list;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting all users stream");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting all users stream");
+                return null;
+            }
         }
 
-        public Task<CreateUserRequest> GetUserByIdAsync(int userId)
-            => _client.GetUserByIdAsyncAsync(new UserRequestSingle() { UserId = userId}).ResponseAsync;
-
-        public Task<UserCrudResponse> CreateUserAsync(CreateUserRequest user)
-            => _client.CreateUserAsync(user).ResponseAsync;
-
-        public Task<UserCrudResponse> UpdateUserAsync(CreateUserRequest user)
-            => _client.UpdateUserAsync(user).ResponseAsync;
-
-        public Task<UserCrudResponse> DeleteUserAsync(int id, int userId)
-            => _client.DeleteUserAsync(new UserRequestSingle { Id = id, UserId = userId }).ResponseAsync;
-
-        public Task<UserLoginResponse> LoginUserAsync(string username, string password)
-            => _client.LoginUserAsync(new UserLoginRequest
+        public async Task<CreateUserRequest> GetUserByIdAsync(int userId)
+        {
+            try
             {
-                Username = username,
-                Password = password
-            }).ResponseAsync;
+                return await _client.GetUserByIdAsyncAsync(new UserRequestSingle() { UserId = userId}).ResponseAsync;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting user by id: {UserId}", userId);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting user by id: {UserId}", userId);
+                return null;
+            }
+        }
 
-        public Task<UserLoginResponse> LogoutUserAsync(int userId)
-            => _client.LogoutUserAsync(new UserRequestSingle { UserId = userId }).ResponseAsync;
+        public async Task<UserCrudResponse> CreateUserAsync(CreateUserRequest user)
+        {
+            try
+            {
+                return await _client.CreateUserAsync(user).ResponseAsync;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while creating user");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while creating user");
+                return null;
+            }
+        }
+
+        public async Task<UserCrudResponse> UpdateUserAsync(CreateUserRequest user)
+        {
+            try
+            {
+                return await _client.UpdateUserAsync(user).ResponseAsync;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while updating user");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while updating user");
+                return null;
+            }
+        }
+
+        public async Task<UserCrudResponse> DeleteUserAsync(int id, int userId)
+        {
+            try
+            {
+                return await _client.DeleteUserAsync(new UserRequestSingle { Id = id, UserId = userId }).ResponseAsync;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while deleting user with id: {Id}", id);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while deleting user with id: {Id}", id);
+                return null;
+            }
+        }
+
+        public async Task<UserLoginResponse> LoginUserAsync(string username, string password)
+        {
+            try
+            {
+                return await _client.LoginUserAsync(new UserLoginRequest
+                {
+                    Username = username,
+                    Password = password
+                }).ResponseAsync;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while logging in user: {Username}", username);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while logging in user: {Username}", username);
+                return null;
+            }
+        }
+
+        public async Task<UserLoginResponse> LogoutUserAsync(int userId)
+        {
+            try
+            {
+                return await _client.LogoutUserAsync(new UserRequestSingle { UserId = userId }).ResponseAsync;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while logging out user with id: {UserId}", userId);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while logging out user with id: {UserId}", userId);
+                return null;
+            }
+        }
 
         // ROLE PERMISSIONS
 
@@ -119,21 +241,57 @@ namespace API_Gateway.Services
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {
-                _logger.LogWarning("Not found: {Id}", id);
+                _logger.LogWarning("Role permission not found: {Id}", id);
+                return null;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting role permission by id: {Id}", id);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting role permission by id: {Id}", id);
                 return null;
             }
         }
 
         public async Task<IEnumerable<RolePermissionResponse>> GetAllRolePermissionsAsync()
         {
-            var res = await _client.GetAllRolePermissionsAsync(new GetAllRolePermissionsRequest()).ResponseAsync;
-            return res.Items;
+            try
+            {
+                var res = await _client.GetAllRolePermissionsAsync(new GetAllRolePermissionsRequest()).ResponseAsync;
+                return res.Items;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting all role permissions");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting all role permissions");
+                return null;
+            }
         }
 
         public async Task<IEnumerable<RolePermissionResponse>> GetRolePermissionsByRoleIdAsync(int roleId)
         {
-            var res = await _client.GetRolePermissionsByRoleIdAsync(new GetRolePermissionsByRoleIdRequest { RoleId = roleId }).ResponseAsync;
-            return res.Items;
+            try
+            {
+                var res = await _client.GetRolePermissionsByRoleIdAsync(new GetRolePermissionsByRoleIdRequest { RoleId = roleId }).ResponseAsync;
+                return res.Items;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting role permissions by role id: {RoleId}", roleId);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting role permissions by role id: {RoleId}", roleId);
+                return null;
+            }
         }
 
         public async Task<RolePermissionResponse?> GetRolePermissionByRoleIdAndPathAsync(int roleId, string apiPath)
@@ -148,6 +306,17 @@ namespace API_Gateway.Services
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {
+                _logger.LogWarning("Role permission not found for roleId: {RoleId}, path: {ApiPath}", roleId, apiPath);
+                return null;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting role permission by roleId and path: {RoleId}, {ApiPath}", roleId, apiPath);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting role permission by roleId and path: {RoleId}, {ApiPath}", roleId, apiPath);
                 return null;
             }
         }
@@ -160,6 +329,17 @@ namespace API_Gateway.Services
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
             {
+                _logger.LogWarning("Role permission already exists");
+                return null;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while creating role permission");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while creating role permission");
                 return null;
             }
         }
@@ -172,6 +352,17 @@ namespace API_Gateway.Services
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {
+                _logger.LogWarning("Role permission not found for update");
+                return null;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while updating role permission");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while updating role permission");
                 return null;
             }
         }
@@ -185,6 +376,17 @@ namespace API_Gateway.Services
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {
+                _logger.LogWarning("Role permission not found for deletion: {Id}", id);
+                return false;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while deleting role permission: {Id}", id);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while deleting role permission: {Id}", id);
                 return false;
             }
         }
