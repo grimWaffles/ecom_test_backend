@@ -178,6 +178,11 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        public override async Task<OrderHealthCheckMessage> TestOrderServiceHealth(Empty request, ServerCallContext context)
+        {
+            return await Task.FromResult(new OrderHealthCheckMessage() { Message = "Order service up and running"} );
+        }
+
         // Validates fields shared between Create and Update
         private string ValidateOrder(Order order)
         {

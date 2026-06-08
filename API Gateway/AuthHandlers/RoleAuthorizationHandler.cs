@@ -1,4 +1,4 @@
-﻿using API_Gateway.Services.API_Gateway.Services;
+﻿using API_Gateway.Services;
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;

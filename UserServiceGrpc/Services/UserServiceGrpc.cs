@@ -32,9 +32,8 @@ namespace UserServiceGrpc.Services
         public override async Task<TestResponse> TestService(Empty request, ServerCallContext context)
         {
             TestResponse response = new TestResponse();
-            response.ServiceStatus = "Service is running.";
+            response.ServiceStatus = "User service is running.";
 
-            //for easy script testing
             string accessScope = "";
             response.ServiceStatus = accessScope != null && accessScope != "" ? accessScope : response.ServiceStatus;
 

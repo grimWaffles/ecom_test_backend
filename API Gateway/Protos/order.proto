@@ -78,6 +78,10 @@ message OrderListResponse {
   repeated Order orders = 5;
 }
 
+message OrderHealthCheckMessage{
+	string message = 1;
+}
+
 // ====== Service Definition ======
 service OrderGrpcService {
   rpc CreateOrder (CreateOrderRequest) returns (OrderResponse);
@@ -87,4 +91,5 @@ service OrderGrpcService {
   rpc UpdateOrder (UpdateOrderRequest) returns (OrderResponse);
   rpc DeleteOrder (DeleteOrderRequest) returns (OrderResponse);
   rpc TestOrderGrpcService(google.protobuf.Empty) returns (OrderResponse);
+  rpc TestOrderServiceHealth(google.protobuf.Empty) returns (OrderHealthCheckMessage);
 }
