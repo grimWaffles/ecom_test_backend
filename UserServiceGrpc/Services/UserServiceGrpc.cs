@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.IdentityModel.Tokens;
-using UserServiceGrpc.Helpers;
 using UserServiceGrpc.Models.Dtos;
 using UserServiceGrpc.Models.Entities;
 using UserServiceGrpc.Repository;

@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using static UserServiceGrpc.Helpers.Enums;
+
 using UserServiceGrpc.Models.Entities;
 
 namespace UserServiceGrpc.Database
@@ -25,8 +25,6 @@ namespace UserServiceGrpc.Database
                 .WithMany(r => r.Users)
                 .HasForeignKey(f => f.RoleId)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<Role>().Property(r => r.Name).HasConversion(r => r.ToString(), r => (UserRole)Enum.Parse(typeof(UserRole), r));
         }
     }
 }

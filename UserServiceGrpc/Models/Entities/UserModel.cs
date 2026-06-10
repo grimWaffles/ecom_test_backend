@@ -56,6 +56,7 @@ namespace UserServiceGrpc.Models.Entities
         [DeleteBehavior(DeleteBehavior.ClientNoAction)]
         public virtual UserModel ModifiedByUser { get; set; }
 
+        [ForeignKey(nameof(RoleId))]
         public virtual Role Role { get; set; }
     }
 }

@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
-using static UserServiceGrpc.Helpers.Enums;
+
 
 namespace UserServiceGrpc.Models.Entities
 {
@@ -18,7 +18,7 @@ namespace UserServiceGrpc.Models.Entities
         public int Id { get; set; }
 
         [MaxLength(40)]
-        public UserRole Name { get; set; }
+        public string Name { get; set; }
 
         [Required]
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
