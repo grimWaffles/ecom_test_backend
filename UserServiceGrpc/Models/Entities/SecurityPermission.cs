@@ -15,7 +15,6 @@ namespace UserServiceGrpc.Models.Entities
         [Required]
         public string Permission { get; set; }
 
-
         //FKs and relationships
         public ICollection<Role> Roles { get; set; }
     }

@@ -9,6 +9,7 @@ namespace UserServiceGrpc.Database
         public DbSet<UserModel> Users { get; set; }
         public DbSet<Role> Roles { get; set; }
         public DbSet<RolePermissions> RolePermissions { get; set; }
+        public DbSet<SecurityPermission> SecurityPermissions { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {

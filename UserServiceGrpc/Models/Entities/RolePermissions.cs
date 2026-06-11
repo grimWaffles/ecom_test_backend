@@ -29,6 +29,5 @@ namespace UserServiceGrpc.Models.Entities
 
         [ForeignKey(nameof(PermissionId))]
         public virtual SecurityPermission Permission { get; set; }
-
     }
 }

@@ -39,8 +39,13 @@ namespace UserServiceGrpc
 
             //Add services for dependency injection
             builder.Services.AddScoped<IUserRepository, UserRepository>();
-            builder.Services.AddScoped<IRolePermissionsRepository, RolePermissionsRepository>();
-            builder.Services.AddScoped<IRolePermissionsService, RolePermissionsService>();
+
+            builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+            builder.Services.AddScoped<IRoleService, RoleService>();
+
+            builder.Services.AddScoped<ISecurityPermissionRepository, SecurityPermissionRepository>();
+            builder.Services.AddScoped<ISecurityPermissionService, SecurityPermissionService>();
+
 
             var app = builder.Build();
 
