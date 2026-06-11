@@ -9,7 +9,7 @@ namespace UserServiceGrpc.Models.Entities
     [Index(nameof(Username), IsUnique = true)]
     [Index(nameof(MobileNo), IsUnique = true)]
     [Index(nameof(Email), IsUnique = true)]
-    public class UserModel
+    public class UserModel : BaseModel
     {
         public UserModel()
         {

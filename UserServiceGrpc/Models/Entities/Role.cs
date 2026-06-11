@@ -7,7 +7,7 @@ namespace UserServiceGrpc.Models.Entities
 {
     [Table("Roles")]
     [Index(nameof(Name), IsUnique = true)]
-    public class Role
+    public class Role : BaseModel
     {
         public Role() { }
 
