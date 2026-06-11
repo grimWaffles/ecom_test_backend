@@ -1,4 +1,9 @@
+using Google.Protobuf.Collections;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Mysqlx.Crud;
 using System;
+using System.Data;
+using System.Security.Principal;
 using UserServiceGrpc.Models.Entities;
 
 namespace UserServiceGrpc.Database;
@@ -18,6 +23,33 @@ public class RolePermissionSeeder
     {
         Console.WriteLine("Seeding in progress");
 
+//        SELECT* FROM ECommercePlatform.dbo.SecurityPermissions
+
+//drop table if exists RolePermissions
+//create table RolePermissions(
+//    Id bigint identity(1,1) primary key,
+//    RoleId int not null
+
+//        foreign key references Roles(Id),
+//	PermissionId bigint not null
+
+//        foreign key references SecurityPermissions(Id),
+
+//	CreatedBy int NOT NULL
+//        foreign key references Users(Id),
+//    CreatedDate datetime NOT NULL,
+
+//	ModifiedBy int NULL
+
+//        foreign key references Users(Id),
+//	ModifiedDate datetime NULL,
+
+//	IsDelete bit NOT NULL default 0,
+//)
+
+//alter table RolePermissions add constraint UQ_Role_Permission UNIQUE(RoleId, PermissionId)
+
+//select* from RolePermissions
         //if (_context.RolePermissions.Any())
         //{
         //    return;
