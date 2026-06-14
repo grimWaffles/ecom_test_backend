@@ -5,14 +5,14 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace UserServiceGrpc.Models.Entities
 {
     [Table("RolePermissions")]
-    public class RolePermissions : BaseModel
+    public class RolePermission : BaseModel
     {
-        public RolePermissions() { }
+        public RolePermission() { }
 
         // Primary Key
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public int Id { get; set; }
+        public long Id { get; set; }
 
         // Foreign key from Roles table
         [Required]
@@ -20,7 +20,7 @@ namespace UserServiceGrpc.Models.Entities
 
         //Foreign key from Permissions table
         [Required]
-        public int PermissionId { get; set; }
+        public long PermissionId { get; set; }
 
 
         //FKs and relationships

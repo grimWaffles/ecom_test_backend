@@ -10,7 +10,7 @@ namespace UserServiceGrpc.Models.Entities
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public int Id { get; set; }
+        public long Id { get; set; }
 
         [Required]
         public string Permission { get; set; }

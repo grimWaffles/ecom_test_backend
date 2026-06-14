@@ -4,6 +4,7 @@ using Mysqlx.Crud;
 using System;
 using System.Data;
 using System.Security.Principal;
+using UserServiceGrpc.Models.Dtos;
 using UserServiceGrpc.Models.Entities;
 
 namespace UserServiceGrpc.Database;
@@ -12,81 +13,135 @@ public class RolePermissionSeeder
 {
     private readonly AppDbContext _context;
     public string[] EntitiesArray { get; set; }
+    public string[] ActionArray { get; set; }
 
     public RolePermissionSeeder(AppDbContext dbContext)
     {
         _context = dbContext;
         EntitiesArray = ["cart", "order", "productCategory", "product", "seller", "user"];
+        ActionArray = ["create", "read", "update", "delete"];
     }
 
     public void SeedRolePermissions()
     {
         Console.WriteLine("Seeding in progress");
 
-//        SELECT* FROM ECommercePlatform.dbo.SecurityPermissions
+        //Setup the permission table if not exists
+        if (!_context.SecurityPermissions.Any())
+        {
+            List<SecurityPermission> permissionsToAdd = new List<SecurityPermission>();
 
-//drop table if exists RolePermissions
-//create table RolePermissions(
-//    Id bigint identity(1,1) primary key,
-//    RoleId int not null
+            try
+            {
+                foreach (string entity in EntitiesArray)
+                {
+                    foreach (string action in ActionArray)
+                    {
+                        permissionsToAdd.Add(new SecurityPermission()
+                        {
+                            Permission = entity + '.' + action,
+                            CreatedBy = 1,
+                            CreatedDate = DateTime.Now,
+                            IsDeleted = false
+                        });
+                    }
+                }
 
-//        foreign key references Roles(Id),
-//	PermissionId bigint not null
+                _context.SecurityPermissions.AddRange(permissionsToAdd);
+                _context.SaveChanges();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Failed to add Security Permissions");
+                Console.WriteLine(e.Message);
+                Console.WriteLine(e.StackTrace);
+                throw;
+            }
+        }
 
-//        foreign key references SecurityPermissions(Id),
+        //Setup role-wise permissions
+        if (!_context.RolePermissions.Any())
+        {
+            try
+            {
+                List<RolePermission> rpsToAdd = new List<RolePermission>();
 
-//	CreatedBy int NOT NULL
-//        foreign key references Users(Id),
-//    CreatedDate datetime NOT NULL,
+                List<SecurityPermissionDto> permissionDtos = _context.SecurityPermissions
+                    .Where(x => !x.IsDeleted)
+                    .Select(x => new SecurityPermissionDto()
+                    {
+                        Id = x.Id,
+                        PermissionName = x.Permission
+                    }).ToList();
 
-//	ModifiedBy int NULL
+                List<Role> roles = _context.Roles.ToList();
 
-//        foreign key references Users(Id),
-//	ModifiedDate datetime NULL,
+                //For Admin (All permissions)
+                int adminRoleId = roles.Where(x => x.Name.ToLower() == "admin").Select(x => x.Id).First();
 
-//	IsDelete bit NOT NULL default 0,
-//)
+                foreach (SecurityPermissionDto dto in permissionDtos)
+                {
+                    rpsToAdd.Add(new RolePermission()
+                    {
+                        RoleId = adminRoleId,
+                        PermissionId = dto.Id,
+                        CreatedBy = 1,
+                        CreatedDate = DateTime.Now,
+                        IsDeleted = false
+                    });
+                }
 
-//alter table RolePermissions add constraint UQ_Role_Permission UNIQUE(RoleId, PermissionId)
+                //For Seller
+                int sellerRoleId = roles.Where(x => x.Name.ToLower() == "seller").Select(x => x.Id).First();
 
-//select* from RolePermissions
-        //if (_context.RolePermissions.Any())
-        //{
-        //    return;
-        //}
-        //else
-        //{
-        //    List<Role> roleCount = _context.Roles.Where(x => !x.IsDeleted).ToList();
-        //    Console.WriteLine($"Total roles in the system is {roleCount.Count()}");
+                foreach (SecurityPermissionDto dto in permissionDtos
+                    .Where(x =>
+                        x.PermissionName.Contains("seller") ||
+                        x.PermissionName.Contains("product") ||
+                        x.PermissionName.Contains("productcategory"))
+                    )
+                {
+                    rpsToAdd.Add(new RolePermission()
+                    {
+                        RoleId = sellerRoleId,
+                        PermissionId = dto.Id,
+                        CreatedBy = 1,
+                        CreatedDate = DateTime.Now,
+                        IsDeleted = false
+                    });
+                }
 
-        //    if (roleCount.Count() == 0) { return; }
+                //For Customer
+                int customerRoleId = roles.Where(x => x.Name.ToLower() == "customer").Select(x => x.Id).First();
 
-        //    List<RolePermissions> listToAdd = new List<RolePermissions>();
+                foreach (SecurityPermissionDto dto in permissionDtos
+                    .Where(x =>
+                        x.PermissionName.Contains("cart") ||
+                        x.PermissionName.Contains("order") ||
+                        x.PermissionName.Contains("product.view"))
+                    )
+                {
+                    rpsToAdd.Add(new RolePermission()
+                    {
+                        RoleId = customerRoleId,
+                        PermissionId = dto.Id,
+                        CreatedBy = 1,
+                        CreatedDate = DateTime.Now,
+                        IsDeleted = false
+                    });
+                }
 
-        //    foreach (Role r in roleCount)
-        //    {
-        //        foreach (string entity in EntitiesArray)
-        //        {
-        //            listToAdd.Add(new RolePermissions()
-        //            {
-        //                RoleId = r.Id,
-        //                ApiPath = "/api/" + entity+"/",
-        //                ViewPermission = r.Name.ToString().ToLower() == "admin" ? true : false,
-        //                AddPermission = r.Name.ToString().ToLower() == "admin" ? true : false,
-        //                EditPermission = r.Name.ToString().ToLower() == "admin" ? true : false,
-        //                DeletePermission = r.Name.ToString().ToLower() == "admin" ? true : false,
-        //                CreatedBy = 1,
-        //                CreatedDate = DateTime.UtcNow,
-        //                ModifiedBy = null,
-        //                ModifiedDate = null
-        //            });
-        //        }
-        //    }
-        //    Console.WriteLine($"Total rows to add {listToAdd.Count()}");
-
-        //    _context.AddRange(listToAdd);
-        //    _context.SaveChanges();
-        //}
+                _context.RolePermissions.AddRange(rpsToAdd);
+                _context.SaveChanges();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Failed to add Role Permissions");
+                Console.WriteLine(e.Message);
+                Console.WriteLine(e.StackTrace);
+                throw;
+            }
+        }
 
         Console.WriteLine("Seeding complete");
     }
