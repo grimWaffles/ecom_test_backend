@@ -46,6 +46,8 @@ namespace UserServiceGrpc
             builder.Services.AddScoped<ISecurityPermissionRepository, SecurityPermissionRepository>();
             builder.Services.AddScoped<ISecurityPermissionService, SecurityPermissionService>();
 
+            builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
+            builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 
             var app = builder.Build();
 
