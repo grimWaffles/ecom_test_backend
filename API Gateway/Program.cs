@@ -1,4 +1,5 @@
 
+using API_Gateway.AuthHandlers;
 using API_Gateway.Database;
 using API_Gateway.Grpc;
 using API_Gateway.Handlers;
@@ -87,36 +88,34 @@ namespace API_Gateway
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = builder.Configuration["Jwt:validIssuer"],
                         ValidAudience = builder.Configuration["Jwt:validAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"] ?? ""))
+                        RoleClaimType = "Role",
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"]))
                     };
                 });
 
             builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
             builder.Services.AddScoped<IAuthorizationHandler, ReportAuthorizationHandler>();
 
-            builder.Services.AddAuthentication();
+            builder.Services.AddSingleton<IAuthorizationPolicyProvider, RolePermissionPolicyProvider>();
 
-            builder.Services.AddAuthorization(options =>
-            {
-                options.AddPolicy("RolePermissionPolicy", policy =>
+            builder.Services.AddAuthorization(
+                options =>
                 {
-                    policy.AddRequirements(new RolePermissionRequirement());
-                });
+                    options.AddPolicy("AdminOnly", policy =>
+                    {
+                        policy.RequireRole("ADMIN");
+                    });
 
-                options.AddPolicy("ReportResourcePolicy", policy =>
-                {
-                    policy.AddRequirements(new ReportResourceRequirement());
-                });
-
-                //Ensure all the endpoints require authorization by default
-                //options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
-            });
-
-            builder.Services.AddControllers();
+                    //Ensure all the endpoints require authorization by default
+                    //options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
+                }
+            );
 
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
+
+            builder.Services.AddControllers();
 
             var app = builder.Build();
 

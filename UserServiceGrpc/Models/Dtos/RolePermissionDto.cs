@@ -1,4 +1,6 @@
-﻿namespace UserServiceGrpc.Models.Dtos
+﻿using UserServiceGrpc.Models.Entities;
+
+namespace UserServiceGrpc.Models.Dtos
 {
     public class RolePermissionDto
     {

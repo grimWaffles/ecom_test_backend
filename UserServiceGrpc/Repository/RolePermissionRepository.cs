@@ -1,5 +1,4 @@
-﻿using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using UserServiceGrpc.Database;
 using UserServiceGrpc.Models.Entities;
 
@@ -7,156 +6,98 @@ namespace UserServiceGrpc.Repository
 {
     public interface IRolePermissionRepository
     {
-        Task<RolePermission> GetPermissionByRoleIdAsync(int roleId);
-        Task<RolePermission> GetPermissionByIdAsync(int id);
-        Task<RolePermission> GetPermissionByNameAsync(string permissionName);
-        Task<RolePermission> CreateAsync(RolePermission rolePermission, int userId);
-        Task<RolePermission> UpdateAsync(RolePermission rolePermission, int userId);
-        Task<bool> SoftDeleteAsync(int id, int userId);
+        Task<List<RolePermission>> GetAllPermissionsByRoleId(long roleId);
+        Task<RolePermission> CreateRolePermission(RolePermission model, int userId);
+        Task<RolePermission> UpdateRolePermission(RolePermission model, int userId);
+        Task DeleteRolePermission(long id, int userId);
     }
 
     public class RolePermissionRepository : IRolePermissionRepository
     {
-        private readonly AppDbContext _context;
         private readonly ILogger<RolePermissionRepository> _logger;
+        private readonly AppDbContext _db;
 
-        public RolePermissionRepository(AppDbContext context, ILogger<RolePermissionRepository> logger)
+        public RolePermissionRepository(AppDbContext appDbContext, ILogger<RolePermissionRepository> logger)
         {
-            _context = context;
+            _db = appDbContext;
             _logger = logger;
         }
 
-        public async Task<RolePermission> GetPermissionByRoleIdAsync(int roleId)
+        public async Task<List<RolePermission>> GetAllPermissionsByRoleId(long roleId)
         {
             try
             {
-                return await _context.RolePermissions
-                    .Include(rp => rp.Role)
-                    .Include(rp => rp.Permission)
-                    .FirstOrDefaultAsync(rp => rp.RoleId == roleId && !rp.IsDeleted);
+                return await _db.RolePermissions
+                    .Include(x => x.Permission)
+                    .Where(x => x.RoleId == roleId && !x.IsDeleted) // fix: was x.Id == roleId
+                    .ToListAsync();
             }
-            catch (SqlException ex)
+            catch (Exception e)
             {
-                _logger.LogError(ex, "SQL error occurred while fetching permission for RoleId: {RoleId}", roleId);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while fetching permission for RoleId: {RoleId}", roleId);
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
                 throw;
             }
         }
 
-        public async Task<RolePermission> GetPermissionByIdAsync(int id)
+        public async Task<RolePermission> CreateRolePermission(RolePermission model, int userId)
         {
             try
             {
-                return await _context.RolePermissions
-                    .Include(rp => rp.Role)
-                    .Include(rp => rp.Permission)
-                    .FirstOrDefaultAsync(rp => rp.Id == id && !rp.IsDeleted);
+                model.CreatedBy = userId;
+                model.CreatedDate = DateTime.UtcNow;
+                model.IsDeleted = false;
+
+                await _db.RolePermissions.AddAsync(model);
+                await _db.SaveChangesAsync();
+
+                return model;
             }
-            catch (SqlException ex)
+            catch (Exception e)
             {
-                _logger.LogError(ex, "SQL error occurred while fetching permission with Id: {Id}", id);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while fetching permission with Id: {Id}", id);
+                _logger.LogError("Error: Failed to create role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
                 throw;
             }
         }
 
-        public async Task<RolePermission> GetPermissionByNameAsync(string permissionName)
+        public async Task<RolePermission> UpdateRolePermission(RolePermission model, int userId)
         {
             try
             {
-                return await _context.RolePermissions
-                    .Include(rp => rp.Role)
-                    .Include(rp => rp.Permission)
-                    .FirstOrDefaultAsync(rp => rp.Permission.Permission == permissionName && !rp.IsDeleted);
+                var existing = await _db.RolePermissions.FindAsync(model.Id)
+                    ?? throw new KeyNotFoundException($"RolePermission with Id {model.Id} was not found.");
+
+                existing.RoleId = model.RoleId;
+                existing.PermissionId = model.PermissionId;
+                existing.ModifiedBy = userId;
+                existing.ModifiedDate = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync();
+
+                return existing;
             }
-            catch (SqlException ex)
+            catch (Exception e)
             {
-                _logger.LogError(ex, "SQL error occurred while fetching permission with Name: {PermissionName}", permissionName);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while fetching permission with Name: {PermissionName}", permissionName);
+                _logger.LogError("Error: Failed to update role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
                 throw;
             }
         }
 
-        public async Task<RolePermission> CreateAsync(RolePermission rolePermission, int userId)
+        public async Task DeleteRolePermission(long id, int userId)
         {
             try
             {
-                rolePermission.CreatedBy = userId;
-                rolePermission.CreatedDate = DateTime.UtcNow;
+                var existing = await _db.RolePermissions.FindAsync(id)
+                    ?? throw new KeyNotFoundException($"RolePermission with Id {id} was not found.");
 
-                await _context.RolePermissions.AddAsync(rolePermission);
-                await _context.SaveChangesAsync();
-                return rolePermission;
-            }
-            catch (SqlException ex)
-            {
-                _logger.LogError(ex, "SQL error occurred while creating RolePermission for RoleId: {RoleId}", rolePermission.RoleId);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while creating RolePermission for RoleId: {RoleId}", rolePermission.RoleId);
-                throw;
-            }
-        }
+                existing.IsDeleted = true;
+                existing.ModifiedBy = userId;
+                existing.ModifiedDate = DateTime.UtcNow;
 
-        public async Task<RolePermission> UpdateAsync(RolePermission rolePermission, int userId)
-        {
-            try
-            {
-                rolePermission.ModifiedBy = userId;
-                rolePermission.ModifiedDate = DateTime.UtcNow;
-
-                _context.RolePermissions.Update(rolePermission);
-                await _context.SaveChangesAsync();
-                return rolePermission;
+                await _db.SaveChangesAsync();
             }
-            catch (SqlException ex)
+            catch (Exception e)
             {
-                _logger.LogError(ex, "SQL error occurred while updating RolePermission with Id: {Id}", rolePermission.Id);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while updating RolePermission with Id: {Id}", rolePermission.Id);
-                throw;
-            }
-        }
-
-        public async Task<bool> SoftDeleteAsync(int id, int userId)
-        {
-            try
-            {
-                var rolePermission = await _context.RolePermissions.FindAsync(id);
-                if (rolePermission == null) return false;
-
-                rolePermission.IsDeleted = true;
-                rolePermission.ModifiedBy = userId;
-                rolePermission.ModifiedDate = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-                return true;
-            }
-            catch (SqlException ex)
-            {
-                _logger.LogError(ex, "SQL error occurred while soft deleting RolePermission with Id: {Id}", id);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error occurred while soft deleting RolePermission with Id: {Id}", id);
+                _logger.LogError("Error: Failed to delete role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
                 throw;
             }
         }

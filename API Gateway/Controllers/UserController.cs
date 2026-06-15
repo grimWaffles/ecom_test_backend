@@ -167,35 +167,11 @@ namespace API_Gateway.Controllers
             }
         }
 
-        //Role Permissions
-        [HttpGet("roles/get-by-role-path")]
-        public async Task<IActionResult> GetRolePermissionsForUser([FromQuery] int roleId, [FromQuery] string entity)
+        [HttpGet("role/test")]
+        [Authorize(Policy = "Permission:role.test")]
+        public async Task<IActionResult> TestRoleAccess()
         {
-            try
-            {
-                ReportModel r = new ReportModel()
-                {
-                    Id = 1,
-                    ReportId = 3,
-                    ReportName = "Test Report",
-                    OwnerId = 1,
-                };
-
-                var authResult = await _authorizationService.AuthorizeAsync(User, r, "ReportResourcePolicy");
-                
-                if (!authResult.Succeeded)
-                {
-                    return StatusCode(403, new { response = new RolePermissionResponse(), message = "User does not have access" });
-                }
-
-                var response = await _userServiceClient.GetRolePermissionByRoleIdAndPathAsync(roleId, entity);
-
-                return StatusCode(StatusCodes.Status200OK, new {response = response, message = "" });
-            }
-            catch(Exception ex)
-            {
-                return StatusCode(500, ex.Message);
-            }
+            return Ok();
         }
     }
 }

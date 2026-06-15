@@ -1,11 +1,13 @@
-﻿using System;
+﻿using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using Microsoft.IdentityModel.Tokens;
+using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
-using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
-using Microsoft.IdentityModel.Tokens;
+using UserServiceGrpc.Helpers;
+using UserServiceGrpc.Models.Dtos;
 using UserServiceGrpc.Models.Entities;
 using UserServiceGrpc.Repository;
 
@@ -16,12 +18,14 @@ namespace UserServiceGrpc.Services
         private readonly IUserRepository _repo;
         private readonly ILogger<UserGrpcService> _logger;
         private readonly IConfiguration _configuration;
+        private readonly IRolePermissionService _rolePermissionService;
 
-        public UserGrpcService(IUserRepository userRepository, IConfiguration configuration, ILogger<UserGrpcService> logger)
+        public UserGrpcService(IUserRepository userRepository, IConfiguration configuration, ILogger<UserGrpcService> logger, IRolePermissionService rolePermissionService)
         {
             _repo = userRepository;
             _logger = logger;
             _configuration = configuration;
+            _rolePermissionService = rolePermissionService;
         }
 
         //Test Functions
@@ -214,6 +218,114 @@ namespace UserServiceGrpc.Services
             return response;
         }
 
+        //Role Permissions
+        public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleId(
+            GetAllRolePermissionsByRoleIdRequest request, ServerCallContext context)
+        {
+            try
+            {
+                List<RolePermissionDto> list = await _rolePermissionService.GetAllPermissionsByRoleId(request.RoleId);
+
+                GetAllRolePermissionsByRoleIdResponse response = new GetAllRolePermissionsByRoleIdResponse();
+                response.RolePermissions.AddRange(list.Select(x => new RolePermissionDto
+                {
+                    Id = x.Id,
+                    RoleId = x.RoleId,
+                    PermissionId = x.PermissionId,
+                    RoleName = x.RoleName,
+                    PermissionName = x.PermissionName
+                }));
+
+                return response;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<CreateRolePermissionResponse> CreateRolePermission(
+            CreateRolePermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                RolePermission model = Mapper.CreateRolePermissionModelFromDto(new RolePermissionDto
+                {
+                    Id = request.Model.Id,
+                    RoleId = request.Model.RoleId,
+                    PermissionId = request.Model.PermissionId
+                });
+
+                RolePermissionDto created = await _rolePermissionService.CreateRolePermission(Mapper.CreateRolePermissionDtoFromModel(model), request.UserId);
+
+                return new CreateRolePermissionResponse
+                {
+                    RolePermission = new RolePermissionDto
+                    {
+                        Id = created.Id,
+                        RoleId = created.RoleId,
+                        PermissionId = created.PermissionId,
+                        RoleName = created.RoleName,
+                        PermissionName = created.PermissionName
+                    }
+                };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to create role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<UpdateRolePermissionResponse> UpdateRolePermission(
+            UpdateRolePermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                RolePermission model = Mapper.CreateRolePermissionModelFromDto(new RolePermissionDto
+                {
+                    Id = request.Model.Id,
+                    RoleId = request.Model.RoleId,
+                    PermissionId = request.Model.PermissionId
+                });
+
+                RolePermissionDto updated = await _rolePermissionService.UpdateRolePermission(Mapper.CreateRolePermissionDtoFromModel(model), request.UserId);
+
+                return new UpdateRolePermissionResponse
+                {
+                    RolePermission = new RolePermissionDto
+                    {
+                        Id = updated.Id,
+                        RoleId = updated.RoleId,
+                        PermissionId = updated.PermissionId,
+                        RoleName = updated.RoleName,
+                        PermissionName = updated.PermissionName
+                    }
+                };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to update role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<DeleteRolePermissionResponse> DeleteRolePermission(
+            DeleteRolePermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                await _rolePermissionService.DeleteRolePermission(request.Id, request.UserId);
+
+                return new DeleteRolePermissionResponse { Success = true };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to delete role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
 
         //Private functions
         private UserModel ConvertRequestToModel(CreateUserRequest r)
@@ -254,7 +366,7 @@ namespace UserServiceGrpc.Services
                 new Claim("UserId", Convert.ToString(user.Id)),
                 new Claim("RoleId", Convert.ToString(user.RoleId)),
                 new Claim("Username", Convert.ToString(user.Username)),
-                new Claim(ClaimTypes.Role,user.Role.Name.ToString()),
+                new Claim("Role",user.Role.Name.ToString().ToUpper()),
                 new Claim(JwtRegisteredClaimNames.Jti, guID)
             };
 
