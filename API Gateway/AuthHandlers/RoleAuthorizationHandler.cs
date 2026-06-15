@@ -34,7 +34,6 @@ namespace API_Gateway.Handlers
             {
                 _logger.LogInformation("Handling RoleAuth Requirement for requirement: {requirement}", requirement);
 
-                // Your middleware already validated the token and set claims
                 Claim roleClaim = context.User.FindFirst("role") ?? null;
 
                 if (roleClaim is null)
@@ -42,13 +41,6 @@ namespace API_Gateway.Handlers
                     context.Fail();
                     return;
                 }
-
-                //GetAllRolePermissionsByRoleIdResponse grpcResponse = await _userService.GetAllPermissionsByRoleId(Convert.ToInt32(roleClaim.Value));
-
-                //if (grpcResponse.RolePermissions.Any(x => x.PermissionName == requirement.Permission))
-                //    context.Succeed(requirement);
-                //else
-                //    context.Fail();
 
                 context.Succeed(requirement);
             }

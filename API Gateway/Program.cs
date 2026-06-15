@@ -24,44 +24,7 @@ namespace API_Gateway
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
-            builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
-
-            //Configure the database context
-            string dbType = builder.Configuration["DatabaseConfig:Database"] ?? "";
-            string mode = builder.Configuration["DatabaseConfig:Mode"] ?? "";
-            string dbKey = "";
-            string connectionString = "";
-
-            if (dbType == "" || mode == "")
-            {
-                throw new InvalidOperationException("Database configuration not set up correctly.");
-            }
-
-            dbKey = (dbType.ToLower(), mode.ToLower()) switch
-            {
-                ("work", "local") => "SqlServerWorkConnection",
-                ("work", "docker") => "SqlServerWorkDockerConnection",
-                ("home", "local") => "SqlServerHomeConnection",
-                ("home", "docker") => "SqlServerHomeDockerConnection",
-                _ => ""
-            };
-
-            if (dbKey == "")
-            {
-                throw new InvalidOperationException("Database key not found.");
-            }
-
-            connectionString = builder.Configuration.GetConnectionString(dbKey) ?? "";
-
-            if (connectionString == "")
-            {
-                throw new InvalidOperationException("Database connection string not found.");
-            }
-
-            builder.Services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(connectionString)
-            );
+            ConfigureDatabase(builder.Services, builder.Configuration);
 
             builder.Services.AddCors(options =>
             {
@@ -106,6 +69,16 @@ namespace API_Gateway
                         policy.RequireRole("ADMIN");
                     });
 
+                    options.AddPolicy("CustomerOnly", policy =>
+                    {
+                        policy.RequireRole("CUSTOMER");
+                    });
+
+                    options.AddPolicy("SellerOnly", policy =>
+                    {
+                        policy.RequireRole("SELLER");
+                    });
+
                     //Ensure all the endpoints require authorization by default
                     //options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
                 }
@@ -140,6 +113,45 @@ namespace API_Gateway
             app.MapControllers();
 
             app.Run();
+        }
+
+        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
+        {
+            //Configure the database context
+            string dbType = configuration["DatabaseConfig:Database"] ?? "";
+            string mode = configuration["DatabaseConfig:Mode"] ?? "";
+            string dbKey = "";
+            string connectionString = "";
+
+            if (dbType == "" || mode == "")
+            {
+                throw new InvalidOperationException("Database configuration not set up correctly.");
+            }
+
+            dbKey = (dbType.ToLower(), mode.ToLower()) switch
+            {
+                ("work", "local") => "SqlServerWorkConnection",
+                ("work", "docker") => "SqlServerWorkDockerConnection",
+                ("home", "local") => "SqlServerHomeConnection",
+                ("home", "docker") => "SqlServerHomeDockerConnection",
+                _ => ""
+            };
+
+            if (dbKey == "")
+            {
+                throw new InvalidOperationException("Database key not found.");
+            }
+
+            connectionString = configuration.GetConnectionString(dbKey) ?? "";
+
+            if (connectionString == "")
+            {
+                throw new InvalidOperationException("Database connection string not found.");
+            }
+
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(connectionString)
+            );
         }
     }
 }
