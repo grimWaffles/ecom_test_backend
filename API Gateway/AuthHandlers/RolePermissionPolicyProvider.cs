@@ -4,9 +4,18 @@ using Microsoft.Extensions.Options;
 
 namespace API_Gateway.AuthHandlers
 {
+    public class RequiresPermissionAttribute: AuthorizeAttribute
+    {
+        public RequiresPermissionAttribute(string permissionTag) : base($"Permission:{permissionTag}")
+        {
+            
+        }
+    }
+
     public class RolePermissionPolicyProvider : IAuthorizationPolicyProvider
     {
         private const string POLICY_PREFIX = "Permission:";
+
         private readonly DefaultAuthorizationPolicyProvider _defPolicyProvider;
         private readonly ILogger<RolePermissionPolicyProvider> _logger;
 
