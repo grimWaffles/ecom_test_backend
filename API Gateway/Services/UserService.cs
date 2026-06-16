@@ -29,6 +29,8 @@ namespace API_Gateway.Services
 
         // Role Permissions APIs
         Task<GetAllRolePermissionsByRoleIdResponse?> GetAllPermissionsByRoleId(int id);
+        Task<CheckRoleIdAndPermissionResponse?> CheckRoleIdAndPermission(int id, string permissionName);
+        Task<GetAllRolePermissionsByRoleIdResponse?> GetAllPermissionsByRoleIdAndPermissionName(int id, string permissionName);
         Task<CreateRolePermissionResponse?> CreateRolePermissionAsync(CreateRolePermissionRequest dto);
         Task<UpdateRolePermissionResponse?> UpdateRolePermissionAsync(UpdateRolePermissionRequest dto);
         Task<bool> DeleteRolePermissionAsync(int id);
@@ -120,7 +122,7 @@ namespace API_Gateway.Services
         {
             try
             {
-                return await _client.GetUserByIdAsyncAsync(new UserRequestSingle() { UserId = userId}).ResponseAsync;
+                return await _client.GetUserByIdAsyncAsync(new UserRequestSingle() { UserId = userId }).ResponseAsync;
             }
             catch (RpcException ex)
             {
@@ -248,6 +250,52 @@ namespace API_Gateway.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while getting role permission by id: {Id}", id);
+                return null;
+            }
+        }
+
+        public async Task<GetAllRolePermissionsByRoleIdResponse?> GetAllPermissionsByRoleIdAndPermissionName(int id, string permissionName)
+        {
+            try
+            {
+                return await _client.GetAllPermissionsByRoleIdAndPermissionNameAsync(new GetAllRolePermissionsByRoleIdAndPermissionNameRequest { RoleId = id, PermissionName = permissionName }).ResponseAsync;
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                _logger.LogWarning("Role permission not found: {Id}, {permission}", id, permissionName);
+                return null;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while getting role permission by id, name: {Id}, {permission}", id, permissionName);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting role permission by id, name: {Id}, {permission}", id, permissionName);
+                return null;
+            }
+        }
+
+        public async Task<CheckRoleIdAndPermissionResponse?> CheckRoleIdAndPermission(int id, string permissionName)
+        {
+            try
+            {
+                return await _client.CheckRoleIdAndPermissionAsync(new CheckRoleIdAndPermissionRequest { RoleId = id, PermissionName = permissionName }).ResponseAsync;
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                _logger.LogWarning("Role permission not found: {Id}, {permission}", id, permissionName);
+                return null;
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex, "RPC error occurred while checking role permission by id, name: {Id}, {permission}", id, permissionName);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while checking role permission by id, name: {Id}, {permission}", id, permissionName);
                 return null;
             }
         }

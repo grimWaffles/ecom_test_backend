@@ -7,6 +7,8 @@ namespace UserServiceGrpc.Repository
     public interface IRolePermissionRepository
     {
         Task<List<RolePermission>> GetAllPermissionsByRoleId(long roleId);
+        Task<List<RolePermission>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName);
+        Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName);
         Task<RolePermission> CreateRolePermission(RolePermission model, int userId);
         Task<RolePermission> UpdateRolePermission(RolePermission model, int userId);
         Task DeleteRolePermission(long id, int userId);
@@ -31,6 +33,40 @@ namespace UserServiceGrpc.Repository
                     .Include(x => x.Permission)
                     .Where(x => x.RoleId == roleId && !x.IsDeleted) // fix: was x.Id == roleId
                     .ToListAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
+        }
+
+        public async Task<List<RolePermission>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName)
+        {
+            try
+            {
+                return await _db.RolePermissions
+                    .Include(x => x.Permission)
+                    .Where(x => x.RoleId == roleId && !x.IsDeleted && x.Permission.Permission == permissionName) // fix: was x.Id == roleId
+                    .ToListAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
+        }
+
+        public async Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName)
+        {
+            try
+            {
+                if (_db.RolePermissions.Include(x => x.Permission).Any(x => x.RoleId == roleId && x.Permission.Permission == permissionName))
+                {
+                    return true;
+                }
+
+                return false;
             }
             catch (Exception e)
             {

@@ -3,6 +3,7 @@ using API_Gateway.Services;
 using ApiGateway.Protos;
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 
 namespace API_Gateway.Handlers
@@ -35,9 +36,27 @@ namespace API_Gateway.Handlers
                 _logger.LogInformation("Handling RoleAuth Requirement for requirement: {requirement}", requirement);
 
                 Claim roleClaim = context.User.FindFirst("role") ?? null;
-
+                Claim roleIdClaim = context.User.FindFirst("roleId") ?? null;
                 if (roleClaim is null)
                 {
+                    context.Fail();
+                    return;
+                }
+
+                int roleId = Convert.ToInt32(roleIdClaim.Value);
+
+                if (roleId == 0)
+                {
+                    _logger.LogError("User role not found!");
+                    context.Fail();
+                    return;
+                }
+
+                CheckRoleIdAndPermissionResponse response = await _userService.CheckRoleIdAndPermission(roleId, requirement.Permission) ?? new CheckRoleIdAndPermissionResponse();
+
+                if (!response.Exists)
+                {
+                    _logger.LogCritical("Unauthorized user detected for requirement: {r}", requirement);
                     context.Fail();
                     return;
                 }

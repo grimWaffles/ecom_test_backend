@@ -169,8 +169,15 @@ namespace API_Gateway.Controllers
         }
 
         [HttpGet("role/test/permission")]
-        [Authorize(Policy = "Permission:role.test")]
+        [Authorize(Policy = "Permission:cart.read")]
         public async Task<IActionResult> TestRolePermissionAccess()
+        {
+            return Ok();
+        }
+
+        [HttpGet("role/test/permission/2")]
+        [Authorize(Policy = "Permission:order.create")]
+        public async Task<IActionResult> TestRolePermissionAccess2()
         {
             return Ok();
         }

@@ -245,6 +245,51 @@ namespace UserServiceGrpc.Services
             }
         }
 
+        public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleIdAndPermissionName(GetAllRolePermissionsByRoleIdAndPermissionNameRequest request, ServerCallContext context)
+        {
+            try
+            {
+                List<RolePermissionDto> list = await _rolePermissionService.GetPermissionByRoleIdAndPermissionName(request.RoleId, request.PermissionName);
+
+                GetAllRolePermissionsByRoleIdResponse response = new GetAllRolePermissionsByRoleIdResponse();
+                response.RolePermissions.AddRange(list.Select(x => new RolePermissionDto
+                {
+                    Id = x.Id,
+                    RoleId = x.RoleId,
+                    PermissionId = x.PermissionId,
+                    RoleName = x.RoleName,
+                    PermissionName = x.PermissionName
+                }));
+
+                return response;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<CheckRoleIdAndPermissionResponse> CheckRoleIdAndPermission(CheckRoleIdAndPermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                bool exists = await _rolePermissionService.CheckRoleIdAndPermissionName(request.RoleId, request.PermissionName);
+
+                CheckRoleIdAndPermissionResponse response = new CheckRoleIdAndPermissionResponse()
+                {
+                    Exists = exists
+                };
+
+                return response;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
         public override async Task<CreateRolePermissionResponse> CreateRolePermission(
             CreateRolePermissionRequest request, ServerCallContext context)
         {

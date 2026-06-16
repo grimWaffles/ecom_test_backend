@@ -22,6 +22,9 @@ service User{
 
 	//Role Permissions
 	rpc GetAllPermissionsByRoleId (GetAllRolePermissionsByRoleIdRequest) returns (GetAllRolePermissionsByRoleIdResponse);
+	rpc GetAllPermissionsByRoleIdAndPermissionName (GetAllRolePermissionsByRoleIdAndPermissionNameRequest) returns (GetAllRolePermissionsByRoleIdResponse);
+	rpc CheckRoleIdAndPermission (CheckRoleIdAndPermissionRequest) returns (CheckRoleIdAndPermissionResponse);
+
     rpc CreateRolePermission (CreateRolePermissionRequest) returns (CreateRolePermissionResponse);
     rpc UpdateRolePermission (UpdateRolePermissionRequest) returns (UpdateRolePermissionResponse);
     rpc DeleteRolePermission (DeleteRolePermissionRequest) returns (DeleteRolePermissionResponse);
@@ -96,6 +99,16 @@ message GetAllRolePermissionsByRoleIdRequest {
     int64 role_id = 1;
 }
 
+message GetAllRolePermissionsByRoleIdAndPermissionNameRequest {
+    int64 role_id = 1;
+	string permission_name = 2;
+}
+
+message CheckRoleIdAndPermissionRequest{
+	int64 role_id = 1;
+	string permission_name = 2;
+}
+
 message CreateRolePermissionRequest {
     RolePermissionModel model = 1;
     int32 user_id = 2;
@@ -125,4 +138,8 @@ message UpdateRolePermissionResponse {
 
 message DeleteRolePermissionResponse {
     bool success = 1;
+}
+
+message CheckRoleIdAndPermissionResponse {
+    bool exists = 1;
 }

@@ -59,6 +59,7 @@ namespace API_Gateway
             builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
             builder.Services.AddScoped<IAuthorizationHandler, ReportAuthorizationHandler>();
 
+            //Main Auth Policy Provider
             builder.Services.AddSingleton<IAuthorizationPolicyProvider, RolePermissionPolicyProvider>();
 
             builder.Services.AddAuthorization(
