@@ -7,7 +7,7 @@ namespace API_Gateway.AuthHandlers
 {
     public class RequiresPermissionAttribute : AuthorizeAttribute
     {
-        public RequiresPermissionAttribute(string permissionTag) : base($"Permission:{permissionTag}")
+        public RequiresPermissionAttribute(string permissionTag) : base($"{permissionTag}")
         {
 
         }
@@ -44,17 +44,16 @@ namespace API_Gateway.AuthHandlers
 
         public async Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
         {
-            if (!policyName.StartsWith(POLICY_PREFIX))
-            {
-                _logger.LogInformation("Forwarding to appropriate policy");
-                return await _defPolicyProvider.GetPolicyAsync(policyName);
-            }
+            //if (!policyName.StartsWith(POLICY_PREFIX))
+            //{
+            //    _logger.LogInformation("Forwarding to appropriate policy");
+            //    return await _defPolicyProvider.GetPolicyAsync(policyName);
+            //}
 
-            string permissionName = policyName.Replace(POLICY_PREFIX, "");
+            string permissionName = policyName; //policyName.Replace(POLICY_PREFIX, "");
 
             _logger.LogInformation("Processing policy: {policy}", permissionName);
 
-            //Check Dictionary For policy
             if (!_policyDictionary.ContainsKey(permissionName))
             {
                 _logger.LogInformation("Policy not found in dictionary. Creating and adding now");

@@ -169,15 +169,22 @@ namespace API_Gateway.Controllers
         }
 
         [HttpGet("role/test/permission")]
-        [Authorize(Policy = "Permission:cart.read")]
+        [RequiresPermission("cart.read")]
         public async Task<IActionResult> TestRolePermissionAccess()
         {
             return Ok();
         }
 
         [HttpGet("role/test/permission/2")]
-        [Authorize(Policy = "Permission:order.create")]
+        [RequiresPermission("order.create")]
         public async Task<IActionResult> TestRolePermissionAccess2()
+        {
+            return Ok();
+        }
+
+        [HttpGet("role/test/admin-plain")]
+        [Authorize]
+        public async Task<IActionResult> TestPlainAuthTagAccess()
         {
             return Ok();
         }
@@ -186,13 +193,6 @@ namespace API_Gateway.Controllers
         //[Authorize(Policy = "AdminOnly")]
         [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> TestRoleAccess()
-        {
-            return Ok();
-        }
-
-        [HttpGet("role/test/custom")]
-        [RequiresPermission("Permission:role.test")]
-        public async Task<IActionResult> TestRolePermissionUsingCustomAttr()
         {
             return Ok();
         }

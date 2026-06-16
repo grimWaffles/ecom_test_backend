@@ -26,6 +26,10 @@ namespace API_Gateway
 
             ConfigureDatabase(builder.Services, builder.Configuration);
 
+            DependencyResolver.RegisterMiddleware(builder.Services);
+            DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
+            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowOrigin", policy =>
@@ -56,12 +60,6 @@ namespace API_Gateway
                     };
                 });
 
-            builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
-            builder.Services.AddScoped<IAuthorizationHandler, ReportAuthorizationHandler>();
-
-            //Main Auth Policy Provider
-            builder.Services.AddSingleton<IAuthorizationPolicyProvider, RolePermissionPolicyProvider>();
-
             builder.Services.AddAuthorization(
                 options =>
                 {
@@ -79,33 +77,19 @@ namespace API_Gateway
                     {
                         policy.RequireRole("SELLER");
                     });
-
-                    //Ensure all the endpoints require authorization by default
-                    //options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
                 }
             );
-
-            DependencyResolver.RegisterMiddleware(builder.Services);
-            DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
-            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
 
             builder.Services.AddControllers();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                //app.UseSwagger();
-                //app.UseSwaggerUI();
-            }
-
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
             //Use Custom Middlewares
-            app.UseTokenAuthorizationMiddleware();
-            app.UseRequestLogMiddleware();
+            //app.UseTokenAuthorizationMiddleware();
+            //app.UseRequestLogMiddleware();
 
             //Add Authentication and Authorization
             app.UseAuthentication();
