@@ -50,6 +50,7 @@ namespace UserServiceGrpc.Services
         {
             try
             {
+                permission.Permission = permission.Permission.ToLower();
                 return await _permissionRepository.CreateAsync(permission);
             }
             catch

@@ -37,6 +37,7 @@ namespace API_Gateway.Handlers
 
                 Claim roleClaim = context.User.FindFirst("role") ?? null;
                 Claim roleIdClaim = context.User.FindFirst("roleId") ?? null;
+                
                 if (roleClaim is null)
                 {
                     context.Fail();

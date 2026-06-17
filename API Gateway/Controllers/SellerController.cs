@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using API_Gateway.AuthHandlers;
 using ApiGateway.Protos;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
 [ApiController]
 [Route("api/sellers")]
+[Authorize]
 public class SellersController : ControllerBase
 {
     private readonly ISellerGrpcClient _grpcClient;
@@ -16,6 +18,7 @@ public class SellersController : ControllerBase
 
     // POST: api/sellers/create
     [HttpPost("create")]
+    [RequiresPermission("seller.create")]
     public async Task<IActionResult> CreateSeller([FromForm] SellerDto dto)
     {
         try
@@ -32,6 +35,7 @@ public class SellersController : ControllerBase
 
     // GET: api/sellers/{id}
     [HttpGet("{id}")]
+    [RequiresPermission("seller.view")]
     public async Task<IActionResult> GetSellerById([FromRoute] int id)
     {
         var seller = await _grpcClient.GetSellerByIdAsync(id);
@@ -40,6 +44,7 @@ public class SellersController : ControllerBase
 
     // GET: api/sellers/all
     [HttpGet("all")]
+    [RequiresPermission("seller.view")]
     public async Task<IActionResult> GetAllSellers()
     {
         var sellers = await _grpcClient.GetAllSellersAsync();
@@ -48,6 +53,7 @@ public class SellersController : ControllerBase
 
     // PUT: api/sellers/update/{id}
     [HttpPut("update/{id}")]
+    [RequiresPermission("seller.update")]
     public async Task<IActionResult> UpdateSeller([FromRoute] int id, [FromForm] SellerDto dto)
     {
         try
@@ -65,6 +71,7 @@ public class SellersController : ControllerBase
 
     // DELETE: api/sellers/delete/{id}
     [HttpDelete("delete/{id}")]
+    [RequiresPermission("seller.delete")]
     public async Task<IActionResult> DeleteSeller([FromRoute] int id)
     {
         try

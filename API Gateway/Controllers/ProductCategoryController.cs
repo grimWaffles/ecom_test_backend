@@ -1,11 +1,13 @@
-﻿using API_Gateway.Services;
+﻿using API_Gateway.AuthHandlers;
+using API_Gateway.Services;
+using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ApiGateway.Protos;
 using System.Security.Claims;
 
 [ApiController]
 [Route("api/product-categories")]
+[Authorize]
 public class ProductCategoryController : ControllerBase
 {
     private readonly IProductCategoryGrpcClient _grpcClient;
@@ -24,6 +26,7 @@ public class ProductCategoryController : ControllerBase
     }
 
     [HttpPost("create")]
+    [RequiresPermission("productCategory.create")]
     public async Task<IActionResult> CreateCategory([FromForm] ProductCategoryDto dto)
     {
         int userId = Convert.ToInt32(HttpContext.User.FindFirst("userId")?.Value);
@@ -34,6 +37,7 @@ public class ProductCategoryController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequiresPermission("productCategory.view")]
     public async Task<IActionResult> GetCategoryById(int id)
     {
         var dto = await _grpcClient.GetCategoryByIdAsync(id);
@@ -41,6 +45,7 @@ public class ProductCategoryController : ControllerBase
     }
 
     [HttpGet("all")]
+    [RequiresPermission("productCategory.view")]
     public async Task<IActionResult> GetAllCategories()
     {
         var categories = await _grpcClient.GetAllCategoriesAsync();
@@ -48,6 +53,7 @@ public class ProductCategoryController : ControllerBase
     }
 
     [HttpPut("update/{id}")]
+    [RequiresPermission("productCategory.update")]
     public async Task<IActionResult> UpdateCategory(int id, [FromForm] ProductCategoryDto dto)
     {
         int userId = Convert.ToInt32(HttpContext.User.FindFirst("userId")?.Value);
@@ -61,6 +67,7 @@ public class ProductCategoryController : ControllerBase
     }
 
     [HttpDelete("delete/{id}")]
+    [RequiresPermission("productCategory.delete")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
         int userId = Convert.ToInt32(HttpContext.User.FindFirst("userId")?.Value);

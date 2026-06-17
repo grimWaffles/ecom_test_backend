@@ -1,12 +1,14 @@
-﻿using API_Gateway.Services;
+﻿using API_Gateway.AuthHandlers;
+using API_Gateway.Services;
+using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ApiGateway.Protos;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
 [ApiController]
 [Route("api/products")]
+[Authorize]
 public class ProductController : ControllerBase
 {
     private readonly IProductGrpcClient _grpcClient;
@@ -25,6 +27,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpPost("create")]
+    [RequiresPermission("product.create")]
     public async Task<IActionResult> CreateProduct([FromForm] ProductDto dto)
     {
         int userId = Convert.ToInt32(HttpContext.User.FindFirst("userId")?.Value);
@@ -33,6 +36,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequiresPermission("product.view")]
     public async Task<IActionResult> GetProductById(int id)
     {
         var product = await _grpcClient.GetProductByIdAsync(id);
@@ -40,6 +44,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpGet("all")]
+    [RequiresPermission("product.view")]
     public async Task<IActionResult> GetAllProducts()
     {
         var products = await _grpcClient.GetAllProductsAsync();
@@ -47,6 +52,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpPut("update/{id}")]
+    [RequiresPermission("product.update")]
     public async Task<IActionResult> UpdateProduct(int id, [FromForm] ProductDto dto)
     {
         int userId = Convert.ToInt32(HttpContext.User.FindFirst("userId")?.Value);
@@ -56,6 +62,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpDelete("delete/{id}")]
+    [RequiresPermission("product.delete")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
         int userId = Convert.ToInt32(HttpContext.User.FindFirst("userId")?.Value);
