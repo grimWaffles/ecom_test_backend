@@ -50,7 +50,7 @@ namespace API_Gateway.AuthHandlers
             //    return await _defPolicyProvider.GetPolicyAsync(policyName);
             //}
 
-            string permissionName = policyName; //policyName.Replace(POLICY_PREFIX, "");
+            string permissionName = policyName.ToLower(); //policyName.Replace(POLICY_PREFIX, "");
 
             _logger.LogInformation("Processing policy: {policy}", permissionName);
 
