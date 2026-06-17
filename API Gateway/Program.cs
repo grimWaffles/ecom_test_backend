@@ -1,21 +1,10 @@
-
-using API_Gateway.AuthHandlers;
 using API_Gateway.Database;
-using API_Gateway.Grpc;
-using API_Gateway.Handlers;
 using API_Gateway.Helpers;
-using API_Gateway.Middlewares;
-using API_Gateway.Models;
-using API_Gateway.Repository;
-using API_Gateway.Services;
-using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using OrderServiceGrpc.Models.ConfigModels;
-using StackExchange.Redis;
 using System.Text;
+
 namespace API_Gateway
 {
     public class Program
@@ -26,9 +15,12 @@ namespace API_Gateway
 
             ConfigureDatabase(builder.Services, builder.Configuration);
 
+            builder.Services.AddHttpContextAccessor();
+
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
+            DependencyResolver.RegisterGrpcServices(builder.Services,builder.Configuration);
 
             builder.Services.AddCors(options =>
             {
@@ -41,9 +33,6 @@ namespace API_Gateway
                 });
             });
 
-            builder.Services.AddHttpContextAccessor();
-
-            //Add JWT Authentication
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
                 {

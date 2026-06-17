@@ -1,13 +1,9 @@
-﻿using ApiGateway.Protos;
+﻿using API_Gateway.Models;
+using ApiGateway.Protos;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Logging;
-using API_Gateway.Models;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace API_Gateway.Services
 {
@@ -36,22 +32,15 @@ namespace API_Gateway.Services
         Task<bool> DeleteRolePermissionAsync(int id);
     }
 
-    public class UserService : IUserService, System.IDisposable
+    public class UserService : IUserService
     {
         private readonly User.UserClient _client;
-        private readonly GrpcChannel _channel;
         private readonly ILogger<UserService> _logger;
 
-        public UserService(IOptions<MicroServiceUrl> options, ILogger<UserService> logger)
+        public UserService(User.UserClient grpcClient, ILogger<UserService> logger)
         {
-            _channel = GrpcChannel.ForAddress(options.Value.GetUserServiceUrl());
-            _client = new User.UserClient(_channel);
+            _client = grpcClient;
             _logger = logger;
-        }
-
-        public void Dispose()
-        {
-            _channel?.Dispose();
         }
 
         public async Task<string> TestServiceAsync()

@@ -7,7 +7,7 @@
 7) Resilience Policies (Polly)
 8) Error Translation
 9) Caching
-10) API Versioning
-11) RBAC
-12) Secrets Management
-13) 
+10) API Versioning -- not needed yet
+11) RBAC -- done
+12) Secrets Management -- not needed yet
+13) Grpc Service Auth

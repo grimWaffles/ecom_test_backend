@@ -1,9 +1,10 @@
-﻿using API_Gateway.Handlers;
+﻿
+using API_Gateway.AuthHandlers.Handlers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 
-namespace API_Gateway.AuthHandlers
+namespace API_Gateway.AuthHandlers.PolicyProviders
 {
     public class RequiresPermissionAttribute : AuthorizeAttribute
     {

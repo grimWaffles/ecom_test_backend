@@ -23,32 +23,13 @@ namespace API_Gateway.Services
     public class ProductGrpcClient : IProductGrpcClient
     {
         private readonly ProductService.ProductServiceClient _client;
-        private readonly MicroServiceUrl _urls;
         private readonly ILogger<ProductGrpcClient> _logger;
         private readonly DateTime rpcCallLimit = DateTime.UtcNow.AddSeconds(2);
 
-        public ProductGrpcClient(IOptions<MicroServiceUrl> microserviceUrls, ILogger<ProductGrpcClient> logger)
+        public ProductGrpcClient(ProductService.ProductServiceClient grpcClient, ILogger<ProductGrpcClient> logger)
         {
             _logger = logger;
-            _urls = microserviceUrls.Value;
-
-            if (string.IsNullOrEmpty(_urls.GetProductServiceUrl()))
-            {
-                throw new ArgumentException("gRPC service URL not configured in appsettings.json");
-            }
-
-            var httpHandler = new HttpClientHandler
-            {
-                // This is optional and should be used only in development for insecure certs
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-            };
-
-            var channel = GrpcChannel.ForAddress(_urls.GetProductServiceUrl(), new GrpcChannelOptions
-            {
-                HttpHandler = httpHandler
-            });
-
-            _client = new ProductService.ProductServiceClient(channel);
+            _client = grpcClient;
         }
 
         public async Task<ProductResponse> CreateProductAsync(int userId, ProductDto dto)

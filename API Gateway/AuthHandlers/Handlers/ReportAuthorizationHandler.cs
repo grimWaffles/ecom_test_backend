@@ -3,7 +3,7 @@ using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
-namespace API_Gateway.Handlers
+namespace API_Gateway.AuthHandlers.Handlers
 {
     public class ReportResourceRequirement : IAuthorizationRequirement { }
 

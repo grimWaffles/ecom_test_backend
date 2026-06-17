@@ -1,12 +1,11 @@
-﻿
-using API_Gateway.Services;
+﻿using API_Gateway.Services;
 using ApiGateway.Protos;
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 
-namespace API_Gateway.Handlers
+namespace API_Gateway.AuthHandlers.Handlers
 {
     public class RolePermissionRequirement : IAuthorizationRequirement
     {
