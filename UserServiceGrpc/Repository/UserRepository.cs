@@ -14,7 +14,7 @@ namespace UserServiceGrpc.Repository
         Task<int> DeleteUser(UserModel user);
         Task<UserModel> GetUserByUsername(string username);
 
-        Task<List<RolePermissions>> GetRolesAccessAsync();
+        Task<List<RolePermission>> GetRolesAccessAsync();
     }
 
     public class UserRepository : IUserRepository
@@ -122,7 +122,7 @@ namespace UserServiceGrpc.Repository
             }
         }
 
-        public async Task<List<RolePermissions>> GetRolesAccessAsync()
+        public async Task<List<RolePermission>> GetRolesAccessAsync()
         {
             try
             {

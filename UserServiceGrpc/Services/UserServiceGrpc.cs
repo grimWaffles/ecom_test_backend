@@ -1,11 +1,11 @@
-﻿using System;
+﻿using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using Microsoft.IdentityModel.Tokens;
+using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
-using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
-using Microsoft.IdentityModel.Tokens;
 using UserServiceGrpc.Helpers;
 using UserServiceGrpc.Models.Dtos;
 using UserServiceGrpc.Models.Entities;
@@ -16,16 +16,16 @@ namespace UserServiceGrpc.Services
     public class UserGrpcService : User.UserBase
     {
         private readonly IUserRepository _repo;
-        private readonly IRolePermissionsService _service;
         private readonly ILogger<UserGrpcService> _logger;
         private readonly IConfiguration _configuration;
+        private readonly IRolePermissionService _rolePermissionService;
 
-        public UserGrpcService(IUserRepository userRepository, IConfiguration configuration, ILogger<UserGrpcService> logger, IRolePermissionsService rolePermissionsService)
+        public UserGrpcService(IUserRepository userRepository, IConfiguration configuration, ILogger<UserGrpcService> logger, IRolePermissionService rolePermissionService)
         {
             _repo = userRepository;
             _logger = logger;
-            _service = rolePermissionsService;
             _configuration = configuration;
+            _rolePermissionService = rolePermissionService;
         }
 
         //Test Functions
@@ -218,6 +218,159 @@ namespace UserServiceGrpc.Services
             return response;
         }
 
+        //Role Permissions
+        public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleId(
+            GetAllRolePermissionsByRoleIdRequest request, ServerCallContext context)
+        {
+            try
+            {
+                List<RolePermissionDto> list = await _rolePermissionService.GetAllPermissionsByRoleId(request.RoleId);
+
+                GetAllRolePermissionsByRoleIdResponse response = new GetAllRolePermissionsByRoleIdResponse();
+                response.RolePermissions.AddRange(list.Select(x => new RolePermissionDto
+                {
+                    Id = x.Id,
+                    RoleId = x.RoleId,
+                    PermissionId = x.PermissionId,
+                    RoleName = x.RoleName,
+                    PermissionName = x.PermissionName
+                }));
+
+                return response;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleIdAndPermissionName(GetAllRolePermissionsByRoleIdAndPermissionNameRequest request, ServerCallContext context)
+        {
+            try
+            {
+                List<RolePermissionDto> list = await _rolePermissionService.GetPermissionByRoleIdAndPermissionName(request.RoleId, request.PermissionName);
+
+                GetAllRolePermissionsByRoleIdResponse response = new GetAllRolePermissionsByRoleIdResponse();
+                response.RolePermissions.AddRange(list.Select(x => new RolePermissionDto
+                {
+                    Id = x.Id,
+                    RoleId = x.RoleId,
+                    PermissionId = x.PermissionId,
+                    RoleName = x.RoleName,
+                    PermissionName = x.PermissionName
+                }));
+
+                return response;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<CheckRoleIdAndPermissionResponse> CheckRoleIdAndPermission(CheckRoleIdAndPermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                bool exists = await _rolePermissionService.CheckRoleIdAndPermissionName(request.RoleId, request.PermissionName);
+
+                CheckRoleIdAndPermissionResponse response = new CheckRoleIdAndPermissionResponse()
+                {
+                    Exists = exists
+                };
+
+                return response;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<CreateRolePermissionResponse> CreateRolePermission(
+            CreateRolePermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                RolePermission model = Mapper.CreateRolePermissionModelFromDto(new RolePermissionDto
+                {
+                    Id = request.Model.Id,
+                    RoleId = request.Model.RoleId,
+                    PermissionId = request.Model.PermissionId
+                });
+
+                RolePermissionDto created = await _rolePermissionService.CreateRolePermission(Mapper.CreateRolePermissionDtoFromModel(model), request.UserId);
+
+                return new CreateRolePermissionResponse
+                {
+                    RolePermission = new RolePermissionDto
+                    {
+                        Id = created.Id,
+                        RoleId = created.RoleId,
+                        PermissionId = created.PermissionId,
+                        RoleName = created.RoleName,
+                        PermissionName = created.PermissionName
+                    }
+                };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to create role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<UpdateRolePermissionResponse> UpdateRolePermission(
+            UpdateRolePermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                RolePermission model = Mapper.CreateRolePermissionModelFromDto(new RolePermissionDto
+                {
+                    Id = request.Model.Id,
+                    RoleId = request.Model.RoleId,
+                    PermissionId = request.Model.PermissionId
+                });
+
+                RolePermissionDto updated = await _rolePermissionService.UpdateRolePermission(Mapper.CreateRolePermissionDtoFromModel(model), request.UserId);
+
+                return new UpdateRolePermissionResponse
+                {
+                    RolePermission = new RolePermissionDto
+                    {
+                        Id = updated.Id,
+                        RoleId = updated.RoleId,
+                        PermissionId = updated.PermissionId,
+                        RoleName = updated.RoleName,
+                        PermissionName = updated.PermissionName
+                    }
+                };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to update role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
+
+        public override async Task<DeleteRolePermissionResponse> DeleteRolePermission(
+            DeleteRolePermissionRequest request, ServerCallContext context)
+        {
+            try
+            {
+                await _rolePermissionService.DeleteRolePermission(request.Id, request.UserId);
+
+                return new DeleteRolePermissionResponse { Success = true };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to delete role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw new RpcException(new Status(StatusCode.Internal, e.Message));
+            }
+        }
 
         //Private functions
         private UserModel ConvertRequestToModel(CreateUserRequest r)
@@ -258,7 +411,7 @@ namespace UserServiceGrpc.Services
                 new Claim("UserId", Convert.ToString(user.Id)),
                 new Claim("RoleId", Convert.ToString(user.RoleId)),
                 new Claim("Username", Convert.ToString(user.Username)),
-                new Claim(ClaimTypes.Role,user.Role.Name.ToString()),
+                new Claim("Role",user.Role.Name.ToString().ToUpper()),
                 new Claim(JwtRegisteredClaimNames.Jti, guID)
             };
 
@@ -286,296 +439,6 @@ namespace UserServiceGrpc.Services
             {
                 return "";
             }
-        }
-
-        public override async Task<RolePermissionResponse> GetRolePermissionById(
-        GetRolePermissionByIdRequest request,
-        ServerCallContext context)
-        {
-            try
-            {
-                if (request.Id <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "Id must be greater than zero."));
-
-                var result = await _service.GetByIdAsync(request.Id);
-
-                if (result is null)
-                    throw new RpcException(new Status(StatusCode.NotFound,
-                        $"RolePermission with Id {request.Id} was not found."));
-
-                return MapToProtoResponse(result);
-            }
-            catch (RpcException)
-            {
-                throw; // already formatted, let it bubble
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error in GetRolePermissionById for Id {Id}", request.Id);
-                throw new RpcException(new Status(StatusCode.Internal,
-                    "An unexpected error occurred while fetching the role permission."));
-            }
-        }
-
-        // ── GetAllRolePermissions ────────────────────────────────────────────────
-
-        public override async Task<GetAllRolePermissionsResponse> GetAllRolePermissions(
-            GetAllRolePermissionsRequest request,
-            ServerCallContext context)
-        {
-            try
-            {
-                var results = await _service.GetAllAsync();
-
-                var response = new GetAllRolePermissionsResponse();
-                response.Items.AddRange(results.Select(MapToProtoResponse));
-                return response;
-            }
-            catch (RpcException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error in GetAllRolePermissions");
-                throw new RpcException(new Status(StatusCode.Internal,
-                    "An unexpected error occurred while fetching role permissions."));
-            }
-        }
-
-        // ── GetRolePermissionsByRoleId ───────────────────────────────────────────
-
-        public override async Task<GetAllRolePermissionsResponse> GetRolePermissionsByRoleId(
-            GetRolePermissionsByRoleIdRequest request,
-            ServerCallContext context)
-        {
-            try
-            {
-                if (request.RoleId <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "RoleId must be greater than zero."));
-
-                var results = await _service.GetByRoleIdAsync(request.RoleId);
-
-                var response = new GetAllRolePermissionsResponse();
-                response.Items.AddRange(results.Select(MapToProtoResponse));
-                return response;
-            }
-            catch (RpcException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Unexpected error in GetRolePermissionsByRoleId for RoleId {RoleId}",
-                    request.RoleId);
-                throw new RpcException(new Status(StatusCode.Internal,
-                    "An unexpected error occurred while fetching role permissions by role."));
-            }
-        }
-
-        // ── GetRolePermissionByRoleIdAndPath ─────────────────────────────────────
-
-        public override async Task<RolePermissionResponse> GetRolePermissionByRoleIdAndPath(
-            GetRolePermissionByRoleIdAndPathRequest request,
-            ServerCallContext context)
-        {
-            try
-            {
-                if (request.RoleId <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "RoleId must be greater than zero."));
-
-                if (string.IsNullOrWhiteSpace(request.ApiPath))
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "ApiPath must not be empty."));
-
-                var result = await _service.GetByRoleIdAndPathAsync(request.RoleId, request.ApiPath);
-
-                if (result is null)
-                    throw new RpcException(new Status(StatusCode.NotFound,
-                        $"RolePermission for RoleId {request.RoleId} and path '{request.ApiPath}' was not found."));
-
-                return MapToProtoResponse(result);
-            }
-            catch (RpcException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Unexpected error in GetRolePermissionByRoleIdAndPath for RoleId {RoleId} ApiPath {ApiPath}",
-                    request.RoleId, request.ApiPath);
-                throw new RpcException(new Status(StatusCode.Internal,
-                    "An unexpected error occurred while fetching the role permission."));
-            }
-        }
-
-        // ── CreateRolePermission ─────────────────────────────────────────────────
-
-        public override async Task<RolePermissionResponse> CreateRolePermission(
-            CreateRolePermissionRequest request,
-            ServerCallContext context)
-        {
-            try
-            {
-                if (request.RoleId <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "RoleId must be greater than zero."));
-
-                if (string.IsNullOrWhiteSpace(request.ApiPath))
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "ApiPath must not be empty."));
-
-                if (request.CreatedBy <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "CreatedBy must be a valid user Id."));
-
-                var dto = new CreateRolePermissionsDto
-                {
-                    RoleId = request.RoleId,
-                    ApiPath = request.ApiPath,
-                    ViewPermission = request.ViewPermission,
-                    AddPermission = request.AddPermission,
-                    EditPermission = request.EditPermission,
-                    DeletePermission = request.DeletePermission,
-                    CreatedBy = request.CreatedBy
-                };
-
-                var result = await _service.CreateAsync(dto);
-                return MapToProtoResponse(result);
-            }
-            catch (RpcException)
-            {
-                throw;
-            }
-            catch (InvalidOperationException ex)
-            {
-                // Duplicate entry — thrown by the service layer
-                _logger.LogWarning(ex, "Duplicate RolePermission for RoleId {RoleId} ApiPath {ApiPath}",
-                    request.RoleId, request.ApiPath);
-                throw new RpcException(new Status(StatusCode.AlreadyExists, ex.Message));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Unexpected error in CreateRolePermission for RoleId {RoleId}", request.RoleId);
-                throw new RpcException(new Status(StatusCode.Internal,
-                    "An unexpected error occurred while creating the role permission."));
-            }
-        }
-
-        // ── UpdateRolePermission ─────────────────────────────────────────────────
-
-        public override async Task<RolePermissionResponse> UpdateRolePermission(
-            UpdateRolePermissionRequest request,
-            ServerCallContext context)
-        {
-            try
-            {
-                if (request.Id <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "Id must be greater than zero."));
-
-                if (string.IsNullOrWhiteSpace(request.ApiPath))
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "ApiPath must not be empty."));
-
-                if (request.ModifiedBy <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "ModifiedBy must be a valid user Id."));
-
-                var dto = new UpdateRolePermissionsDto
-                {
-                    Id = request.Id,
-                    ApiPath = request.ApiPath,
-                    ViewPermission = request.ViewPermission,
-                    AddPermission = request.AddPermission,
-                    EditPermission = request.EditPermission,
-                    DeletePermission = request.DeletePermission,
-                    ModifiedBy = request.ModifiedBy
-                };
-
-                var result = await _service.UpdateAsync(dto);
-
-                if (result is null)
-                    throw new RpcException(new Status(StatusCode.NotFound,
-                        $"RolePermission with Id {request.Id} was not found."));
-
-                return MapToProtoResponse(result);
-            }
-            catch (RpcException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Unexpected error in UpdateRolePermission for Id {Id}", request.Id);
-                throw new RpcException(new Status(StatusCode.Internal,
-                    "An unexpected error occurred while updating the role permission."));
-            }
-        }
-
-        // ── DeleteRolePermission ─────────────────────────────────────────────────
-
-        public override async Task<DeleteRolePermissionResponse> DeleteRolePermission(
-            DeleteRolePermissionRequest request,
-            ServerCallContext context)
-        {
-            try
-            {
-                if (request.Id <= 0)
-                    throw new RpcException(new Status(StatusCode.InvalidArgument,
-                        "Id must be greater than zero."));
-
-                var deleted = await _service.DeleteAsync(request.Id);
-
-                if (!deleted)
-                    throw new RpcException(new Status(StatusCode.NotFound,
-                        $"RolePermission with Id {request.Id} was not found."));
-
-                return new DeleteRolePermissionResponse
-                {
-                    Success = true,
-                    Message = $"RolePermission with Id {request.Id} was successfully deleted."
-                };
-            }
-            catch (RpcException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Unexpected error in DeleteRolePermission for Id {Id}", request.Id);
-                throw new RpcException(new Status(StatusCode.Internal,
-                    "An unexpected error occurred while deleting the role permission."));
-            }
-        }
-
-        // ── Mapper ───────────────────────────────────────────────────────────────
-
-        private static RolePermissionResponse MapToProtoResponse(RolePermissionsResponseDto dto)
-        {
-            return new RolePermissionResponse
-            {
-                Id = dto.Id,
-                RoleId = dto.RoleId,
-                RoleName = dto.RoleName ?? string.Empty,
-                ApiPath = dto.ApiPath ?? string.Empty,
-                ViewPermission = dto.ViewPermission,
-                AddPermission = dto.AddPermission,
-                EditPermission = dto.EditPermission,
-                DeletePermission = dto.DeletePermission,
-                CreatedBy = dto.CreatedBy,
-                ModifiedBy = dto.ModifiedBy ?? 0,
-                CreatedDate = dto.CreatedDate.ToString("o"),
-                ModifiedDate = dto.ModifiedDate?.ToString("o") ?? string.Empty
-            };
         }
     }
 }

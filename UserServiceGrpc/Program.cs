@@ -19,28 +19,21 @@ namespace UserServiceGrpc
             ConfigureDatabase(builder.Services, builder.Configuration);
 
             //Add JWT Auth
-            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters()
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-                        ValidIssuer = builder.Configuration["Jwt:validIssuer"],
-                        ValidAudience = builder.Configuration["Jwt:validAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"]))
-                    };
-                });
-
             builder.Services.AddAuthentication();
+
             builder.Services.AddAuthorization();
 
             //Add services for dependency injection
             builder.Services.AddScoped<IUserRepository, UserRepository>();
-            builder.Services.AddScoped<IRolePermissionsRepository, RolePermissionsRepository>();
-            builder.Services.AddScoped<IRolePermissionsService, RolePermissionsService>();
+
+            builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+            builder.Services.AddScoped<IRoleService, RoleService>();
+
+            builder.Services.AddScoped<ISecurityPermissionRepository, SecurityPermissionRepository>();
+            builder.Services.AddScoped<ISecurityPermissionService, SecurityPermissionService>();
+
+            builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
+            builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 
             var app = builder.Build();
 

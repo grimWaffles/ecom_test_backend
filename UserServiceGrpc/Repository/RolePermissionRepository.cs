@@ -1,194 +1,141 @@
-using System;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using UserServiceGrpc.Database;
 using UserServiceGrpc.Models.Entities;
 
-namespace UserServiceGrpc.Repository;
-
-public interface IRolePermissionsRepository
+namespace UserServiceGrpc.Repository
 {
-    Task<RolePermissions?> GetByIdAsync(int id);
-    Task<IEnumerable<RolePermissions>> GetAllAsync();
-    Task<IEnumerable<RolePermissions>> GetByRoleIdAsync(int roleId);
-    Task<RolePermissions?> GetByRoleIdAndPathAsync(int roleId, string apiPath);
-    Task<RolePermissions> CreateAsync(RolePermissions entity);
-    Task<RolePermissions> UpdateAsync(RolePermissions entity);
-    Task<bool> DeleteAsync(int id);
-    Task<bool> ExistsAsync(int roleId, string apiPath);
-}
-
-// Repositories/RolePermissionsRepository.cs
-public class RolePermissionsRepository : IRolePermissionsRepository
-{
-    private readonly AppDbContext _db;
-    private readonly ILogger<RolePermissionsRepository> _logger;
-
-    public RolePermissionsRepository(AppDbContext db, ILogger<RolePermissionsRepository> logger)
+    public interface IRolePermissionRepository
     {
-        _db = db;
-        _logger = logger;
+        Task<List<RolePermission>> GetAllPermissionsByRoleId(long roleId);
+        Task<List<RolePermission>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName);
+        Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName);
+        Task<RolePermission> CreateRolePermission(RolePermission model, int userId);
+        Task<RolePermission> UpdateRolePermission(RolePermission model, int userId);
+        Task DeleteRolePermission(long id, int userId);
     }
 
-    public async Task<RolePermissions?> GetByIdAsync(int id)
+    public class RolePermissionRepository : IRolePermissionRepository
     {
-        try
-        {
-            return await _db.RolePermissions
-                .Include(rp => rp.Role)
-                .Include(rp => rp.CreatedByUser)
-                .Include(rp => rp.ModifiedByUser)
-                .FirstOrDefaultAsync(rp => rp.Id == id);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching RolePermission with Id {Id}", id);
-            throw;
-        }
-    }
+        private readonly ILogger<RolePermissionRepository> _logger;
+        private readonly AppDbContext _db;
 
-    public async Task<IEnumerable<RolePermissions>> GetAllAsync()
-    {
-        try
+        public RolePermissionRepository(AppDbContext appDbContext, ILogger<RolePermissionRepository> logger)
         {
-            return await _db.RolePermissions
-                .Include(rp => rp.Role)
-                .Include(rp => rp.CreatedByUser)
-                .Include(rp => rp.ModifiedByUser)
-                .AsNoTracking()
-                .ToListAsync();
+            _db = appDbContext;
+            _logger = logger;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching all RolePermissions");
-            throw;
-        }
-    }
 
-    public async Task<IEnumerable<RolePermissions>> GetByRoleIdAsync(int roleId)
-    {
-        try
+        public async Task<List<RolePermission>> GetAllPermissionsByRoleId(long roleId)
         {
-            return await _db.RolePermissions
-                .Include(rp => rp.Role)
-                .Where(rp => rp.RoleId == roleId)
-                .AsNoTracking()
-                .ToListAsync();
+            try
+            {
+                return await _db.RolePermissions
+                    .Include(x => x.Permission)
+                    .Where(x => x.RoleId == roleId && !x.IsDeleted) // fix: was x.Id == roleId
+                    .ToListAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching RolePermissions for RoleId {RoleId}", roleId);
-            throw;
-        }
-    }
 
-    public async Task<RolePermissions?> GetByRoleIdAndPathAsync(int roleId, string apiPath)
-    {
-        try
+        public async Task<List<RolePermission>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName)
         {
-            return await _db.RolePermissions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(rp =>
-                    rp.RoleId == roleId &&
-                    rp.ApiPath.Contains(apiPath));
+            try
+            {
+                return await _db.RolePermissions
+                    .Include(x => x.Permission)
+                    .Where(x => x.RoleId == roleId && !x.IsDeleted && x.Permission.Permission == permissionName) // fix: was x.Id == roleId
+                    .ToListAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Error fetching RolePermission for RoleId {RoleId} and ApiPath {ApiPath}",
-                roleId, apiPath);
-            throw;
-        }
-    }
 
-    public async Task<RolePermissions> CreateAsync(RolePermissions entity)
-    {
-        try
+        public async Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName)
         {
-            await _db.RolePermissions.AddAsync(entity);
-            await _db.SaveChangesAsync();
-            return entity;
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogError(ex,
-                "Database error creating RolePermission for RoleId {RoleId}", entity.RoleId);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Unexpected error creating RolePermission for RoleId {RoleId}", entity.RoleId);
-            throw;
-        }
-    }
+            try
+            {
+                if (_db.RolePermissions.Include(x => x.Permission).Any(x => x.RoleId == roleId && x.Permission.Permission == permissionName))
+                {
+                    return true;
+                }
 
-    public async Task<RolePermissions> UpdateAsync(RolePermissions entity)
-    {
-        try
-        {
-            _db.RolePermissions.Update(entity);
-            await _db.SaveChangesAsync();
-            return entity;
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            _logger.LogError(ex,
-                "Concurrency error updating RolePermission with Id {Id}", entity.Id);
-            throw;
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogError(ex,
-                "Database error updating RolePermission with Id {Id}", entity.Id);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Unexpected error updating RolePermission with Id {Id}", entity.Id);
-            throw;
-        }
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        try
-        {
-            var entity = await _db.RolePermissions.FindAsync(id);
-
-            if (entity is null)
                 return false;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
+        }
 
-            _db.RolePermissions.Remove(entity);
-            await _db.SaveChangesAsync();
-            return true;
-        }
-        catch (DbUpdateException ex)
+        public async Task<RolePermission> CreateRolePermission(RolePermission model, int userId)
         {
-            _logger.LogError(ex, "Database error deleting RolePermission with Id {Id}", id);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error deleting RolePermission with Id {Id}", id);
-            throw;
-        }
-    }
+            try
+            {
+                model.CreatedBy = userId;
+                model.CreatedDate = DateTime.UtcNow;
+                model.IsDeleted = false;
 
-    public async Task<bool> ExistsAsync(int roleId, string apiPath)
-    {
-        try
-        {
-            return await _db.RolePermissions.AnyAsync(rp =>
-                rp.RoleId == roleId &&
-                rp.ApiPath == apiPath);
+                await _db.RolePermissions.AddAsync(model);
+                await _db.SaveChangesAsync();
+
+                return model;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to create role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
         }
-        catch (Exception ex)
+
+        public async Task<RolePermission> UpdateRolePermission(RolePermission model, int userId)
         {
-            _logger.LogError(ex,
-                "Error checking existence for RoleId {RoleId} and ApiPath {ApiPath}",
-                roleId, apiPath);
-            throw;
+            try
+            {
+                var existing = await _db.RolePermissions.FindAsync(model.Id)
+                    ?? throw new KeyNotFoundException($"RolePermission with Id {model.Id} was not found.");
+
+                existing.RoleId = model.RoleId;
+                existing.PermissionId = model.PermissionId;
+                existing.ModifiedBy = userId;
+                existing.ModifiedDate = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync();
+
+                return existing;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to update role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
+        }
+
+        public async Task DeleteRolePermission(long id, int userId)
+        {
+            try
+            {
+                var existing = await _db.RolePermissions.FindAsync(id)
+                    ?? throw new KeyNotFoundException($"RolePermission with Id {id} was not found.");
+
+                existing.IsDeleted = true;
+                existing.ModifiedBy = userId;
+                existing.ModifiedDate = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to delete role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
         }
     }
 }

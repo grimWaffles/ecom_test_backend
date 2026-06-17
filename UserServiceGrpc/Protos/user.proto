@@ -20,19 +20,21 @@ service User{
 	rpc LoginUser ( UserLoginRequest ) returns (UserLoginResponse);
 	rpc LogoutUser ( UserRequestSingle ) returns (UserLoginResponse);
 
-	rpc GetRolePermissionById             (GetRolePermissionByIdRequest)             returns (RolePermissionResponse);
-	rpc GetAllRolePermissions             (GetAllRolePermissionsRequest)             returns (GetAllRolePermissionsResponse);
-	rpc GetRolePermissionsByRoleId        (GetRolePermissionsByRoleIdRequest)        returns (GetAllRolePermissionsResponse);
-	rpc GetRolePermissionByRoleIdAndPath  (GetRolePermissionByRoleIdAndPathRequest)  returns (RolePermissionResponse);
-	rpc CreateRolePermission              (CreateRolePermissionRequest)              returns (RolePermissionResponse);
-	rpc UpdateRolePermission              (UpdateRolePermissionRequest)              returns (RolePermissionResponse);
-	rpc DeleteRolePermission              (DeleteRolePermissionRequest)              returns (DeleteRolePermissionResponse);
+	//Role Permissions
+	rpc GetAllPermissionsByRoleId (GetAllRolePermissionsByRoleIdRequest) returns (GetAllRolePermissionsByRoleIdResponse);
+	rpc GetAllPermissionsByRoleIdAndPermissionName (GetAllRolePermissionsByRoleIdAndPermissionNameRequest) returns (GetAllRolePermissionsByRoleIdResponse);
+	rpc CheckRoleIdAndPermission (CheckRoleIdAndPermissionRequest) returns (CheckRoleIdAndPermissionResponse);
+
+    rpc CreateRolePermission (CreateRolePermissionRequest) returns (CreateRolePermissionResponse);
+    rpc UpdateRolePermission (UpdateRolePermissionRequest) returns (UpdateRolePermissionResponse);
+    rpc DeleteRolePermission (DeleteRolePermissionRequest) returns (DeleteRolePermissionResponse);
 }
 
 message TestResponse{
 	string serviceStatus = 1;
 }
 
+// User Messages
 message UserRequestSingle{
 	int32 id = 1;
 	int32 userId = 2;
@@ -73,70 +75,71 @@ message UserResponseMultiple{
 	repeated CreateUserRequest users = 1;
 }
 
-	//User Permissions
-	message GetRolePermissionByIdRequest {
-		int32 id = 1;
-	}
+//Role Permission Messages
+message RolePermissionDto {
+    int64 id = 1;
+    int32 role_id = 2;
+    int64 permission_id = 3;
+    string role_name = 4;
+    string permission_name = 5;
+}
 
-	message GetAllRolePermissionsRequest {
-		// intentionally empty — reserved for future pagination fields
-	}
+message RolePermissionModel {
+    int64 id = 1;
+    int32 role_id = 2;
+    int64 permission_id = 3;
+    int32 created_by = 4;
+    string created_date = 5;
+    string modified_date = 6;
+    int32 modified_by = 7;
+    bool is_deleted = 8;
+}
 
-	message GetRolePermissionsByRoleIdRequest {
-		int32 role_id = 1;
-	}
+message GetAllRolePermissionsByRoleIdRequest {
+    int64 role_id = 1;
+}
 
-	message GetRolePermissionByRoleIdAndPathRequest {
-		int32  role_id  = 1;
-		string api_path = 2;
-	}
+message GetAllRolePermissionsByRoleIdAndPermissionNameRequest {
+    int64 role_id = 1;
+	string permission_name = 2;
+}
 
-	message CreateRolePermissionRequest {
-		int32  role_id           = 1;
-		string api_path          = 2;
-		bool   view_permission   = 3;
-		bool   add_permission    = 4;
-		bool   edit_permission   = 5;
-		bool   delete_permission = 6;
-		int32  created_by        = 7;
-	}
+message CheckRoleIdAndPermissionRequest{
+	int64 role_id = 1;
+	string permission_name = 2;
+}
 
-	message UpdateRolePermissionRequest {
-		int32  id                = 1;
-		string api_path          = 2;
-		bool   view_permission   = 3;
-		bool   add_permission    = 4;
-		bool   edit_permission   = 5;
-		bool   delete_permission = 6;
-		int32  modified_by       = 7;
-	}
+message CreateRolePermissionRequest {
+    RolePermissionModel model = 1;
+    int32 user_id = 2;
+}
 
-	message DeleteRolePermissionRequest {
-		int32 id = 1;
-	}
+message UpdateRolePermissionRequest {
+    RolePermissionModel model = 1;
+    int32 user_id = 2;
+}
 
-	// ── Response Messages ────────────────────────────────────────────────────────
+message DeleteRolePermissionRequest {
+    int64 id = 1;
+    int32 user_id = 2;
+}
 
-	message RolePermissionResponse {
-		int32  id                = 1;
-		int32  role_id           = 2;
-		string role_name         = 3;
-		string api_path          = 4;
-		bool   view_permission   = 5;
-		bool   add_permission    = 6;
-		bool   edit_permission   = 7;
-		bool   delete_permission = 8;
-		int32  created_by        = 9;
-		int32  modified_by       = 10;
-		string created_date      = 11;
-		string modified_date     = 12;
-	}
+message GetAllRolePermissionsByRoleIdResponse {
+    repeated RolePermissionDto role_permissions = 1;
+}
 
-	message GetAllRolePermissionsResponse {
-		repeated RolePermissionResponse items = 1;
-	}
+message CreateRolePermissionResponse {
+    RolePermissionDto role_permission = 1;
+}
 
-	message DeleteRolePermissionResponse {
-		bool   success = 1;
-		string message = 2;
-	}
+message UpdateRolePermissionResponse {
+    RolePermissionDto role_permission = 1;
+}
+
+message DeleteRolePermissionResponse {
+    bool success = 1;
+}
+
+message CheckRoleIdAndPermissionResponse {
+    bool exists = 1;
+}

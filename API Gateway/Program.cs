@@ -1,4 +1,5 @@
 
+using API_Gateway.AuthHandlers;
 using API_Gateway.Database;
 using API_Gateway.Grpc;
 using API_Gateway.Handlers;
@@ -23,44 +24,11 @@ namespace API_Gateway
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.Configure<DatabaseConfig>(builder.Configuration.GetSection("DatabaseConfig"));
-            builder.Services.Configure<DatabaseConnection>(builder.Configuration.GetSection("ConnectionStrings"));
+            ConfigureDatabase(builder.Services, builder.Configuration);
 
-            //Configure the database context
-            string dbType = builder.Configuration["DatabaseConfig:Database"] ?? "";
-            string mode = builder.Configuration["DatabaseConfig:Mode"] ?? "";
-            string dbKey = "";
-            string connectionString = "";
-
-            if (dbType == "" || mode == "")
-            {
-                throw new InvalidOperationException("Database configuration not set up correctly.");
-            }
-
-            dbKey = (dbType.ToLower(), mode.ToLower()) switch
-            {
-                ("work", "local") => "SqlServerWorkConnection",
-                ("work", "docker") => "SqlServerWorkDockerConnection",
-                ("home", "local") => "SqlServerHomeConnection",
-                ("home", "docker") => "SqlServerHomeDockerConnection",
-                _ => ""
-            };
-
-            if (dbKey == "")
-            {
-                throw new InvalidOperationException("Database key not found.");
-            }
-
-            connectionString = builder.Configuration.GetConnectionString(dbKey) ?? "";
-
-            if (connectionString == "")
-            {
-                throw new InvalidOperationException("Database connection string not found.");
-            }
-
-            builder.Services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(connectionString)
-            );
+            DependencyResolver.RegisterMiddleware(builder.Services);
+            DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
+            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
 
             builder.Services.AddCors(options =>
             {
@@ -87,52 +55,41 @@ namespace API_Gateway
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = builder.Configuration["Jwt:validIssuer"],
                         ValidAudience = builder.Configuration["Jwt:validAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:signingKey"] ?? ""))
+                        RoleClaimType = "Role",
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"]))
                     };
                 });
 
-            builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
-            builder.Services.AddScoped<IAuthorizationHandler, ReportAuthorizationHandler>();
-
-            builder.Services.AddAuthentication();
-
-            builder.Services.AddAuthorization(options =>
-            {
-                options.AddPolicy("RolePermissionPolicy", policy =>
+            builder.Services.AddAuthorization(
+                options =>
                 {
-                    policy.AddRequirements(new RolePermissionRequirement());
-                });
+                    options.AddPolicy("AdminOnly", policy =>
+                    {
+                        policy.RequireRole("ADMIN");
+                    });
 
-                options.AddPolicy("ReportResourcePolicy", policy =>
-                {
-                    policy.AddRequirements(new ReportResourceRequirement());
-                });
+                    options.AddPolicy("CustomerOnly", policy =>
+                    {
+                        policy.RequireRole("CUSTOMER");
+                    });
 
-                //Ensure all the endpoints require authorization by default
-                //options.FallbackPolicy = options.GetPolicy("RolePermissionPolicy") ?? throw new InvalidOperationException("Fallback policy not found.");
-            });
+                    options.AddPolicy("SellerOnly", policy =>
+                    {
+                        policy.RequireRole("SELLER");
+                    });
+                }
+            );
 
             builder.Services.AddControllers();
 
-            DependencyResolver.RegisterMiddleware(builder.Services);
-            DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
-            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
-
             var app = builder.Build();
-
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                //app.UseSwagger();
-                //app.UseSwaggerUI();
-            }
 
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
             //Use Custom Middlewares
-            app.UseTokenAuthorizationMiddleware();
-            app.UseRequestLogMiddleware();
+            //app.UseTokenAuthorizationMiddleware();
+            //app.UseRequestLogMiddleware();
 
             //Add Authentication and Authorization
             app.UseAuthentication();
@@ -141,6 +98,45 @@ namespace API_Gateway
             app.MapControllers();
 
             app.Run();
+        }
+
+        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
+        {
+            //Configure the database context
+            string dbType = configuration["DatabaseConfig:Database"] ?? "";
+            string mode = configuration["DatabaseConfig:Mode"] ?? "";
+            string dbKey = "";
+            string connectionString = "";
+
+            if (dbType == "" || mode == "")
+            {
+                throw new InvalidOperationException("Database configuration not set up correctly.");
+            }
+
+            dbKey = (dbType.ToLower(), mode.ToLower()) switch
+            {
+                ("work", "local") => "SqlServerWorkConnection",
+                ("work", "docker") => "SqlServerWorkDockerConnection",
+                ("home", "local") => "SqlServerHomeConnection",
+                ("home", "docker") => "SqlServerHomeDockerConnection",
+                _ => ""
+            };
+
+            if (dbKey == "")
+            {
+                throw new InvalidOperationException("Database key not found.");
+            }
+
+            connectionString = configuration.GetConnectionString(dbKey) ?? "";
+
+            if (connectionString == "")
+            {
+                throw new InvalidOperationException("Database connection string not found.");
+            }
+
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(connectionString)
+            );
         }
     }
 }

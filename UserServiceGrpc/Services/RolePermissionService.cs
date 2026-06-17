@@ -1,218 +1,117 @@
-using System;
+﻿using UserServiceGrpc.Helpers;
 using UserServiceGrpc.Models.Dtos;
-
 using UserServiceGrpc.Models.Entities;
 using UserServiceGrpc.Repository;
 
-namespace UserServiceGrpc.Services;
-
-// Services/Interfaces/IRolePermissionsService.cs
-public interface IRolePermissionsService
+namespace UserServiceGrpc.Services
 {
-    Task<RolePermissionsResponseDto?> GetByIdAsync(int id);
-    Task<IEnumerable<RolePermissionsResponseDto>> GetAllAsync();
-    Task<IEnumerable<RolePermissionsResponseDto>> GetByRoleIdAsync(int roleId);
-    Task<RolePermissionsResponseDto?> GetByRoleIdAndPathAsync(int roleId, string apiPath);
-    Task<RolePermissionsResponseDto> CreateAsync(CreateRolePermissionsDto dto);
-    Task<RolePermissionsResponseDto?> UpdateAsync(UpdateRolePermissionsDto dto);
-    Task<bool> DeleteAsync(int id);
-}
-// Services/RolePermissionsService.cs
-public class RolePermissionsService : IRolePermissionsService
-{
-    private readonly IRolePermissionsRepository _repository;
-    private readonly ILogger<RolePermissionsService> _logger;
-
-    public RolePermissionsService(
-        IRolePermissionsRepository repository,
-        ILogger<RolePermissionsService> logger)
+    public interface IRolePermissionService
     {
-        _repository = repository;
-        _logger = logger;
+        Task<List<RolePermissionDto>> GetAllPermissionsByRoleId(long roleId);
+        Task<List<RolePermissionDto>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName);
+        Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName);
+        Task<RolePermissionDto> CreateRolePermission(RolePermissionDto model, int userId);
+        Task<RolePermissionDto> UpdateRolePermission(RolePermissionDto model, int userId);
+        Task DeleteRolePermission(long id, int userId);
     }
 
-    public async Task<RolePermissionsResponseDto?> GetByIdAsync(int id)
+    public class RolePermissionService : IRolePermissionService
     {
-        try
-        {
-            var entity = await _repository.GetByIdAsync(id);
+        private readonly ILogger<RolePermissionService> _logger;
+        private readonly IRolePermissionRepository _rolePermissionRepository;
 
-            if (entity is null)
+        public RolePermissionService(
+            ILogger<RolePermissionService> logger,
+            IRolePermissionRepository rolePermissionRepository)
+        {
+            _logger = logger;
+            _rolePermissionRepository = rolePermissionRepository;
+        }
+
+        public async Task<List<RolePermissionDto>> GetAllPermissionsByRoleId(long roleId)
+        {
+            try
             {
-                _logger.LogWarning("RolePermission with Id {Id} was not found", id);
-                return null;
+                List<RolePermission> list = await _rolePermissionRepository.GetAllPermissionsByRoleId(roleId);
+
+                return list.Select(x => Mapper.CreateRolePermissionDtoFromModel(x)).ToList();
             }
-
-            return MapToResponseDto(entity);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in GetByIdAsync for Id {Id}", id);
-            throw;
-        }
-    }
-
-    public async Task<IEnumerable<RolePermissionsResponseDto>> GetAllAsync()
-    {
-        try
-        {
-            var entities = await _repository.GetAllAsync();
-            return entities.Select(MapToResponseDto);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in GetAllAsync");
-            throw;
-        }
-    }
-
-    public async Task<IEnumerable<RolePermissionsResponseDto>> GetByRoleIdAsync(int roleId)
-    {
-        try
-        {
-            var entities = await _repository.GetByRoleIdAsync(roleId);
-            return entities.Select(MapToResponseDto);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in GetByRoleIdAsync for RoleId {RoleId}", roleId);
-            throw;
-        }
-    }
-
-    public async Task<RolePermissionsResponseDto?> GetByRoleIdAndPathAsync(int roleId, string apiPath)
-    {
-        try
-        {
-            var entity = await _repository.GetByRoleIdAndPathAsync(roleId, apiPath);
-
-            if (entity is null)
+            catch (Exception e)
             {
-                _logger.LogWarning(
-                    "RolePermission not found for RoleId {RoleId} and ApiPath {ApiPath}",
-                    roleId, apiPath);
-                return null;
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
             }
-
-            return MapToResponseDto(entity);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Error in GetByRoleIdAndPathAsync for RoleId {RoleId} and ApiPath {ApiPath}",
-                roleId, apiPath);
-            throw;
-        }
-    }
 
-    public async Task<RolePermissionsResponseDto> CreateAsync(CreateRolePermissionsDto dto)
-    {
-        try
+        public async Task<List<RolePermissionDto>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName)
         {
-            // Guard against duplicate role + path combinations
-            var exists = await _repository.ExistsAsync(dto.RoleId, dto.ApiPath);
-
-            if (exists)
+            try
             {
-                _logger.LogWarning(
-                    "Duplicate RolePermission for RoleId {RoleId} and ApiPath {ApiPath}",
-                    dto.RoleId, dto.ApiPath);
-                throw new InvalidOperationException(
-                    $"A permission entry for RoleId {dto.RoleId} and path '{dto.ApiPath}' already exists.");
+                List<RolePermission> list = await _rolePermissionRepository.GetPermissionByRoleIdAndPermissionName(roleId, permissionName);
+
+                return list.Select(x => Mapper.CreateRolePermissionDtoFromModel(x)).ToList();
             }
-
-            var entity = new RolePermissions
+            catch (Exception e)
             {
-                RoleId          = dto.RoleId,
-                ApiPath         = dto.ApiPath,
-                ViewPermission  = dto.ViewPermission,
-                AddPermission   = dto.AddPermission,
-                EditPermission  = dto.EditPermission,
-                DeletePermission = dto.DeletePermission,
-                CreatedBy       = dto.CreatedBy,
-                CreatedDate     = DateTime.UtcNow
-            };
-
-            var created = await _repository.CreateAsync(entity);
-            return MapToResponseDto(created);
-        }
-        catch (InvalidOperationException)
-        {
-            throw; // Let the controller handle this as a 409 Conflict
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in CreateAsync for RoleId {RoleId}", dto.RoleId);
-            throw;
-        }
-    }
-
-    public async Task<RolePermissionsResponseDto?> UpdateAsync(UpdateRolePermissionsDto dto)
-    {
-        try
-        {
-            var entity = await _repository.GetByIdAsync(dto.Id);
-
-            if (entity is null)
-            {
-                _logger.LogWarning("RolePermission with Id {Id} not found for update", dto.Id);
-                return null;
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
             }
-
-            // Only update editable fields — audit and role fields are untouched
-            entity.ApiPath          = dto.ApiPath;
-            entity.ViewPermission   = dto.ViewPermission;
-            entity.AddPermission    = dto.AddPermission;
-            entity.EditPermission   = dto.EditPermission;
-            entity.DeletePermission = dto.DeletePermission;
-            entity.ModifiedBy       = dto.ModifiedBy;
-            entity.ModifiedDate     = DateTime.UtcNow;
-
-            var updated = await _repository.UpdateAsync(entity);
-            return MapToResponseDto(updated);
         }
-        catch (Exception ex)
+
+        public async Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName)
         {
-            _logger.LogError(ex, "Error in UpdateAsync for Id {Id}", dto.Id);
-            throw;
+            try
+            {
+                bool exists = await _rolePermissionRepository.CheckRoleIdAndPermissionName(roleId, permissionName);
+
+                return exists;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
         }
-    }
 
-    public async Task<bool> DeleteAsync(int id)
-    {
-        try
+        public async Task<RolePermissionDto> CreateRolePermission(RolePermissionDto model, int userId)
         {
-            var deleted = await _repository.DeleteAsync(id);
-
-            if (!deleted)
-                _logger.LogWarning("RolePermission with Id {Id} not found for deletion", id);
-
-            return deleted;
+            try
+            {
+                RolePermission created = await _rolePermissionRepository.CreateRolePermission(Mapper.CreateRolePermissionModelFromDto(model), userId);
+                return created == null ? null : Mapper.CreateRolePermissionDtoFromModel(created);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to create role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in DeleteAsync for Id {Id}", id);
-            throw;
-        }
-    }
 
-    // Private mapping method — single place to maintain DTO shape
-    private static RolePermissionsResponseDto MapToResponseDto(RolePermissions entity)
-    {
-        return new RolePermissionsResponseDto
+        public async Task<RolePermissionDto> UpdateRolePermission(RolePermissionDto model, int userId)
         {
-            Id              = entity.Id,
-            RoleId          = entity.RoleId,
-            RoleName        = "",
-            ApiPath         = entity.ApiPath,
-            ViewPermission  = entity.ViewPermission,
-            AddPermission   = entity.AddPermission,
-            EditPermission  = entity.EditPermission,
-            DeletePermission = entity.DeletePermission,
-            CreatedBy       = entity.CreatedBy,
-            ModifiedBy      = entity.ModifiedBy,
-            CreatedDate     = entity.CreatedDate,
-            ModifiedDate    = entity.ModifiedDate
-        };
+            try
+            {
+                RolePermission updated = await _rolePermissionRepository.UpdateRolePermission(Mapper.CreateRolePermissionModelFromDto(model), userId);
+                return updated == null ? null : Mapper.CreateRolePermissionDtoFromModel(updated);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to update role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
+        }
+
+        public async Task DeleteRolePermission(long id, int userId)
+        {
+            try
+            {
+                await _rolePermissionRepository.DeleteRolePermission(id, userId);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to delete role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
+        }
     }
 }

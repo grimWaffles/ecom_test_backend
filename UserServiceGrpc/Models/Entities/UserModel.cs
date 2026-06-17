@@ -9,7 +9,7 @@ namespace UserServiceGrpc.Models.Entities
     [Index(nameof(Username), IsUnique = true)]
     [Index(nameof(MobileNo), IsUnique = true)]
     [Index(nameof(Email), IsUnique = true)]
-    public class UserModel
+    public class UserModel : BaseModel
     {
         public UserModel()
         {
@@ -35,27 +35,7 @@ namespace UserServiceGrpc.Models.Entities
 
         public int RoleId { get; set; }
 
-        [Required]
-        public DateTime CreatedDate { get; set; }
-
-        [Required]
-        public int CreatedBy { get; set; }
-
-        public DateTime? ModifiedDate { get; set; }
-
-        public int? ModifiedBy { get; set; }
-
-        public bool IsDeleted { get; set; } = false;
-
-        //Foreign Keys
-        [ForeignKey(nameof(CreatedBy))]
-        [DeleteBehavior(DeleteBehavior.ClientNoAction)]
-        public virtual UserModel CreatedByUser { get; set; }
-
-        [ForeignKey(nameof(ModifiedBy))]
-        [DeleteBehavior(DeleteBehavior.ClientNoAction)]
-        public virtual UserModel ModifiedByUser { get; set; }
-
+        [ForeignKey(nameof(RoleId))]
         public virtual Role Role { get; set; }
     }
 }

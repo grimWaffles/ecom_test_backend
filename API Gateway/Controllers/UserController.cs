@@ -1,4 +1,5 @@
-﻿using API_Gateway.Models;
+﻿using API_Gateway.AuthHandlers;
+using API_Gateway.Models;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
@@ -167,35 +168,33 @@ namespace API_Gateway.Controllers
             }
         }
 
-        //Role Permissions
-        [HttpGet("roles/get-by-role-path")]
-        public async Task<IActionResult> GetRolePermissionsForUser([FromQuery] int roleId, [FromQuery] string entity)
+        [HttpGet("role/test/permission")]
+        [RequiresPermission("cart.read")]
+        public async Task<IActionResult> TestRolePermissionAccess()
         {
-            try
-            {
-                ReportModel r = new ReportModel()
-                {
-                    Id = 1,
-                    ReportId = 3,
-                    ReportName = "Test Report",
-                    OwnerId = 1,
-                };
+            return Ok();
+        }
 
-                var authResult = await _authorizationService.AuthorizeAsync(User, r, "ReportResourcePolicy");
-                
-                if (!authResult.Succeeded)
-                {
-                    return StatusCode(403, new { response = new RolePermissionResponse(), message = "User does not have access" });
-                }
+        [HttpGet("role/test/permission/2")]
+        [RequiresPermission("order.create")]
+        public async Task<IActionResult> TestRolePermissionAccess2()
+        {
+            return Ok();
+        }
 
-                var response = await _userServiceClient.GetRolePermissionByRoleIdAndPathAsync(roleId, entity);
+        [HttpGet("role/test/admin-plain")]
+        [Authorize]
+        public async Task<IActionResult> TestPlainAuthTagAccess()
+        {
+            return Ok();
+        }
 
-                return StatusCode(StatusCodes.Status200OK, new {response = response, message = "" });
-            }
-            catch(Exception ex)
-            {
-                return StatusCode(500, ex.Message);
-            }
+        [HttpGet("role/test/admin-req")]
+        //[Authorize(Policy = "AdminOnly")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> TestRoleAccess()
+        {
+            return Ok();
         }
     }
 }

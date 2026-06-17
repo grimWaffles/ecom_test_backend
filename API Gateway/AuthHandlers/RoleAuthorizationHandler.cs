@@ -1,14 +1,23 @@
-﻿using API_Gateway.Services;
+﻿
+using API_Gateway.Services;
+using ApiGateway.Protos;
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 
 namespace API_Gateway.Handlers
 {
     public class RolePermissionRequirement : IAuthorizationRequirement
     {
+        public string Permission { get; set; }
 
+        public RolePermissionRequirement(string permission)
+        {
+            this.Permission = permission;
+        }
     }
+
     public class RoleAuthorizationHandler : AuthorizationHandler<RolePermissionRequirement>
     {
         private readonly IUserService _userService;
@@ -24,24 +33,35 @@ namespace API_Gateway.Handlers
         {
             try
             {
-                if (context.Resource is HttpContext http)
+                _logger.LogInformation("Handling RoleAuth Requirement for requirement: {requirement}", requirement);
+
+                Claim roleClaim = context.User.FindFirst("role") ?? null;
+                Claim roleIdClaim = context.User.FindFirst("roleId") ?? null;
+                if (roleClaim is null)
                 {
-                    if (http.User.Identity.IsAuthenticated)
-                    {
-                        var userClaims = http.User.Claims;
-
-                        string entity = http.Request.Path;
-                        int userId = Convert.ToInt32(userClaims?.FirstOrDefault(c => c?.Type?.ToLower() == "userid").Value);
-                        int roleId = Convert.ToInt32(userClaims?.FirstOrDefault(c => c?.Type?.ToLower() == "roleid").Value);
-
-                        _logger.LogInformation("Authorization is handled for path: {path} and method {method}", http.Request.Path, http.Request.Method);
-
-                        context.Succeed(requirement);
-                        return;
-                    }
+                    context.Fail();
+                    return;
                 }
 
-                context.Fail();
+                int roleId = Convert.ToInt32(roleIdClaim.Value);
+
+                if (roleId == 0)
+                {
+                    _logger.LogError("User role not found!");
+                    context.Fail();
+                    return;
+                }
+
+                CheckRoleIdAndPermissionResponse response = await _userService.CheckRoleIdAndPermission(roleId, requirement.Permission) ?? new CheckRoleIdAndPermissionResponse();
+
+                if (!response.Exists)
+                {
+                    _logger.LogCritical("Unauthorized user detected for requirement: {r}", requirement);
+                    context.Fail();
+                    return;
+                }
+
+                context.Succeed(requirement);
             }
             catch (RpcException e)
             {
