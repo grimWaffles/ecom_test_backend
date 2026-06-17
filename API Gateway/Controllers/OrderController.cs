@@ -1,5 +1,7 @@
-﻿using API_Gateway.Services;
+﻿using API_Gateway.AuthHandlers;
+using API_Gateway.Services;
 using ApiGateway.Protos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 namespace API_Gateway.Controllers
@@ -7,6 +9,7 @@ namespace API_Gateway.Controllers
 
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class OrderController : ControllerBase
     {
         private readonly IOrderGrpcClient _grpcClient;
@@ -20,6 +23,7 @@ namespace API_Gateway.Controllers
 
         [HttpPost]
         [Route("create")]
+        [RequiresPermission("order.create")]
         public async Task<IActionResult> CreateOrder([FromBody] Order order)
         {
             order.UserId = UserId;
@@ -32,6 +36,7 @@ namespace API_Gateway.Controllers
 
         [HttpGet]
         [Route("get/{id}")]
+        [RequiresPermission("order.view")]
         public async Task<IActionResult> GetOrderById(int id)
         {
             var request = new OrderIdRequest { Id = id };
@@ -41,6 +46,7 @@ namespace API_Gateway.Controllers
 
         [HttpGet]
         [Route("user")]
+        [RequiresPermission("order.view")]
         public async Task<IActionResult> GetOrdersByUser([FromQuery] OrderListRequest request)
         {
             request.UserId = UserId;
@@ -50,6 +56,7 @@ namespace API_Gateway.Controllers
 
         [HttpGet]
         [Route("all")]
+        [RequiresPermission("order.view")]
         public async Task<IActionResult> GetAllOrders([FromQuery] OrderListRequest request)
         {
             request.UserId = UserId;
@@ -59,6 +66,7 @@ namespace API_Gateway.Controllers
 
         [HttpPut]
         [Route("update")]
+        [RequiresPermission("order.update")]
         public async Task<IActionResult> UpdateOrder([FromBody] Order order)
         {
             order.UserId = UserId;
@@ -71,6 +79,7 @@ namespace API_Gateway.Controllers
 
         [HttpDelete]
         [Route("delete/{id}")]
+        [RequiresPermission("order.delete")]
         public async Task<IActionResult> DeleteOrder(int id)
         {
             var request = new DeleteOrderRequest { Id = id };
@@ -80,6 +89,7 @@ namespace API_Gateway.Controllers
 
         [HttpGet]
         [Route("integration-test")]
+        [RequiresPermission("order.test")]
         public async Task<IActionResult> TestOrderServiceGrpc()
         {
             var response = await _grpcClient.TestOrderServiceAsync(new Google.Protobuf.WellKnownTypes.Empty());
@@ -90,6 +100,7 @@ namespace API_Gateway.Controllers
         //Event Driven Approach
         [HttpPost]
         [Route("publish-new-order")]
+        [RequiresPermission("order.test")]
         public async Task<IActionResult> PublishOrderCreatedEvent()
         {
             var result = await _grpcClient.GenerateCustomManualOrder();

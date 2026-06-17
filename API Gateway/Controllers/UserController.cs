@@ -14,6 +14,7 @@ namespace API_Gateway.Controllers
     [ApiController]
     [Route("api/users")]
     [EnableCors("AllowOrigin")]
+    [Authorize]
     public class UserController : ControllerBase
     {
         private readonly IHttpContextAccessor _contextAccessor;
@@ -65,6 +66,7 @@ namespace API_Gateway.Controllers
 
         [HttpGet]
         [Route("get-all-users")]
+        [RequiresPermission("user.view")]
         public async Task<IActionResult> GetAllUsers()
         {
             List<CreateUserRequest> responseMultiple = await _userServiceClient.GetAllUsersAsync();
@@ -74,6 +76,7 @@ namespace API_Gateway.Controllers
 
         // GET api/users/getById?userId=5
         [HttpGet("getById")]
+        [RequiresPermission("user.view")]
         public async Task<IActionResult> GetUserById([FromQuery] int userId)
         {
             try
@@ -92,6 +95,7 @@ namespace API_Gateway.Controllers
 
         // POST api/users/create
         [HttpPost("create")]
+        [RequiresPermission("user.create")]
         public async Task<IActionResult> CreateUser([FromForm] CreateUserRequest user)
         {
             try
@@ -119,6 +123,7 @@ namespace API_Gateway.Controllers
 
         // PUT api/users/update
         [HttpPut("update")]
+        [RequiresPermission("user.update")]
         public async Task<IActionResult> UpdateUser([FromForm] CreateUserRequest user)
         {
             try
@@ -146,6 +151,7 @@ namespace API_Gateway.Controllers
 
         // DELETE api/users/delete
         [HttpDelete("delete")]
+        [RequiresPermission("user.delete")]
         public async Task<IActionResult> DeleteUser([FromForm] int id)
         {
             try
