@@ -13,10 +13,9 @@ namespace API_Gateway
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            ConfigureDatabase(builder.Services, builder.Configuration);
-
             builder.Services.AddHttpContextAccessor();
 
+            DependencyResolver.ConfigureDatabases(builder.Services, builder.Configuration);
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
@@ -49,6 +48,8 @@ namespace API_Gateway
                     };
                 });
 
+            //Rest are provided by the AuthProvider, only role-based are declared here.
+            //Find the rest in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
             builder.Services.AddAuthorization(
                 options =>
                 {
@@ -87,45 +88,6 @@ namespace API_Gateway
             app.MapControllers();
 
             app.Run();
-        }
-
-        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
-        {
-            //Configure the database context
-            string dbType = configuration["DatabaseConfig:Database"] ?? "";
-            string mode = configuration["DatabaseConfig:Mode"] ?? "";
-            string dbKey = "";
-            string connectionString = "";
-
-            if (dbType == "" || mode == "")
-            {
-                throw new InvalidOperationException("Database configuration not set up correctly.");
-            }
-
-            dbKey = (dbType.ToLower(), mode.ToLower()) switch
-            {
-                ("work", "local") => "SqlServerWorkConnection",
-                ("work", "docker") => "SqlServerWorkDockerConnection",
-                ("home", "local") => "SqlServerHomeConnection",
-                ("home", "docker") => "SqlServerHomeDockerConnection",
-                _ => ""
-            };
-
-            if (dbKey == "")
-            {
-                throw new InvalidOperationException("Database key not found.");
-            }
-
-            connectionString = configuration.GetConnectionString(dbKey) ?? "";
-
-            if (connectionString == "")
-            {
-                throw new InvalidOperationException("Database connection string not found.");
-            }
-
-            services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(connectionString)
-            );
         }
     }
 }

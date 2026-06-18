@@ -1,21 +1,62 @@
 ﻿using API_Gateway.AuthHandlers.Handlers;
+using API_Gateway.AuthHandlers.Interceptors;
 using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.Database;
 using API_Gateway.Grpc;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Repository;
 using API_Gateway.Services;
+using ApiGateway.Protos;
+using Grpc.Net.ClientFactory;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
-using Grpc.Net.ClientFactory;
-using ApiGateway.Protos;
-using API_Gateway.AuthHandlers.Interceptors;
 
 namespace API_Gateway.Helpers
 {
     public static class DependencyResolver
     {
+        public static void ConfigureDatabases(this IServiceCollection services, IConfiguration configuration)
+        {
+            //Configure the database context
+            string dbType = configuration["DatabaseConfig:Database"] ?? "";
+            string mode = configuration["DatabaseConfig:Mode"] ?? "";
+            string dbKey = "";
+            string connectionString = "";
+
+            if (dbType == "" || mode == "")
+            {
+                throw new InvalidOperationException("Database configuration not set up correctly.");
+            }
+
+            dbKey = (dbType.ToLower(), mode.ToLower()) switch
+            {
+                ("work", "local") => "SqlServerWorkConnection",
+                ("work", "docker") => "SqlServerWorkDockerConnection",
+                ("home", "local") => "SqlServerHomeConnection",
+                ("home", "docker") => "SqlServerHomeDockerConnection",
+                _ => ""
+            };
+
+            if (dbKey == "")
+            {
+                throw new InvalidOperationException("Database key not found.");
+            }
+
+            connectionString = configuration.GetConnectionString(dbKey) ?? "";
+
+            if (connectionString == "")
+            {
+                throw new InvalidOperationException("Database connection string not found.");
+            }
+
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(connectionString)
+            );
+        }
+
         public static void RegisterServices(this IServiceCollection services, IConfiguration config)
         {
             // ── External ─────────────────────────────────────────────────────────────
@@ -59,7 +100,7 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<User.UserClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetUserServiceUrl());
-            });
+            }).AddInterceptor<JwtForwardingInterceptor>(); //UserService uses the main token forwarding.
 
             services.AddGrpcClient<Seller.SellerClient>(options =>
             {

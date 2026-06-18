@@ -18,11 +18,6 @@ namespace UserServiceGrpc
 
             ConfigureDatabase(builder.Services, builder.Configuration);
 
-            //Add JWT Auth
-            builder.Services.AddAuthentication();
-
-            builder.Services.AddAuthorization();
-
             //Add services for dependency injection
             builder.Services.AddScoped<IUserRepository, UserRepository>();
 
@@ -35,9 +30,27 @@ namespace UserServiceGrpc
             builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
             builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 
+            //Add Authentication and Authorization
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters()
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = builder.Configuration["Jwt:validIssuer"],
+                        ValidAudience = builder.Configuration["Jwt:validAudience"],
+                        RoleClaimType = "Role",
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"]))
+                    };
+                });
+
+            builder.Services.AddAuthorization();
+
             var app = builder.Build();
 
-            //Add Authentication and Authorization
             app.UseAuthentication();
             app.UseAuthorization();
 
