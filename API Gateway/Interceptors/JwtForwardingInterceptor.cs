@@ -1,7 +1,7 @@
 ﻿using Grpc.Core;
 using Grpc.Core.Interceptors;
 
-namespace API_Gateway.AuthHandlers.Interceptors
+namespace API_Gateway.Interceptors
 {
     public class JwtForwardingInterceptor : Interceptor
     {

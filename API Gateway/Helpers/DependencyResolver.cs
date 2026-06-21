@@ -1,8 +1,9 @@
 ﻿using API_Gateway.AuthHandlers.Handlers;
-using API_Gateway.AuthHandlers.Interceptors;
 using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.CacheService;
 using API_Gateway.Database;
 using API_Gateway.Grpc;
+using API_Gateway.Interceptors;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Repository;
@@ -80,6 +81,7 @@ namespace API_Gateway.Helpers
             // ── Service ────────────────────────────────────────────────────────────────
             services.AddScoped<IRequestLogService, RequestLogService>();
             services.AddSingleton<IRedisService, RedisService>();
+            services.AddSingleton<ICustomCacheService, CustomCacheService>();
         }
 
         public static void RegisterMiddleware(this IServiceCollection services)
@@ -118,6 +120,7 @@ namespace API_Gateway.Helpers
                 //        }
                 //    }
                 //});
+                
                 //Option 2: The recommended/ cleaner approach is to use a seperate interceptor class.
                 //Adds more flexibility and the options to add logging and what not.
                 .AddInterceptor<JwtForwardingInterceptor>(); //UserService uses the main token forwarding.

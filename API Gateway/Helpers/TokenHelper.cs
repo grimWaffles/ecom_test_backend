@@ -2,13 +2,12 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using UserServiceGrpc.Models.Entities;
 
-namespace UserServiceGrpc.Helpers
+namespace API_Gateway.Helpers
 {
     public static class TokenHelper
     {
-        public static string GetClaimValueFromToken(HttpContext httpContext,string claimType)
+        public static string GetClaimValueFromToken(HttpContext httpContext, string claimType)
         {
             try
             {
@@ -21,7 +20,7 @@ namespace UserServiceGrpc.Helpers
             }
         }
 
-        public static string GenerateJwtToken(Dictionary<string, string> claimDictionary, string signingKey, string validIssuer, string validAudience,string expirationInSeconds)
+        public static string GenerateJwtToken(Dictionary<string, string> claimDictionary, string signingKey, string validIssuer, string validAudience, string expirationInSeconds)
         {
             int tokenExpiration = Convert.ToInt32(expirationInSeconds);
 

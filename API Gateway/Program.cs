@@ -14,13 +14,14 @@ namespace API_Gateway
             var builder = WebApplication.CreateBuilder(args);
 
             builder.Services.AddHttpContextAccessor();
+            builder.Services.AddMemoryCache();
 
             DependencyResolver.ConfigureDatabases(builder.Services, builder.Configuration);
-            
+
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
-            DependencyResolver.RegisterGrpcServices(builder.Services,builder.Configuration);
+            DependencyResolver.RegisterGrpcServices(builder.Services, builder.Configuration);
 
             builder.Services.AddCors(options =>
             {
@@ -33,8 +34,9 @@ namespace API_Gateway
                 });
             });
 
-            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+            //Add Authentication and Authorization
+            builder.Services.AddAuthentication(defaultScheme: "UserAuthScheme")
+                .AddJwtBearer("UserAuthScheme", options =>
                 {
                     options.TokenValidationParameters = new TokenValidationParameters()
                     {
@@ -42,10 +44,25 @@ namespace API_Gateway
                         ValidateAudience = true,
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
-                        ValidIssuer = builder.Configuration["Jwt:validIssuer"],
-                        ValidAudience = builder.Configuration["Jwt:validAudience"],
+
+                        ValidIssuer = builder.Configuration["JwtUserSchema:validIssuer"],
+                        ValidAudience = builder.Configuration["JwtUserSchema:validAudience"],
                         RoleClaimType = "Role",
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtUserSchema:SigningKey"]))
+                    };
+                })
+                .AddJwtBearer("InternalAuthScheme", options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters()
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+
+                        ValidIssuer = builder.Configuration["JwtInternalSchema:validIssuer"],
+                        ValidAudience = builder.Configuration["JwtInternalSchema:validAudience"],
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtInternalSchema:SigningKey"]))
                     };
                 });
 

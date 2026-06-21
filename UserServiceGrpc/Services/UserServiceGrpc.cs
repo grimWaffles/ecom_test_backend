@@ -146,7 +146,7 @@ namespace UserServiceGrpc.Services
 
         public override async Task<UserResponseMultiple> GetAllUsers(Empty request, ServerCallContext context)
         {
-            int userId = TokenHelper.GetUserIdFromToken(context.GetHttpContext());
+            int userId = Convert.ToInt32(TokenHelper.GetClaimValueFromToken(context.GetHttpContext(),"UserId"));
 
             List<UserModel> users = await _repo.GetUsers();
 
@@ -207,7 +207,7 @@ namespace UserServiceGrpc.Services
 
             response.UserId = model.Id;
             response.Username = model.Username;
-            response.AccessToken = GenerateJwtToken(model);
+            response.AccessToken = GenerateJwtTokenForUser(model);
             response.RoleId = model.RoleId;
             response.RoleName = model.Role.Name.ToString();
             response.ErrorMessage = "";
@@ -404,44 +404,22 @@ namespace UserServiceGrpc.Services
             };
         }
 
-        private string GenerateJwtToken(UserModel user)
+        private string GenerateJwtTokenForUser(UserModel user)
         {
-            //Generate a GUID for the token and save it for later
-            string guID = Guid.NewGuid().ToString();
+            //Claims dictionary<type,value(in string)>
+            Dictionary<string, string> claimDictionary = new Dictionary<string, string>();
+            claimDictionary.Add("UserId", user.Id.ToString());
+            claimDictionary.Add("RoleId", user.RoleId.ToString());
+            claimDictionary.Add("Username", user.Username);
+            claimDictionary.Add("Role",user.Role.Name.ToString().ToUpper());
 
-            //Add the necessary claims to the token
-            var claims = new[]{
-                new Claim("UserId", Convert.ToString(user.Id)),
-                new Claim("RoleId", Convert.ToString(user.RoleId)),
-                new Claim("Username", Convert.ToString(user.Username)),
-                new Claim("Role",user.Role.Name.ToString().ToUpper()),
-                new Claim(JwtRegisteredClaimNames.Jti, guID)
-            };
-
-            //Generate Key
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:signingKey"]));
-
-            //Generate the credentials
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            //Issue the token
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:validIssuer"],
-                audience: _configuration["Jwt:validAudience"],
-                claims: claims,
-                expires: DateTime.Now.AddHours(24),
-                signingCredentials: creds
+            return TokenHelper.GenerateJwtToken(
+                claimDictionary,
+                _configuration["JwtUserSchema:signingKey"] ?? "",
+                _configuration["JwtUserSchema:validIssuer"] ?? "", 
+                _configuration["JwtUserSchema:validAudience"] ?? "",
+                _configuration["JwtUserSchema:ExpirationInSeconds"] ?? ""
             );
-
-            try
-            {
-                string newToken = new JwtSecurityTokenHandler().WriteToken(token);
-                return new JwtSecurityTokenHandler().WriteToken(token);
-            }
-            catch (Exception e)
-            {
-                return "";
-            }
         }
 
         //private async Task<int> GetUserIdFromToken(HttpContext httpContext)
