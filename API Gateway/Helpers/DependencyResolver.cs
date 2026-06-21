@@ -1,8 +1,9 @@
 ﻿using API_Gateway.AuthHandlers.Handlers;
-using API_Gateway.AuthHandlers.Interceptors;
 using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.CacheService;
 using API_Gateway.Database;
 using API_Gateway.Grpc;
+using API_Gateway.Interceptors;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
 using API_Gateway.Repository;
@@ -80,6 +81,7 @@ namespace API_Gateway.Helpers
             // ── Service ────────────────────────────────────────────────────────────────
             services.AddScoped<IRequestLogService, RequestLogService>();
             services.AddSingleton<IRedisService, RedisService>();
+            services.AddSingleton<ICustomCacheService, CustomCacheService>();
         }
 
         public static void RegisterMiddleware(this IServiceCollection services)
