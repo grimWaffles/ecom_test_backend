@@ -14,5 +14,18 @@
                 return -1;
             }
         }
+
+        public static int GetRoleIdFromToken(HttpContext httpContext)
+        {
+            try
+            {
+                string roleIdClaim = httpContext.User.Claims.Where(x => x.Type == "RoleId").First().Value ?? "";
+                return Convert.ToInt32(roleIdClaim);
+            }
+            catch (Exception e)
+            {
+                return -1;
+            }
+        }
     }
 }
