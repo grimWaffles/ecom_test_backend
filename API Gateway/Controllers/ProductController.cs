@@ -1,4 +1,4 @@
-﻿using API_Gateway.AuthHandlers;
+﻿using API_Gateway.AuthHandlers.PolicyProviders;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;

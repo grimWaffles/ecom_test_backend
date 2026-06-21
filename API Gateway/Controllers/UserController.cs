@@ -1,13 +1,11 @@
-﻿using API_Gateway.AuthHandlers;
-using API_Gateway.Models;
+﻿using API_Gateway.AuthHandlers.PolicyProviders;
 using API_Gateway.Services;
 using ApiGateway.Protos;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using System.Numerics;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
 namespace API_Gateway.Controllers
 {
@@ -178,7 +176,15 @@ namespace API_Gateway.Controllers
         [RequiresPermission("cart.read")]
         public async Task<IActionResult> TestRolePermissionAccess()
         {
-            return Ok();
+            string token = "";
+            string token2 = "";
+            if (_contextAccessor.HttpContext != null)
+            {
+                token = await _contextAccessor.HttpContext.GetTokenAsync("access_token") ?? "";
+                token2 = _contextAccessor.HttpContext.Request.Headers["Authorization"].FirstOrDefault();
+            }
+
+            return Ok(token2);
         }
 
         [HttpGet("role/test/permission/2")]

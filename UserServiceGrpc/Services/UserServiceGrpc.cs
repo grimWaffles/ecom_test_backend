@@ -1,5 +1,6 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IdentityModel.Tokens.Jwt;
@@ -13,6 +14,7 @@ using UserServiceGrpc.Repository;
 
 namespace UserServiceGrpc.Services
 {
+    [Authorize]
     public class UserGrpcService : User.UserBase
     {
         private readonly IUserRepository _repo;
@@ -29,6 +31,7 @@ namespace UserServiceGrpc.Services
         }
 
         //Test Functions
+        [AllowAnonymous]
         public override async Task<TestResponse> TestService(Empty request, ServerCallContext context)
         {
             TestResponse response = new TestResponse();
@@ -143,6 +146,8 @@ namespace UserServiceGrpc.Services
 
         public override async Task<UserResponseMultiple> GetAllUsers(Empty request, ServerCallContext context)
         {
+            int userId = TokenHelper.GetUserIdFromToken(context.GetHttpContext());
+
             List<UserModel> users = await _repo.GetUsers();
 
             if (users == null || users.Count == 0) { return new UserResponseMultiple(); }
@@ -175,6 +180,7 @@ namespace UserServiceGrpc.Services
         }
 
         //User Authentication
+        [AllowAnonymous]
         public override async Task<UserLoginResponse> LoginUser(UserLoginRequest request, ServerCallContext context)
         {
             UserLoginResponse response = new UserLoginResponse();
@@ -209,6 +215,7 @@ namespace UserServiceGrpc.Services
             return response;
         }
 
+        [AllowAnonymous]
         public override async Task<UserLoginResponse> LogoutUser(UserRequestSingle request, ServerCallContext context)
         {
             UserLoginResponse response = new UserLoginResponse();
@@ -219,8 +226,7 @@ namespace UserServiceGrpc.Services
         }
 
         //Role Permissions
-        public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleId(
-            GetAllRolePermissionsByRoleIdRequest request, ServerCallContext context)
+        public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleId(GetAllRolePermissionsByRoleIdRequest request, ServerCallContext context)
         {
             try
             {
@@ -290,8 +296,7 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        public override async Task<CreateRolePermissionResponse> CreateRolePermission(
-            CreateRolePermissionRequest request, ServerCallContext context)
+        public override async Task<CreateRolePermissionResponse> CreateRolePermission(CreateRolePermissionRequest request, ServerCallContext context)
         {
             try
             {
@@ -323,8 +328,7 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        public override async Task<UpdateRolePermissionResponse> UpdateRolePermission(
-            UpdateRolePermissionRequest request, ServerCallContext context)
+        public override async Task<UpdateRolePermissionResponse> UpdateRolePermission(UpdateRolePermissionRequest request, ServerCallContext context)
         {
             try
             {
@@ -356,8 +360,7 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        public override async Task<DeleteRolePermissionResponse> DeleteRolePermission(
-            DeleteRolePermissionRequest request, ServerCallContext context)
+        public override async Task<DeleteRolePermissionResponse> DeleteRolePermission(DeleteRolePermissionRequest request, ServerCallContext context)
         {
             try
             {
@@ -440,5 +443,18 @@ namespace UserServiceGrpc.Services
                 return "";
             }
         }
+
+        //private async Task<int> GetUserIdFromToken(HttpContext httpContext)
+        //{
+        //    try
+        //    {
+        //        string userIdClaim = httpContext.User.Claims.Where(x => x.Type == "UserId").First().Value ?? "";
+        //        return await Task.FromResult(Convert.ToInt32(userIdClaim));
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        return await Task.FromResult(-1);
+        //    }
+        //}
     }
 }

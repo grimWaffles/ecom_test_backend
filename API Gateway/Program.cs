@@ -1,21 +1,10 @@
-
-using API_Gateway.AuthHandlers;
 using API_Gateway.Database;
-using API_Gateway.Grpc;
-using API_Gateway.Handlers;
 using API_Gateway.Helpers;
-using API_Gateway.Middlewares;
-using API_Gateway.Models;
-using API_Gateway.Repository;
-using API_Gateway.Services;
-using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using OrderServiceGrpc.Models.ConfigModels;
-using StackExchange.Redis;
 using System.Text;
+
 namespace API_Gateway
 {
     public class Program
@@ -24,11 +13,14 @@ namespace API_Gateway
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            ConfigureDatabase(builder.Services, builder.Configuration);
+            builder.Services.AddHttpContextAccessor();
 
+            DependencyResolver.ConfigureDatabases(builder.Services, builder.Configuration);
+            
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
+            DependencyResolver.RegisterGrpcServices(builder.Services,builder.Configuration);
 
             builder.Services.AddCors(options =>
             {
@@ -41,9 +33,6 @@ namespace API_Gateway
                 });
             });
 
-            builder.Services.AddHttpContextAccessor();
-
-            //Add JWT Authentication
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
                 {
@@ -60,6 +49,8 @@ namespace API_Gateway
                     };
                 });
 
+            //Rest of the policies are dynamically provided by the AuthProvider, only role-based are declared here.
+            //Find the rest in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
             builder.Services.AddAuthorization(
                 options =>
                 {
@@ -87,56 +78,17 @@ namespace API_Gateway
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
-            //Use Custom Middlewares
+            //Use Custom Middleware
             //app.UseTokenAuthorizationMiddleware();
             //app.UseRequestLogMiddleware();
 
-            //Add Authentication and Authorization
+            //Use the configured Authentication and Authorization options
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();
 
             app.Run();
-        }
-
-        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
-        {
-            //Configure the database context
-            string dbType = configuration["DatabaseConfig:Database"] ?? "";
-            string mode = configuration["DatabaseConfig:Mode"] ?? "";
-            string dbKey = "";
-            string connectionString = "";
-
-            if (dbType == "" || mode == "")
-            {
-                throw new InvalidOperationException("Database configuration not set up correctly.");
-            }
-
-            dbKey = (dbType.ToLower(), mode.ToLower()) switch
-            {
-                ("work", "local") => "SqlServerWorkConnection",
-                ("work", "docker") => "SqlServerWorkDockerConnection",
-                ("home", "local") => "SqlServerHomeConnection",
-                ("home", "docker") => "SqlServerHomeDockerConnection",
-                _ => ""
-            };
-
-            if (dbKey == "")
-            {
-                throw new InvalidOperationException("Database key not found.");
-            }
-
-            connectionString = configuration.GetConnectionString(dbKey) ?? "";
-
-            if (connectionString == "")
-            {
-                throw new InvalidOperationException("Database connection string not found.");
-            }
-
-            services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(connectionString)
-            );
         }
     }
 }

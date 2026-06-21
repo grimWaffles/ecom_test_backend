@@ -27,33 +27,13 @@ namespace API_Gateway.Services
     public class OrderGrpcClient : IOrderGrpcClient
     {
         private readonly OrderGrpcService.OrderGrpcServiceClient _orderClient;
-        private readonly MicroServiceUrl _urls;
         private readonly ILogger<OrderGrpcClient> _logger;
         private readonly DateTime rpcCallLimit = DateTime.Now.AddSeconds(2);
 
-        public OrderGrpcClient(IOptions<MicroServiceUrl> microserviceUrls, ILogger<OrderGrpcClient> logger)
+        public OrderGrpcClient(OrderGrpcService.OrderGrpcServiceClient grpcClient, ILogger<OrderGrpcClient> logger)
         {
-            //gRPC 
             _logger = logger;
-            _urls = microserviceUrls.Value;
-
-            if (string.IsNullOrEmpty(_urls.GetOrderServiceUrl()))
-            {
-                throw new ArgumentException("gRPC service URL not configured in appsettings.json");
-            }
-
-            var httpHandler = new HttpClientHandler
-            {
-                // This is optional and should be used only in development for insecure certs
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-            };
-
-            var channel = GrpcChannel.ForAddress(_urls.GetOrderServiceUrl(), new GrpcChannelOptions
-            {
-                HttpHandler = httpHandler
-            });
-
-            _orderClient = new OrderGrpcService.OrderGrpcServiceClient(channel);
+            _orderClient = grpcClient;
         }
 
         //gRPC Endpoints
