@@ -16,6 +16,7 @@ namespace API_Gateway
             builder.Services.AddHttpContextAccessor();
 
             DependencyResolver.ConfigureDatabases(builder.Services, builder.Configuration);
+            
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
             DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
@@ -48,7 +49,7 @@ namespace API_Gateway
                     };
                 });
 
-            //Rest are provided by the AuthProvider, only role-based are declared here.
+            //Rest of the policies are dynamically provided by the AuthProvider, only role-based are declared here.
             //Find the rest in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
             builder.Services.AddAuthorization(
                 options =>
@@ -77,11 +78,11 @@ namespace API_Gateway
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
-            //Use Custom Middlewares
+            //Use Custom Middleware
             //app.UseTokenAuthorizationMiddleware();
             //app.UseRequestLogMiddleware();
 
-            //Add Authentication and Authorization
+            //Use the configured Authentication and Authorization options
             app.UseAuthentication();
             app.UseAuthorization();
 

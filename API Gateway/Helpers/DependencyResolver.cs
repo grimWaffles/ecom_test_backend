@@ -9,6 +9,7 @@ using API_Gateway.Repository;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Grpc.Net.ClientFactory;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -100,7 +101,26 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<User.UserClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetUserServiceUrl());
-            }).AddInterceptor<JwtForwardingInterceptor>(); //UserService uses the main token forwarding.
+            })
+                ////Option 1 : Use the call credentials to attach the token to the requests made from this client
+                //// USES HTTPS ONLY
+                //.AddCallCredentials(async (context, metadata, serviceProvider) =>
+                //{
+                //    IHttpContextAccessor httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
+
+                //    if (httpContextAccessor.HttpContext != null)
+                //    {
+                //        string? token = await httpContextAccessor.HttpContext.GetTokenAsync("access_token");
+
+                //        if (!string.IsNullOrEmpty(token))
+                //        {
+                //            metadata.Add("Authorization", $"Bearer {token}");
+                //        }
+                //    }
+                //});
+                //Option 2: The recommended/ cleaner approach is to use a seperate interceptor class.
+                //Adds more flexibility and the options to add logging and what not.
+                .AddInterceptor<JwtForwardingInterceptor>(); //UserService uses the main token forwarding.
 
             services.AddGrpcClient<Seller.SellerClient>(options =>
             {
