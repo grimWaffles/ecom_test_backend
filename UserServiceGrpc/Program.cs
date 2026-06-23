@@ -31,22 +31,7 @@ namespace UserServiceGrpc
             builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 
             //Add Authentication and Authorization
-            builder.Services.AddAuthentication(defaultScheme: "UserAuthScheme")
-                .AddJwtBearer("UserAuthScheme", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters()
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-
-                        ValidIssuer = builder.Configuration["JwtUserSchema:validIssuer"],
-                        ValidAudience = builder.Configuration["JwtUserSchema:validAudience"],
-                        RoleClaimType = "Role",
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtUserSchema:SigningKey"]))
-                    };
-                })
+            builder.Services.AddAuthentication(defaultScheme: "InternalAuthScheme")
                 .AddJwtBearer("InternalAuthScheme", options =>
                 {
                     options.TokenValidationParameters = new TokenValidationParameters()

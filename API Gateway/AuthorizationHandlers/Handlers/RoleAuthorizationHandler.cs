@@ -1,4 +1,5 @@
-﻿using API_Gateway.Services;
+﻿using API_Gateway.Helpers;
+using API_Gateway.Services;
 using ApiGateway.Protos;
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
@@ -36,7 +37,7 @@ namespace API_Gateway.AuthHandlers.Handlers
 
                 Claim roleClaim = context.User.FindFirst("role") ?? null;
                 Claim roleIdClaim = context.User.FindFirst("roleId") ?? null;
-                
+
                 if (roleClaim is null)
                 {
                     context.Fail();

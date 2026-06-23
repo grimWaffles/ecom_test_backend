@@ -187,7 +187,7 @@ namespace API_Gateway.Services
                 {
                     Username = username,
                     Password = password
-                }).ResponseAsync;
+                }, deadline: DateTime.UtcNow.AddSeconds(2)).ResponseAsync;
             }
             catch (RpcException ex)
             {

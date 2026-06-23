@@ -8,11 +8,11 @@ namespace UserServiceGrpc.Helpers
 {
     public static class TokenHelper
     {
-        public static string GetClaimValueFromToken(HttpContext httpContext,string claimType)
+        public static string GetClaimValueFromToken(ClaimsPrincipal claimsPrincipal, string claimType)
         {
             try
             {
-                string claimValue = httpContext.User.Claims.Where(x => x.Type == claimType).First().Value ?? "";
+                string claimValue = claimsPrincipal.Claims.Where(x => x.Type == claimType).First().Value ?? "";
                 return claimValue;
             }
             catch (Exception e)

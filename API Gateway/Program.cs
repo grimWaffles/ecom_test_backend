@@ -1,5 +1,6 @@
 using API_Gateway.Database;
 using API_Gateway.Helpers;
+using API_Gateway.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -9,7 +10,7 @@ namespace API_Gateway
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -104,6 +105,14 @@ namespace API_Gateway
             app.UseAuthorization();
 
             app.MapControllers();
+
+            //Run Seeder functions
+            //using(AsyncServiceScope scope= app.Services.CreateAsyncScope())
+            //{
+            //    IUserService service = scope.ServiceProvider.GetRequiredService<IUserService>();
+
+            //    var result = await service.GetAllUsersAsync();
+            //}
 
             app.Run();
         }

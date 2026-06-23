@@ -146,7 +146,7 @@ namespace UserServiceGrpc.Services
 
         public override async Task<UserResponseMultiple> GetAllUsers(Empty request, ServerCallContext context)
         {
-            int userId = Convert.ToInt32(TokenHelper.GetClaimValueFromToken(context.GetHttpContext(),"UserId"));
+            string requiredPermission = TokenHelper.GetClaimValueFromToken(context.GetHttpContext().User,"Permission");
 
             List<UserModel> users = await _repo.GetUsers();
 
