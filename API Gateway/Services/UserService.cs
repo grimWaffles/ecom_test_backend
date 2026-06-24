@@ -1,4 +1,5 @@
-﻿using API_Gateway.Models;
+﻿using API_Gateway.Helpers;
+using API_Gateway.Models;
 using ApiGateway.Protos;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
@@ -36,11 +37,13 @@ namespace API_Gateway.Services
     {
         private readonly User.UserClient _client;
         private readonly ILogger<UserService> _logger;
+        private readonly ITokenHelper _tokenHelper;
 
-        public UserService(User.UserClient grpcClient, ILogger<UserService> logger)
+        public UserService(User.UserClient grpcClient, ILogger<UserService> logger, ITokenHelper tokenHelper)
         {
             _client = grpcClient;
             _logger = logger;
+            _tokenHelper = tokenHelper;
         }
 
         public async Task<string> TestServiceAsync()
@@ -66,7 +69,7 @@ namespace API_Gateway.Services
         {
             try
             {
-                var res = await _client.GetAllUsersAsync(new Empty());
+                var res = await _client.GetAllUsersAsync(new Empty(), headers: _tokenHelper.GetGrpcHeaders());
                 return res.Users.ToList();
             }
             catch (RpcException ex)

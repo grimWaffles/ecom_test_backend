@@ -1,4 +1,5 @@
 using API_Gateway.Database;
+using API_Gateway.Filters;
 using API_Gateway.Helpers;
 using API_Gateway.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -67,29 +68,13 @@ namespace API_Gateway
                     };
                 });
 
-            //Rest of the policies are dynamically provided by the AuthProvider, only role-based are declared here.
-            //Find the rest in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
-            builder.Services.AddAuthorization(
-                options =>
-                {
-                    options.AddPolicy("AdminOnly", policy =>
-                    {
-                        policy.RequireRole("ADMIN");
-                    });
+            //Find the policies flow in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
+            builder.Services.AddAuthorization();
 
-                    options.AddPolicy("CustomerOnly", policy =>
-                    {
-                        policy.RequireRole("CUSTOMER");
-                    });
-
-                    options.AddPolicy("SellerOnly", policy =>
-                    {
-                        policy.RequireRole("SELLER");
-                    });
-                }
-            );
-
-            builder.Services.AddControllers();
+            builder.Services.AddControllers(options =>
+            {
+                //options.Filters.Add<RequestPermissionFilter>();
+            });
 
             var app = builder.Build();
 

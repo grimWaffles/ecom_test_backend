@@ -276,6 +276,7 @@ namespace UserServiceGrpc.Services
             }
         }
 
+        [AllowAnonymous]
         public override async Task<CheckRoleIdAndPermissionResponse> CheckRoleIdAndPermission(CheckRoleIdAndPermissionRequest request, ServerCallContext context)
         {
             try

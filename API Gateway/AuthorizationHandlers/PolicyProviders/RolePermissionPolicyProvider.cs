@@ -16,8 +16,6 @@ namespace API_Gateway.AuthHandlers.PolicyProviders
 
     public class RolePermissionPolicyProvider : IAuthorizationPolicyProvider
     {
-        private const string POLICY_PREFIX = "Permission:";
-
         private readonly DefaultAuthorizationPolicyProvider _defPolicyProvider;
         private readonly ILogger<RolePermissionPolicyProvider> _logger;
 

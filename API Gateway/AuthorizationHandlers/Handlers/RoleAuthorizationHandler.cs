@@ -53,6 +53,7 @@ namespace API_Gateway.AuthHandlers.Handlers
                     return;
                 }
 
+                //Replace this with a cache call after Redis is setup
                 CheckRoleIdAndPermissionResponse response = await _userService.CheckRoleIdAndPermission(roleId, requirement.Permission) ?? new CheckRoleIdAndPermissionResponse();
 
                 if (!response.Exists)

@@ -1,4 +1,6 @@
 ﻿using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.Filters;
+using API_Gateway.Helpers;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authentication;
@@ -12,17 +14,15 @@ namespace API_Gateway.Controllers
     [ApiController]
     [Route("api/users")]
     [EnableCors("AllowOrigin")]
+    [ServiceFilter(typeof(RequirePermissionFilter))]
     [Authorize]
     public class UserController : ControllerBase
     {
-        private readonly IHttpContextAccessor _contextAccessor;
         private readonly IUserService _userServiceClient;
-        private readonly IAuthorizationService _authorizationService;
-        public UserController(IUserService userService, IAuthorizationService authorizationService, IHttpContextAccessor contextAccessor)
+
+        public UserController(IUserService userService)
         {
             _userServiceClient = userService;
-            _authorizationService = authorizationService;
-            _contextAccessor = contextAccessor;
         }
 
         [HttpGet]
@@ -170,43 +170,6 @@ namespace API_Gateway.Controllers
             {
                 return StatusCode(500, ex.Message);
             }
-        }
-
-        [HttpGet("role/test/permission")]
-        [RequiresPermission("cart.read")]
-        public async Task<IActionResult> TestRolePermissionAccess()
-        {
-            string token = "";
-            string token2 = "";
-            if (_contextAccessor.HttpContext != null)
-            {
-                token = await _contextAccessor.HttpContext.GetTokenAsync("access_token") ?? "";
-                token2 = _contextAccessor.HttpContext.Request.Headers["Authorization"].FirstOrDefault();
-            }
-
-            return Ok(token2);
-        }
-
-        [HttpGet("role/test/permission/2")]
-        [RequiresPermission("order.create")]
-        public async Task<IActionResult> TestRolePermissionAccess2()
-        {
-            return Ok();
-        }
-
-        [HttpGet("role/test/admin-plain")]
-        [Authorize]
-        public async Task<IActionResult> TestPlainAuthTagAccess()
-        {
-            return Ok();
-        }
-
-        [HttpGet("role/test/admin-req")]
-        //[Authorize(Policy = "AdminOnly")]
-        [Authorize(Roles = "ADMIN")]
-        public async Task<IActionResult> TestRoleAccess()
-        {
-            return Ok();
         }
     }
 }
