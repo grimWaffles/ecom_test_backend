@@ -1,10 +1,11 @@
-using Microsoft.EntityFrameworkCore;
-using UserServiceGrpc.Database;
-using UserServiceGrpc.Repository;
-using UserServiceGrpc.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using UserServiceGrpc.Database;
+using UserServiceGrpc.Helpers;
+using UserServiceGrpc.Repository;
+using UserServiceGrpc.Services;
 namespace UserServiceGrpc
 {
     public class Program
@@ -16,19 +17,11 @@ namespace UserServiceGrpc
             // Add services to the container.
             builder.Services.AddGrpc();
 
-            ConfigureDatabase(builder.Services, builder.Configuration);
+            //Configure the Database connection strings
+            DependencyResolver.ConfigureDatabase(builder.Services, builder.Configuration);
 
             //Add services for dependency injection
-            builder.Services.AddScoped<IUserRepository, UserRepository>();
-
-            builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-            builder.Services.AddScoped<IRoleService, RoleService>();
-
-            builder.Services.AddScoped<ISecurityPermissionRepository, SecurityPermissionRepository>();
-            builder.Services.AddScoped<ISecurityPermissionService, SecurityPermissionService>();
-
-            builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
-            builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
+            DependencyResolver.RegisterServices(builder.Services);
 
             //Add Authentication and Authorization
             builder.Services.AddAuthentication(defaultScheme: "InternalAuthScheme")
@@ -70,44 +63,6 @@ namespace UserServiceGrpc
             }
 
             app.Run();
-        }
-
-        static void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
-        {
-            string dbType = configuration["DatabaseConfig:Database"] ?? "";
-            string mode = configuration["DatabaseConfig:Mode"] ?? "";
-            string dbKey = "";
-            string connectionString = "";
-
-            if (dbType == "" || mode == "")
-            {
-                throw new InvalidOperationException("Database configuration not set up correctly.");
-            }
-
-            dbKey = (dbType.ToLower(), mode.ToLower()) switch
-            {
-                ("work", "local") => "SqlServerWorkConnection",
-                ("work", "docker") => "SqlServerWorkDockerConnection",
-                ("home", "local") => "SqlServerHomeConnection",
-                ("home", "docker") => "SqlServerHomeDockerConnection",
-                _ => ""
-            };
-
-            if (dbKey == "")
-            {
-                throw new InvalidOperationException("Database key not found.");
-            }
-
-            connectionString = configuration.GetConnectionString(dbKey) ?? "";
-
-            if (connectionString == "")
-            {
-                throw new InvalidOperationException("Database connection string not found.");
-            }
-
-            services.AddDbContext<AppDbContext>(options =>
-                    options.UseSqlServer(connectionString)
-                );
         }
     }
 }

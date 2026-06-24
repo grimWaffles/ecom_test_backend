@@ -52,36 +52,19 @@ namespace API_Gateway
                         RoleClaimType = "Role",
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtUserSchema:SigningKey"]))
                     };
-                })
-                .AddJwtBearer("InternalAuthScheme", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters()
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-
-                        ValidIssuer = builder.Configuration["JwtInternalSchema:validIssuer"],
-                        ValidAudience = builder.Configuration["JwtInternalSchema:validAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtInternalSchema:SigningKey"]))
-                    };
                 });
 
             //Find the policies flow in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
             builder.Services.AddAuthorization();
 
-            builder.Services.AddControllers(options =>
-            {
-                //options.Filters.Add<RequestPermissionFilter>();
-            });
+            builder.Services.AddControllers();
 
             var app = builder.Build();
 
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
-            //Use Custom Middleware
+            ////Use Custom Middleware
             //app.UseTokenAuthorizationMiddleware();
             //app.UseRequestLogMiddleware();
 
@@ -90,14 +73,6 @@ namespace API_Gateway
             app.UseAuthorization();
 
             app.MapControllers();
-
-            //Run Seeder functions
-            //using(AsyncServiceScope scope= app.Services.CreateAsyncScope())
-            //{
-            //    IUserService service = scope.ServiceProvider.GetRequiredService<IUserService>();
-
-            //    var result = await service.GetAllUsersAsync();
-            //}
 
             app.Run();
         }
