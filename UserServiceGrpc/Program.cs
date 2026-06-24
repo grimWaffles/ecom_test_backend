@@ -22,6 +22,7 @@ namespace UserServiceGrpc
 
             //Add services for dependency injection
             DependencyResolver.RegisterServices(builder.Services);
+            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
 
             //Add Authentication and Authorization
             builder.Services.AddAuthentication(defaultScheme: "InternalAuthScheme")
