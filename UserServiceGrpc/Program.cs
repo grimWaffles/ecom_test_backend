@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using UserServiceGrpc.Database;
+using UserServiceGrpc.Grpc;
 using UserServiceGrpc.Helpers;
 using UserServiceGrpc.Repository;
-using UserServiceGrpc.Services;
 namespace UserServiceGrpc
 {
     public class Program

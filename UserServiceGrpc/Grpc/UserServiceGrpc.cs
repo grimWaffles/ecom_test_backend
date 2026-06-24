@@ -1,32 +1,25 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.Tokens;
-using System;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
-using System.Threading.Tasks;
 using UserServiceGrpc.Helpers;
+using UserServiceGrpc.Models;
 using UserServiceGrpc.Models.Dtos;
 using UserServiceGrpc.Models.Entities;
-using UserServiceGrpc.Repository;
+using UserServiceGrpc.Services;
 
-namespace UserServiceGrpc.Services
+namespace UserServiceGrpc.Grpc
 {
     [Authorize]
     public class UserGrpcService : User.UserBase
     {
-        private readonly IUserRepository _repo;
+        private readonly IUserService _service;
         private readonly ILogger<UserGrpcService> _logger;
-        private readonly IConfiguration _configuration;
         private readonly IRolePermissionService _rolePermissionService;
 
-        public UserGrpcService(IUserRepository userRepository, IConfiguration configuration, ILogger<UserGrpcService> logger, IRolePermissionService rolePermissionService)
+        public UserGrpcService(IUserService userService, ILogger<UserGrpcService> logger, IRolePermissionService rolePermissionService)
         {
-            _repo = userRepository;
+            _service = userService;
             _logger = logger;
-            _configuration = configuration;
             _rolePermissionService = rolePermissionService;
         }
 
@@ -43,186 +36,105 @@ namespace UserServiceGrpc.Services
             return await Task.FromResult(response);
         }
 
-        //CRUD Operations
+        // ── CRUD Operations ───────────────────────────────────────────────────────────
+
         public override async Task<UserCrudResponse> CreateUser(CreateUserRequest request, ServerCallContext context)
         {
-            UserModel userModel = await _repo.GetUserByUsername(request.Username);
-            UserCrudResponse response = new UserCrudResponse();
-
-            if (userModel != null)
-            {
-                response.Status = 0;
-
-                if (userModel.Username != request.Username)
-                {
-                    response.ErrorMesage = response.ErrorMesage.IsNullOrEmpty() ? "Username already exists" : response.ErrorMesage + " | " + "Username already exists";
-                }
-                if (userModel.Email == request.Email)
-                {
-                    response.ErrorMesage = response.ErrorMesage.IsNullOrEmpty() ? "Email ID already exists" : response.ErrorMesage + " | " + "Email ID already exists";
-                }
-                if (userModel.MobileNo == request.MobileNo)
-                {
-                    response.ErrorMesage = response.ErrorMesage.IsNullOrEmpty() ? "Mobile number already exists" : response.ErrorMesage + " | " + "Mobile number already exists";
-                }
-
-                return response;
-            }
-
             UserModel requestModel = ConvertRequestToModel(request);
-            requestModel.CreatedBy = requestModel.RoleId == 1 ? 1 : request.UserId; requestModel.CreatedDate = DateTime.Now;
+            requestModel.CreatedBy = requestModel.RoleId == 1 ? 1 : request.UserId;
+            requestModel.CreatedDate = DateTime.Now;
 
-            int status = await _repo.CreateUser(requestModel);
+            ServiceResult result = await _service.CreateUser(requestModel);
 
-            response.Status = status;
-            response.ErrorMesage = status == 1 ? "User added successfully" : "Failed to add user";
-
-            return response;
+            return new UserCrudResponse
+            {
+                Status = result.Status,
+                ErrorMesage = result.Message
+            };
         }
 
         public override async Task<UserCrudResponse> UpdateUser(CreateUserRequest request, ServerCallContext context)
         {
-            UserModel userModel = await _repo.GetUserById(request.Id);
-            UserCrudResponse response = new UserCrudResponse();
-
-            if (userModel == null)
-            {
-                response.Status = 0;
-                response.ErrorMesage = "User does not exist";
-                return response;
-            }
-
             UserModel requestModel = ConvertRequestToModel(request);
+            requestModel.ModifiedBy = request.UserId;
+            requestModel.ModifiedDate = DateTime.Now;
 
-            userModel.Username = requestModel.Username;
-            userModel.Password = requestModel.Password;
-            userModel.Email = requestModel.Email;
-            userModel.MobileNo = requestModel.MobileNo;
-            userModel.RoleId = requestModel.RoleId;
+            ServiceResult result = await _service.UpdateUser(requestModel);
 
-            userModel.ModifiedBy = request.UserId; userModel.ModifiedDate = DateTime.Now;
-
-            int status = await _repo.UpdateUser(userModel);
-
-            response.Status = status;
-            response.ErrorMesage = status == 1 ? "User updated successfully" : "Failed to update user";
-
-            return response;
+            return new UserCrudResponse
+            {
+                Status = result.Status,
+                ErrorMesage = result.Message
+            };
         }
 
         public override async Task<UserCrudResponse> DeleteUser(UserRequestSingle request, ServerCallContext context)
         {
-            UserModel userModel = await _repo.GetUserById(request.Id);
-            UserCrudResponse response = new UserCrudResponse();
+            ServiceResult result = await _service.DeleteUser(request.Id, request.UserId);
 
-            if (userModel == null)
+            return new UserCrudResponse
             {
-                response.Status = 0;
-                response.ErrorMesage = "User does not exist";
-                return response;
-            }
-
-            userModel.IsDeleted = true; userModel.ModifiedDate = DateTime.Now; ; userModel.ModifiedBy = request.UserId;
-
-            int status = await _repo.UpdateUser(userModel);
-
-            response.Status = status;
-            response.ErrorMesage = status == 1 ? "User updated successfully" : "Failed to update user";
-
-            return response;
+                Status = result.Status,
+                ErrorMesage = result.Message
+            };
         }
 
         public override async Task<CreateUserRequest> GetUserByIdAsync(UserRequestSingle request, ServerCallContext context)
         {
-            UserModel user = await _repo.GetUserById(request.UserId);
+            UserModel user = await _service.GetUserById(request.Id);
 
-            if (user == null)
-            {
-                return null;
-            }
-
-            return ConvertModelToRequest(user);
+            return user == null ? null : ConvertModelToRequest(user);
         }
 
         public override async Task<UserResponseMultiple> GetAllUsers(Empty request, ServerCallContext context)
         {
-            string requiredPermission = TokenHelper.GetClaimValueFromToken(context.GetHttpContext().User,"Permission");
+            // Permission extraction is infrastructure concern — stays in the gRPC layer.
+            string requiredPermission = TokenHelper.GetClaimValueFromToken(
+                context.GetHttpContext().User, "Permission");
 
-            List<UserModel> users = await _repo.GetUsers();
+            List<UserModel> users = await _service.GetUsers();
 
-            if (users == null || users.Count == 0) { return new UserResponseMultiple(); }
+            if (users == null || users.Count == 0)
+                return new UserResponseMultiple();
 
-            UserResponseMultiple usersResponse = new UserResponseMultiple();
-
-            usersResponse.Users.AddRange(users.Select(r => ConvertModelToRequest(r)).ToList());
-
-            return usersResponse;
+            UserResponseMultiple response = new UserResponseMultiple();
+            response.Users.AddRange(users.Select(u => ConvertModelToRequest(u)));
+            return response;
         }
 
         public override async Task GetAllUsersStream(Empty request, IServerStreamWriter<CreateUserRequest> responseStream, ServerCallContext context)
         {
-            CreateUserRequest response = new CreateUserRequest();
-
             try
             {
-                List<UserModel> userModels = await _repo.GetUsers();
+                List<UserModel> users = await _service.GetUsers();
 
-                foreach (UserModel user in userModels)
-                {
+                foreach (UserModel user in users)
                     await responseStream.WriteAsync(ConvertModelToRequest(user));
-                }
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                response.Id = 0;
-                await responseStream.WriteAsync(response);
+                await responseStream.WriteAsync(new CreateUserRequest { Id = 0 });
             }
         }
 
-        //User Authentication
+        // ── Authentication (unchanged per spec) ──────────────────────────────────────
+
         [AllowAnonymous]
         public override async Task<UserLoginResponse> LoginUser(UserLoginRequest request, ServerCallContext context)
         {
-            UserLoginResponse response = new UserLoginResponse();
-            UserModel model = await _repo.GetUserByUsername(request.Username);
+            LoginResponseDto response = await _service.LoginUser(request.Username, request.Password);
 
-            if (model == null)
-            {
-                response.UserId = 0;
-                response.ErrorMessage = "User does not exist";
-
-                return response;
-            }
-
-            ///Todo
-            /// Hash the password before checking
-
-            if (model.Password != request.Password)
-            {
-                response.UserId = 0;
-                response.ErrorMessage = "Password is incorrect";
-
-                return response;
-            }
-
-            response.UserId = model.Id;
-            response.Username = model.Username;
-            response.AccessToken = GenerateJwtTokenForUser(model);
-            response.RoleId = model.RoleId;
-            response.RoleName = model.Role.Name.ToString();
-            response.ErrorMessage = "";
-
-            return response;
+            return ToGrpcResponse(response);
         }
 
         [AllowAnonymous]
         public override async Task<UserLoginResponse> LogoutUser(UserRequestSingle request, ServerCallContext context)
         {
-            UserLoginResponse response = new UserLoginResponse();
-            response.UserId = request.UserId;
-            response.ErrorMessage = "Logout successful";
-
-            return response;
+            return new UserLoginResponse
+            {
+                UserId = request.UserId,
+                ErrorMessage = "Logout successful"
+            };
         }
 
         //Role Permissions
@@ -405,35 +317,24 @@ namespace UserServiceGrpc.Services
             };
         }
 
-        private string GenerateJwtTokenForUser(UserModel user)
+        private UserLoginResponse ToGrpcResponse(LoginResponseDto dto)
         {
-            //Claims dictionary<type,value(in string)>
-            Dictionary<string, string> claimDictionary = new Dictionary<string, string>();
-            claimDictionary.Add("UserId", user.Id.ToString());
-            claimDictionary.Add("RoleId", user.RoleId.ToString());
-            claimDictionary.Add("Username", user.Username);
-            claimDictionary.Add("Role",user.Role.Name.ToString().ToUpper());
+            if (dto == null)
+                return new UserLoginResponse
+                {
+                    UserId = 0,
+                    ErrorMessage = "Response object was null"
+                };
 
-            return TokenHelper.GenerateJwtToken(
-                claimDictionary,
-                _configuration["JwtUserSchema:signingKey"] ?? "",
-                _configuration["JwtUserSchema:validIssuer"] ?? "", 
-                _configuration["JwtUserSchema:validAudience"] ?? "",
-                _configuration["JwtUserSchema:ExpirationInSeconds"] ?? ""
-            );
+            return new UserLoginResponse
+            {
+                UserId = dto.UserId,
+                Username = dto.Username ?? string.Empty,
+                AccessToken = dto.AccessToken ?? string.Empty,
+                RoleId = dto.RoleId,
+                RoleName = dto.RoleName ?? string.Empty,
+                ErrorMessage = dto.ErrorMessage ?? string.Empty
+            };
         }
-
-        //private async Task<int> GetUserIdFromToken(HttpContext httpContext)
-        //{
-        //    try
-        //    {
-        //        string userIdClaim = httpContext.User.Claims.Where(x => x.Type == "UserId").First().Value ?? "";
-        //        return await Task.FromResult(Convert.ToInt32(userIdClaim));
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        return await Task.FromResult(-1);
-        //    }
-        //}
     }
 }

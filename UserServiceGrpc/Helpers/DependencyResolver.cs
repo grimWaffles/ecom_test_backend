@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using UserServiceGrpc.Models;
+using Microsoft.EntityFrameworkCore;
 using UserServiceGrpc.Database;
 using UserServiceGrpc.Repository;
 using UserServiceGrpc.Services;
@@ -7,6 +8,11 @@ namespace UserServiceGrpc.Helpers
 {
     public static class DependencyResolver
     {
+        public static void RegisterConfigOptions(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<JwtUserSchemaOptions>(configuration.GetSection(JwtUserSchemaOptions.SectionName));
+        }
+
         public static void RegisterServices(this IServiceCollection services)
         {
             services.AddScoped<IUserRepository, UserRepository>();
@@ -19,6 +25,8 @@ namespace UserServiceGrpc.Helpers
 
             services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
             services.AddScoped<IRolePermissionService, RolePermissionService>();
+
+            services.AddScoped<IUserService, UserService>();
         }
 
         public static void ConfigureDatabase(this IServiceCollection services, IConfiguration configuration)

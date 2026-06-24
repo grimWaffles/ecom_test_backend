@@ -21,10 +21,8 @@ namespace UserServiceGrpc.Helpers
             }
         }
 
-        public static string GenerateJwtToken(Dictionary<string, string> claimDictionary, string signingKey, string validIssuer, string validAudience,string expirationInSeconds)
+        public static string GenerateJwtToken(Dictionary<string, string> claimDictionary, string signingKey, string validIssuer, string validAudience,int expirationInSeconds)
         {
-            int tokenExpiration = Convert.ToInt32(expirationInSeconds);
-
             //Generate a GUID for the token and save it for later
             string guId = Guid.NewGuid().ToString();
 
@@ -45,7 +43,7 @@ namespace UserServiceGrpc.Helpers
                 issuer: validIssuer,
                 audience: validAudience,
                 claims: claims,
-                expires: DateTime.Now.AddSeconds(tokenExpiration),
+                expires: DateTime.Now.AddSeconds(expirationInSeconds),
                 signingCredentials: creds
             );
 
