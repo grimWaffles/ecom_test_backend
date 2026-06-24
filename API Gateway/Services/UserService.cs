@@ -37,13 +37,11 @@ namespace API_Gateway.Services
     {
         private readonly User.UserClient _client;
         private readonly ILogger<UserService> _logger;
-        private readonly ITokenHelper _tokenHelper;
 
-        public UserService(User.UserClient grpcClient, ILogger<UserService> logger, ITokenHelper tokenHelper)
+        public UserService(User.UserClient grpcClient, ILogger<UserService> logger)
         {
             _client = grpcClient;
             _logger = logger;
-            _tokenHelper = tokenHelper;
         }
 
         public async Task<string> TestServiceAsync()
@@ -69,7 +67,7 @@ namespace API_Gateway.Services
         {
             try
             {
-                var res = await _client.GetAllUsersAsync(new Empty(), headers: _tokenHelper.GetGrpcHeaders());
+                var res = await _client.GetAllUsersAsync(new Empty());
                 return res.Users.ToList();
             }
             catch (RpcException ex)

@@ -12,37 +12,28 @@ namespace API_Gateway.Interceptors
     public class JwtForwardingInterceptor : Interceptor
     {
         private readonly ILogger<JwtForwardingInterceptor> _logger;
-        private readonly IServiceProvider _serviceProvider;
+        private readonly ITokenHelper _tokenHelper;
 
-        public JwtForwardingInterceptor(ILogger<JwtForwardingInterceptor> logger, IServiceProvider serviceProvider)
+        public JwtForwardingInterceptor(ILogger<JwtForwardingInterceptor> logger, ITokenHelper tokenHelper)
         {
             _logger = logger;
-            _serviceProvider = serviceProvider;
+            _tokenHelper = tokenHelper;
         }
 
         public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(TRequest request, ClientInterceptorContext<TRequest, TResponse> context, AsyncUnaryCallContinuation<TRequest, TResponse> continuation)
         {
             _logger.LogInformation($"Interceptor hit — Method: {context.Method.Name}, Request type: {typeof(TRequest).Name}");
 
-            using(IServiceScope scope = _serviceProvider.CreateScope())
+            //Sends the Service Auth Token from the RequirePermission filter
+            Metadata? authHeadersFromHttpContext = _tokenHelper.GetGrpcHeaders();
+
+            if (authHeadersFromHttpContext != null)
             {
-                ITokenHelper tokenHelper = scope.ServiceProvider.GetRequiredService<ITokenHelper>();
-                
-                //Sends the User Auth Token from the original request
-                string authHeadersFromToken = tokenHelper.GetUserToken() ?? "";
+                CallOptions options = context.Options.WithHeaders(authHeadersFromHttpContext);
 
-                if (authHeadersFromToken!="")
-                {
-                    Metadata headers = new Metadata();
+                ClientInterceptorContext<TRequest, TResponse> newContext = new ClientInterceptorContext<TRequest, TResponse>(context.Method, context.Host, options);
 
-                    headers.Add("Authorization", authHeadersFromToken);
-
-                    CallOptions options = context.Options.WithHeaders(headers);
-
-                    ClientInterceptorContext<TRequest, TResponse> newContext = new ClientInterceptorContext<TRequest, TResponse>(context.Method, context.Host, options);
-
-                    return continuation(request, newContext);
-                }
+                return continuation(request, newContext);
             }
 
             return continuation(request, context);

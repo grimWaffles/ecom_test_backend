@@ -71,7 +71,7 @@ namespace API_Gateway.Helpers
 
             // ── Main Auth Policy Provider
             services.AddSingleton<IAuthorizationPolicyProvider, RolePermissionPolicyProvider>();
-            services.AddSingleton<JwtForwardingInterceptor>();
+            services.AddScoped<JwtForwardingInterceptor>();
 
             // ── Service ────────────────────────────────────────────────────────────────
             services.AddScoped<IRequestLogService, RequestLogService>();
@@ -108,11 +108,7 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<User.UserClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetUserServiceUrl());
-            });
-            //    //Option 1: The recommended/ cleaner approach is to use a seperate interceptor class.
-            //    //Adds more flexibility and the options to add logging and what not.
-            //    .AddInterceptor<JwtForwardingInterceptor>(); //UserService uses the main token forwarding.
-            ////Commented out to implement the service token approach
+            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<Seller.SellerClient>(options =>
             {
