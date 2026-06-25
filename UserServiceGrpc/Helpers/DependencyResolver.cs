@@ -1,6 +1,8 @@
-﻿using UserServiceGrpc.Models;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using UserServiceGrpc.Authorization;
 using UserServiceGrpc.Database;
+using UserServiceGrpc.Models;
 using UserServiceGrpc.Repository;
 using UserServiceGrpc.Services;
 
@@ -15,6 +17,11 @@ namespace UserServiceGrpc.Helpers
 
         public static void RegisterServices(this IServiceCollection services)
         {
+            services.AddScoped<ITokenHelper, TokenHelper>();
+
+            services.AddSingleton<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>();
+            services.AddScoped<IAuthorizationHandler, RolePermissionHandler>();
+
             services.AddScoped<IUserRepository, UserRepository>();
 
             services.AddScoped<IRoleRepository, RoleRepository>();

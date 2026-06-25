@@ -1,19 +1,36 @@
-﻿using Microsoft.IdentityModel.Tokens;
+﻿using Grpc.Core;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using UserServiceGrpc.Models;
 using UserServiceGrpc.Models.Entities;
 
 namespace UserServiceGrpc.Helpers
 {
-    public static class TokenHelper
+    public interface ITokenHelper
     {
-        public static string GetClaimValueFromToken(ClaimsPrincipal claimsPrincipal, string claimType)
+        string? GetClaimValueFromToken(string claimType);
+        string GenerateJwtToken(Claim[] claimsArray);
+    }
+
+    public class TokenHelper : ITokenHelper
+    {
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly JwtUserSchemaOptions _jwtUserSchemaOptions;
+
+        public TokenHelper(IHttpContextAccessor contextAccessor, IOptions<JwtUserSchemaOptions> schemaOptions)
+        {
+            _httpContextAccessor = contextAccessor;
+            _jwtUserSchemaOptions = schemaOptions.Value;
+        }
+
+        public string? GetClaimValueFromToken(string claimType)
         {
             try
             {
-                string claimValue = claimsPrincipal.Claims.Where(x => x.Type == claimType).First().Value ?? "";
-                return claimValue;
+                return _httpContextAccessor.HttpContext?.User.Claims.Where(x => x.Type == claimType).First().Value ?? "";
             }
             catch (Exception e)
             {
@@ -21,41 +38,21 @@ namespace UserServiceGrpc.Helpers
             }
         }
 
-        public static string GenerateJwtToken(Dictionary<string, string> claimDictionary, string signingKey, string validIssuer, string validAudience,int expirationInSeconds)
+        public string GenerateJwtToken(Claim[] claimsArray)
         {
-            //Generate a GUID for the token and save it for later
-            string guId = Guid.NewGuid().ToString();
-
-            //Add the necessary claims to the token
-            var claims = claimDictionary
-                .Select(x => new Claim(x.Key, x.Value))
-                .Append(new Claim(JwtRegisteredClaimNames.Jti, guId))
-                .ToArray();
-
-            //Generate Key
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
-
-            //Generate the credentials
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtUserSchemaOptions.SigningKey));
+            var signingCreds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
             //Issue the token
             var token = new JwtSecurityToken(
-                issuer: validIssuer,
-                audience: validAudience,
-                claims: claims,
-                expires: DateTime.Now.AddSeconds(expirationInSeconds),
-                signingCredentials: creds
+                issuer: _jwtUserSchemaOptions.ValidIssuer,
+                audience: _jwtUserSchemaOptions.ValidAudience,
+                claims: claimsArray,
+                expires: DateTime.Now.AddSeconds(_jwtUserSchemaOptions.ExpirationInSeconds),
+                signingCredentials: signingCreds
             );
 
-            try
-            {
-                string newToken = new JwtSecurityTokenHandler().WriteToken(token);
-                return new JwtSecurityTokenHandler().WriteToken(token);
-            }
-            catch (Exception e)
-            {
-                return "";
-            }
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
 }

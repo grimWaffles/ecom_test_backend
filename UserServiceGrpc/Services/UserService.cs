@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using System.Security.Claims;
 using UserServiceGrpc.Helpers;
 using UserServiceGrpc.Models;
 using UserServiceGrpc.Models.Dtos;
@@ -7,11 +8,6 @@ using UserServiceGrpc.Repository;
 
 namespace UserServiceGrpc.Services
 {
-    // ─────────────────────────────────────────────────────────────────────────────
-    // IUserService — mutating methods now return ServiceResult so callers get both
-    // status and a human-readable message without depending on proto types.
-    // ─────────────────────────────────────────────────────────────────────────────
-
     public interface IUserService
     {
         Task<List<UserModel>> GetUsers();
@@ -26,27 +22,20 @@ namespace UserServiceGrpc.Services
         Task<LoginResponseDto> LoginUser(string username, string password);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // UserService — owns ALL business logic for user management.
-    // ─────────────────────────────────────────────────────────────────────────────
-
     public class UserService : IUserService
     {
         private readonly IUserRepository _userRepository;
         private readonly JwtUserSchemaOptions _jwtUserSchema;
         private readonly ILogger<UserService> _logger;
+        private readonly ITokenHelper _tokenHelper;
 
-        public UserService(
-            IUserRepository userRepository,
-            ILogger<UserService> logger,
-            IOptions<JwtUserSchemaOptions> schemaOptions)
+        public UserService(IUserRepository userRepository, ILogger<UserService> logger, IOptions<JwtUserSchemaOptions> schemaOptions, ITokenHelper tokenHelper)
         {
             _userRepository = userRepository;
             _logger = logger;
             _jwtUserSchema = schemaOptions.Value;
+            _tokenHelper = tokenHelper;
         }
-
-        // ── GET ALL ──────────────────────────────────────────────────────────────
 
         public async Task<List<UserModel>> GetUsers()
         {
@@ -63,8 +52,6 @@ namespace UserServiceGrpc.Services
                 return null;
             }
         }
-
-        // ── GET BY ID ────────────────────────────────────────────────────────────
 
         public async Task<UserModel> GetUserById(int id)
         {
@@ -85,8 +72,6 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        // ── GET BY USERNAME ──────────────────────────────────────────────────────
-
         public async Task<UserModel> GetUserByUsername(string username)
         {
             try
@@ -106,8 +91,6 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        // ── CREATE ───────────────────────────────────────────────────────────────
-
         public async Task<ServiceResult> CreateUser(UserModel user)
         {
             try
@@ -118,7 +101,6 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Error("User model cannot be null.");
                 }
 
-                // ── Field-level validation ────────────────────────────────────────
                 var validationErrors = new List<string>();
 
                 if (string.IsNullOrWhiteSpace(user.Username))
@@ -136,16 +118,11 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Failures(validationErrors);
                 }
 
-                // ── Uniqueness checks ─────────────────────────────────────────────
-                // A single repository call retrieves any conflicting record by username.
-                // Email and mobile checks require their own calls if not covered by
-                // GetUserByUsername — extend as needed when those repo methods exist.
                 UserModel existing = await _userRepository.GetUserByUsername(user.Username);
                 var conflicts = new List<string>();
 
                 if (existing != null)
                 {
-                    // Username always conflicts when the record exists under that name.
                     conflicts.Add("Username already exists.");
 
                     if (existing.Email == user.Email)
@@ -162,7 +139,6 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Failures(conflicts);
                 }
 
-                // ── Persist ───────────────────────────────────────────────────────
                 _logger.LogInformation("Creating user with username '{Username}'.", user.Username);
                 int rows = await _userRepository.CreateUser(user);
 
@@ -182,8 +158,6 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        // ── UPDATE ───────────────────────────────────────────────────────────────
-
         public async Task<ServiceResult> UpdateUser(UserModel user)
         {
             try
@@ -194,7 +168,6 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Error("User model cannot be null.");
                 }
 
-                // ── Field-level validation ────────────────────────────────────────
                 var validationErrors = new List<string>();
 
                 if (user.Id <= 0)
@@ -212,7 +185,6 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Failures(validationErrors);
                 }
 
-                // ── Existence check ───────────────────────────────────────────────
                 UserModel existing = await _userRepository.GetUserById(user.Id);
 
                 if (existing == null)
@@ -221,7 +193,6 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Failure("User does not exist.");
                 }
 
-                // ── Apply changes to the tracked entity ───────────────────────────
                 existing.Username = user.Username;
                 existing.Password = user.Password;
                 existing.Email = user.Email;
@@ -230,7 +201,6 @@ namespace UserServiceGrpc.Services
                 existing.ModifiedBy = user.ModifiedBy;
                 existing.ModifiedDate = user.ModifiedDate;
 
-                // ── Persist ───────────────────────────────────────────────────────
                 _logger.LogInformation("Updating user with ID {UserId}.", existing.Id);
                 int rows = await _userRepository.UpdateUser(existing);
 
@@ -250,8 +220,6 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        // ── DELETE (soft) ─────────────────────────────────────────────────────────
-
         public async Task<ServiceResult> DeleteUser(int userId, int deletedByUserId)
         {
             try
@@ -262,7 +230,6 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Error("A valid user ID is required.");
                 }
 
-                // ── Existence check ───────────────────────────────────────────────
                 UserModel existing = await _userRepository.GetUserById(userId);
 
                 if (existing == null)
@@ -271,7 +238,6 @@ namespace UserServiceGrpc.Services
                     return ServiceResult.Failure("User does not exist.");
                 }
 
-                // ── Soft-delete ───────────────────────────────────────────────────
                 existing.IsDeleted = true;
                 existing.ModifiedDate = DateTime.Now;
                 existing.ModifiedBy = deletedByUserId;
@@ -295,8 +261,6 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        // ── GET ROLES ─────────────────────────────────────────────────────────────
-
         public async Task<List<RolePermission>> GetRolesAccessAsync()
         {
             try
@@ -313,8 +277,6 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        // ── LOGIN (unchanged) ─────────────────────────────────────────────────────
-
         public async Task<LoginResponseDto> LoginUser(string username, string password)
         {
             UserModel model = await GetUserByUsername(username);
@@ -327,7 +289,6 @@ namespace UserServiceGrpc.Services
                 return loginResponseDto;
             }
 
-            /// Todo: hash the password before comparing.
             if (model.Password != password)
             {
                 loginResponseDto.UserId = 0;
@@ -335,35 +296,23 @@ namespace UserServiceGrpc.Services
                 return loginResponseDto;
             }
 
+            Claim[] claims =
+            [
+                new Claim( "UserId",   model.Id.ToString() ),
+                new Claim( "RoleId",   model.RoleId.ToString() ),
+                new Claim( "Username", model.Username ),
+                new Claim( "Role",     model.Role.Name.ToString().ToUpper() )
+            ];
+
             loginResponseDto.UserId = model.Id;
             loginResponseDto.Username = model.Username;
-            loginResponseDto.AccessToken = GenerateJwtTokenForUser(model);
+            loginResponseDto.AccessToken = _tokenHelper.GenerateJwtToken(claims);
+
             loginResponseDto.RoleId = model.RoleId;
             loginResponseDto.RoleName = model.Role.Name.ToString();
             loginResponseDto.ErrorMessage = "";
 
             return loginResponseDto;
-        }
-
-        // ── Private helpers ───────────────────────────────────────────────────────
-
-        private string GenerateJwtTokenForUser(UserModel user)
-        {
-            var claims = new Dictionary<string, string>
-        {
-            { "UserId",   user.Id.ToString() },
-            { "RoleId",   user.RoleId.ToString() },
-            { "Username", user.Username },
-            { "Role",     user.Role.Name.ToString().ToUpper() }
-        };
-
-            return TokenHelper.GenerateJwtToken(
-                claims,
-                _jwtUserSchema.SigningKey,
-                _jwtUserSchema.ValidIssuer,
-                _jwtUserSchema.ValidAudience,
-                _jwtUserSchema.ExpirationInSeconds
-            );
         }
     }
 }

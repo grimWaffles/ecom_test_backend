@@ -1,6 +1,7 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
+using UserServiceGrpc.Authorization;
 using UserServiceGrpc.Helpers;
 using UserServiceGrpc.Models;
 using UserServiceGrpc.Models.Dtos;
@@ -37,7 +38,7 @@ namespace UserServiceGrpc.Grpc
         }
 
         // ── CRUD Operations ───────────────────────────────────────────────────────────
-
+        [RequiresPermission("user.create")]
         public override async Task<UserCrudResponse> CreateUser(CreateUserRequest request, ServerCallContext context)
         {
             UserModel requestModel = ConvertRequestToModel(request);
@@ -53,6 +54,7 @@ namespace UserServiceGrpc.Grpc
             };
         }
 
+        [RequiresPermission("user.update")]
         public override async Task<UserCrudResponse> UpdateUser(CreateUserRequest request, ServerCallContext context)
         {
             UserModel requestModel = ConvertRequestToModel(request);
@@ -68,6 +70,7 @@ namespace UserServiceGrpc.Grpc
             };
         }
 
+        [RequiresPermission("user.delete")]
         public override async Task<UserCrudResponse> DeleteUser(UserRequestSingle request, ServerCallContext context)
         {
             ServiceResult result = await _service.DeleteUser(request.Id, request.UserId);
@@ -79,6 +82,7 @@ namespace UserServiceGrpc.Grpc
             };
         }
 
+        [RequiresPermission("user.view")]
         public override async Task<CreateUserRequest> GetUserByIdAsync(UserRequestSingle request, ServerCallContext context)
         {
             UserModel user = await _service.GetUserById(request.Id);
@@ -86,12 +90,9 @@ namespace UserServiceGrpc.Grpc
             return user == null ? null : ConvertModelToRequest(user);
         }
 
+        [RequiresPermission("user.view")]
         public override async Task<UserResponseMultiple> GetAllUsers(Empty request, ServerCallContext context)
         {
-            // Permission extraction is infrastructure concern — stays in the gRPC layer.
-            string requiredPermission = TokenHelper.GetClaimValueFromToken(
-                context.GetHttpContext().User, "Permission");
-
             List<UserModel> users = await _service.GetUsers();
 
             if (users == null || users.Count == 0)
@@ -102,6 +103,7 @@ namespace UserServiceGrpc.Grpc
             return response;
         }
 
+        [RequiresPermission("user.view")]
         public override async Task GetAllUsersStream(Empty request, IServerStreamWriter<CreateUserRequest> responseStream, ServerCallContext context)
         {
             try
@@ -138,6 +140,7 @@ namespace UserServiceGrpc.Grpc
         }
 
         //Role Permissions
+        [RequiresPermission("permission.view")]
         public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleId(GetAllRolePermissionsByRoleIdRequest request, ServerCallContext context)
         {
             try
@@ -163,6 +166,7 @@ namespace UserServiceGrpc.Grpc
             }
         }
 
+        [RequiresPermission("permission.view")]
         public override async Task<GetAllRolePermissionsByRoleIdResponse> GetAllPermissionsByRoleIdAndPermissionName(GetAllRolePermissionsByRoleIdAndPermissionNameRequest request, ServerCallContext context)
         {
             try
@@ -209,6 +213,7 @@ namespace UserServiceGrpc.Grpc
             }
         }
 
+        [RequiresPermission("permission.create")]
         public override async Task<CreateRolePermissionResponse> CreateRolePermission(CreateRolePermissionRequest request, ServerCallContext context)
         {
             try
@@ -241,6 +246,7 @@ namespace UserServiceGrpc.Grpc
             }
         }
 
+        [RequiresPermission("permission.update")]
         public override async Task<UpdateRolePermissionResponse> UpdateRolePermission(UpdateRolePermissionRequest request, ServerCallContext context)
         {
             try
@@ -273,6 +279,7 @@ namespace UserServiceGrpc.Grpc
             }
         }
 
+        [RequiresPermission("permission.delete")]
         public override async Task<DeleteRolePermissionResponse> DeleteRolePermission(DeleteRolePermissionRequest request, ServerCallContext context)
         {
             try

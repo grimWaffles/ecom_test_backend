@@ -14,6 +14,8 @@ namespace UserServiceGrpc
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            builder.Services.AddHttpContextAccessor();
+
             // Add services to the container.
             builder.Services.AddGrpc();
 
