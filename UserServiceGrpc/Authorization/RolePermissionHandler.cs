@@ -38,7 +38,6 @@ namespace UserServiceGrpc.Authorization
                 string roleId = _tokenHelper.GetClaimValueFromToken("RoleId");
                 string permissionName = _tokenHelper.GetClaimValueFromToken("Permission");
 
-
                 if (string.IsNullOrWhiteSpace(roleId) || string.IsNullOrEmpty(permissionName))
                 {
                     context.Fail();
