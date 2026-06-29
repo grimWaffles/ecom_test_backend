@@ -20,12 +20,12 @@ namespace API_Gateway.AuthHandlers.Handlers
 
     public class RoleAuthorizationHandler : AuthorizationHandler<RolePermissionRequirement>
     {
-        private readonly IUserService _userService;
+        private readonly IPermissionService _permissionService;
         private readonly ILogger<RoleAuthorizationHandler> _logger;
 
-        public RoleAuthorizationHandler(IUserService service, ILogger<RoleAuthorizationHandler> logger)
+        public RoleAuthorizationHandler(IPermissionService service, ILogger<RoleAuthorizationHandler> logger)
         {
-            _userService = service;
+            _permissionService = service;
             _logger = logger;
         }
 
@@ -54,7 +54,7 @@ namespace API_Gateway.AuthHandlers.Handlers
                 }
 
                 //Replace this with a cache call after Redis is setup
-                CheckRoleIdAndPermissionResponse response = await _userService.CheckRoleIdAndPermission(roleId, requirement.Permission) ?? new CheckRoleIdAndPermissionResponse();
+                CheckRoleIdAndPermissionResponse response = await _permissionService.CheckRoleIdAndPermission(roleId, requirement.Permission) ?? new CheckRoleIdAndPermissionResponse();
 
                 if (!response.Exists)
                 {

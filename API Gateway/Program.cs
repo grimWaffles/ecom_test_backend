@@ -16,7 +16,6 @@ namespace API_Gateway
             var builder = WebApplication.CreateBuilder(args);
 
             builder.Services.AddHttpContextAccessor();
-            builder.Services.AddMemoryCache();
 
             DependencyResolver.ConfigureDatabases(builder.Services, builder.Configuration);
 

@@ -1,12 +1,12 @@
 ﻿using API_Gateway.AuthHandlers.Handlers;
 using API_Gateway.AuthHandlers.PolicyProviders;
-using API_Gateway.CacheService;
 using API_Gateway.Database;
 using API_Gateway.Filters;
 using API_Gateway.Grpc;
 using API_Gateway.Interceptors;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
+using API_Gateway.Models.RedisModels;
 using API_Gateway.Repository;
 using API_Gateway.Services;
 using ApiGateway.Protos;
@@ -62,6 +62,9 @@ namespace API_Gateway.Helpers
 
         public static void RegisterServices(this IServiceCollection services, IConfiguration config)
         {
+            // ── Redis ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IRedisService, RedisService>();
+
             // ── Filters ─────────────────────────────────────────────────────────────
             services.AddScoped<RequirePermissionFilter>();
 
@@ -75,8 +78,6 @@ namespace API_Gateway.Helpers
 
             // ── Service ────────────────────────────────────────────────────────────────
             services.AddScoped<IRequestLogService, RequestLogService>();
-            services.AddSingleton<IRedisService, RedisService>();
-            services.AddSingleton<ICustomCacheService, CustomCacheService>();
             services.AddScoped<ITokenHelper, TokenHelper>();
 
             // ── External ─────────────────────────────────────────────────────────────
@@ -86,6 +87,7 @@ namespace API_Gateway.Helpers
             services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
             services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
             services.AddScoped<ICustomerTransactionGrpcClient, CustomerTransactionGrpcClient>();
+            services.AddScoped<IPermissionService, PermissionService>();
         }
 
         public static void RegisterMiddleware(this IServiceCollection services)
@@ -97,6 +99,8 @@ namespace API_Gateway.Helpers
         {
             services.Configure<MicroServiceUrl>(config.GetSection("MicroServiceUrls"));
             services.Configure<JwtInternalSchemaOptions>(config.GetSection(JwtInternalSchemaOptions.SectionName));
+            services.Configure<RedisConfigModel>(config.GetSection(RedisConfigModel.SectionName));
+
         }
 
         public static void RegisterGrpcServices(this IServiceCollection services, IConfiguration config)
@@ -128,6 +132,11 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<OrderGrpcService.OrderGrpcServiceClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetOrderServiceUrl());
+            });
+
+            services.AddGrpcClient<Permission.PermissionClient>(options =>
+            {
+                options.Address = new Uri(serviceUrls.GetUserServiceUrl());
             });
         }
     }

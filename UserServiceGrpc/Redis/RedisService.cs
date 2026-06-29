@@ -1,13 +1,13 @@
-using API_Gateway.Models.RedisModels;
+using UserServiceGrpc.Models.RedisModels;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
-namespace API_Gateway.Services
+namespace UserServiceGrpc.Services
 {
     public interface IRedisService
     {
         Task<string> GetValueByKey(string key);
-        string SetValueByKey(string keyName, string keyValue);
+        bool SetValueByKey(string keyName, string keyValue);
         bool DoesKeyExist(string key);
         bool DeleteKey(string key);
     }
@@ -48,16 +48,16 @@ namespace API_Gateway.Services
             }
         }
 
-        public string SetValueByKey(string keyName, string keyValue)
+        public bool SetValueByKey(string keyName, string keyValue)
         {
             try
             {
-                bool keyAdded = _redis.StringSet(keyName, keyValue);
-                return keyAdded ? "Success" : "Failed";
+                _redis.StringSet(keyName, keyValue);
+                return true;
             }
             catch (Exception e)
             {
-                return "Failed";
+                return false;
             }
         }
 

@@ -3,8 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using UserServiceGrpc.Authorization;
 using UserServiceGrpc.Database;
 using UserServiceGrpc.Models;
+using UserServiceGrpc.Models.RedisModels;
 using UserServiceGrpc.Repository;
 using UserServiceGrpc.Services;
+using static Org.BouncyCastle.Math.EC.ECCurve;
 
 namespace UserServiceGrpc.Helpers
 {
@@ -13,10 +15,13 @@ namespace UserServiceGrpc.Helpers
         public static void RegisterConfigOptions(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<JwtUserSchemaOptions>(configuration.GetSection(JwtUserSchemaOptions.SectionName));
+            services.Configure<RedisConfigModel>(configuration.GetSection(RedisConfigModel.SectionName));
         }
 
         public static void RegisterServices(this IServiceCollection services)
         {
+            services.AddSingleton<IRedisService, RedisService>();
+
             services.AddScoped<ITokenHelper, TokenHelper>();
 
             services.AddSingleton<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>();

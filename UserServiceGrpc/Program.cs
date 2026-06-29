@@ -2,15 +2,17 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json;
 using UserServiceGrpc.Database;
 using UserServiceGrpc.Grpc;
 using UserServiceGrpc.Helpers;
 using UserServiceGrpc.Repository;
+using UserServiceGrpc.Services;
 namespace UserServiceGrpc
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -52,17 +54,38 @@ namespace UserServiceGrpc
 
             // Configure the HTTP request pipeline.
             app.MapGrpcService<UserGrpcService>();
+            app.MapGrpcService<PermissionServiceGrpc>();
 
             app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
 
             //Call seeder to populate permissions data
-            using (var scope = app.Services.CreateScope())
+            //And then load permission data to the redis cache
+            try
             {
-                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                using (var scope = app.Services.CreateAsyncScope())
+                {
+                    //Load Permissions data
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                RolePermissionSeeder seeder = new RolePermissionSeeder(dbContext);
+                    RolePermissionSeeder seeder = new RolePermissionSeeder(dbContext);
 
-                seeder.SeedRolePermissions();
+                    seeder.SeedRolePermissions();
+
+                    //Load to cache
+                    IRolePermissionService rolePermissionService = scope.ServiceProvider.GetRequiredService<IRolePermissionService>();
+
+                    List<RolePermissionDto> dataToLoad = await rolePermissionService.GetAllPermissionsByRoleId(1);
+
+                    IRedisService redisService = scope.ServiceProvider.GetRequiredService<IRedisService>();
+
+                    redisService.SetValueByKey("permissions", JsonSerializer.Serialize(dataToLoad));
+
+                    Console.WriteLine("Data to load to cache: " + dataToLoad.Count.ToString());
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Failed to preload cache");
             }
 
             app.Run();

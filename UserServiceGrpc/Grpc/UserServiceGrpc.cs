@@ -120,7 +120,6 @@ namespace UserServiceGrpc.Grpc
         }
 
         // ── Authentication (unchanged per spec) ──────────────────────────────────────
-
         [AllowAnonymous]
         public override async Task<UserLoginResponse> LoginUser(UserLoginRequest request, ServerCallContext context)
         {
@@ -182,27 +181,6 @@ namespace UserServiceGrpc.Grpc
                     RoleName = x.RoleName,
                     PermissionName = x.PermissionName
                 }));
-
-                return response;
-            }
-            catch (Exception e)
-            {
-                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
-                throw new RpcException(new Status(StatusCode.Internal, e.Message));
-            }
-        }
-
-        [AllowAnonymous]
-        public override async Task<CheckRoleIdAndPermissionResponse> CheckRoleIdAndPermission(CheckRoleIdAndPermissionRequest request, ServerCallContext context)
-        {
-            try
-            {
-                bool exists = await _rolePermissionService.CheckRoleIdAndPermissionName(request.RoleId, request.PermissionName);
-
-                CheckRoleIdAndPermissionResponse response = new CheckRoleIdAndPermissionResponse()
-                {
-                    Exists = exists
-                };
 
                 return response;
             }

@@ -1,4 +1,18 @@
 ﻿services:
+# Redis Configuration
+    redisserver:
+        image: redis:7.2
+        container_name: RedisContainer
+        restart: unless-stopped
+        ports:
+            - 6379:6379
+        volumes:
+            - ../RedisConfiguration/redis.conf:/usr/local/etc/redis/redis.conf
+            - ../RedisConfiguration/users.acl:/usr/local/etc/redis/users.acl
+            - redis-data:/data
+
+        command: redis-server /usr/local/etc/redis/redis.conf
+
 # Microservice Configuration    
     userservice:
         build: ./UserServiceGrpc
@@ -23,8 +37,11 @@
         depends_on:
             - userservice
             - productservice
-            - orderservice  
-
+            - orderservice
+            - redisserver
+# Volumes
+volumes:
+        redis-data:
 #Network Configuration
 networks:
   default:
