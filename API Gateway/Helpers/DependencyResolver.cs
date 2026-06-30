@@ -6,7 +6,6 @@ using API_Gateway.Grpc;
 using API_Gateway.Interceptors;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
-using API_Gateway.Models.RedisModels;
 using API_Gateway.Repository;
 using API_Gateway.Services;
 using ApiGateway.Protos;

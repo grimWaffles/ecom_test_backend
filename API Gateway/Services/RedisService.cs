@@ -1,9 +1,27 @@
-using API_Gateway.Models.RedisModels;
+
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace API_Gateway.Services
 {
+    public class RedisKeyValueModel
+    {
+        public string Key { get; set; }
+        public string Value { get; set; }
+    }
+
+    public class RedisConfigModel
+    {
+        public const string SectionName = "Redis";
+        public string LocalUrl { get; set; }
+        public string DockerUrl { get; set; }
+        public string Mode { get; set; }
+        public string Username { get; set; }
+        public string Password { get; set; }
+
+        public string GetRedisConnectionString() => this.Mode == "docker" ? this.DockerUrl : this.LocalUrl;
+    }
+
     public interface IRedisService
     {
         Task<string> GetValueByKey(string key);

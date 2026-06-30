@@ -1,9 +1,21 @@
-using UserServiceGrpc.Models.RedisModels;
+
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace UserServiceGrpc.Services
 {
+    public class RedisConfigModel
+    {
+        public const string SectionName = "Redis";
+        public string LocalUrl { get; set; }
+        public string DockerUrl { get; set; }
+        public string Mode { get; set; }
+        public string Username { get; set; }
+        public string Password { get; set; }
+
+        public string GetRedisConnectionString() => this.Mode == "docker" ? this.DockerUrl : this.LocalUrl;
+    }
+
     public interface IRedisService
     {
         Task<string> GetValueByKey(string key);
@@ -11,6 +23,7 @@ namespace UserServiceGrpc.Services
         bool DoesKeyExist(string key);
         bool DeleteKey(string key);
     }
+
     public class RedisService : IRedisService
     {
         private readonly IOptions<RedisConfigModel> _config;

@@ -58,35 +58,8 @@ namespace UserServiceGrpc
 
             app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
 
-            //Call seeder to populate permissions data
-            //And then load permission data to the redis cache
-            try
-            {
-                using (var scope = app.Services.CreateAsyncScope())
-                {
-                    //Load Permissions data
-                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-                    RolePermissionSeeder seeder = new RolePermissionSeeder(dbContext);
-
-                    seeder.SeedRolePermissions();
-
-                    //Load to cache
-                    IRolePermissionService rolePermissionService = scope.ServiceProvider.GetRequiredService<IRolePermissionService>();
-
-                    List<RolePermissionDto> dataToLoad = await rolePermissionService.GetAllPermissionsByRoleId(1);
-
-                    IRedisService redisService = scope.ServiceProvider.GetRequiredService<IRedisService>();
-
-                    redisService.SetValueByKey("permissions", JsonSerializer.Serialize(dataToLoad));
-
-                    Console.WriteLine("Data to load to cache: " + dataToLoad.Count.ToString());
-                }
-            }
-            catch
-            {
-                Console.WriteLine("Failed to preload cache");
-            }
+            //Load Permissions to cache
+            DependencyResolver.LoadPermissionsToCache(app);
 
             app.Run();
         }

@@ -1,12 +1,11 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using UserServiceGrpc.Authorization;
 using UserServiceGrpc.Database;
 using UserServiceGrpc.Models;
-using UserServiceGrpc.Models.RedisModels;
 using UserServiceGrpc.Repository;
 using UserServiceGrpc.Services;
-using static Org.BouncyCastle.Math.EC.ECCurve;
 
 namespace UserServiceGrpc.Helpers
 {
@@ -77,6 +76,49 @@ namespace UserServiceGrpc.Helpers
             services.AddDbContext<AppDbContext>(options =>
                     options.UseSqlServer(connectionString)
                 );
+        }
+
+        public static async Task LoadPermissionsToCache(this WebApplication? app)
+        {
+            try
+            {
+                using (var scope = app.Services.CreateAsyncScope())
+                {
+                    //Load Permissions data
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    RolePermissionSeeder seeder = new RolePermissionSeeder(dbContext);
+
+                    seeder.SeedRolePermissions();
+
+                    //Load to cache
+                    IRolePermissionService rolePermissionService = scope.ServiceProvider.GetRequiredService<IRolePermissionService>();
+
+                    List<RolePermissionDto> dataToLoad = await rolePermissionService.GetAllPermissionsByRoleId(1);
+
+                    Dictionary<string, string> formattedDictionary = await rolePermissionService.GetPermissionListDictionary(dataToLoad);
+
+                    IRedisService redisService = scope.ServiceProvider.GetRequiredService<IRedisService>();
+                    
+                    int statusCount = 0;
+
+                    foreach (var (key,value) in formattedDictionary)
+                    {
+                        bool r = redisService.SetValueByKey(key, value);
+
+                        if (r)
+                        {
+                            statusCount++;
+                        }
+                    }
+
+                    Console.WriteLine("Data to loaded to cache: " + statusCount.ToString());
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Failed to preload cache");
+            }
         }
     }
 }

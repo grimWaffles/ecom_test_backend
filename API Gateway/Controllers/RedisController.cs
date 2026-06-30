@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Threading.Tasks;
-using API_Gateway.Models.RedisModels;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Mvc;
@@ -33,17 +32,16 @@ namespace API_Gateway.Controllers
         [Route("get-key")]
         public async Task<IActionResult> GetKey([FromQuery] string? key)
         {
-            if (key != null)
+            if (key != "permissions")
             {
                 string value = await _redisService.GetValueByKey(key);
                 return Ok(key+": "+value);
             }
             else
             {
-                string keyToAdd = "permissions";
                 if (_redisService.DoesKeyExist(key))
                 {
-                    var redisList = await _redisService.GetValueByKey(keyToAdd);
+                    var redisList = await _redisService.GetValueByKey(key);
                     List<RolePermissionDto> list = JsonSerializer.Deserialize<List<RolePermissionDto>>(redisList);
                     return Ok(list);
                 }

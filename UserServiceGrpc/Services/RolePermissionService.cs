@@ -13,6 +13,7 @@ namespace UserServiceGrpc.Services
         Task<RolePermissionDto> CreateRolePermission(RolePermissionDto model, int userId);
         Task<RolePermissionDto> UpdateRolePermission(RolePermissionDto model, int userId);
         Task DeleteRolePermission(long id, int userId);
+        Task<Dictionary<string, string>> GetPermissionListDictionary(List<RolePermissionDto> dtos);
     }
 
     public class RolePermissionService : IRolePermissionService
@@ -41,6 +42,21 @@ namespace UserServiceGrpc.Services
                 _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
                 throw;
             }
+        }
+
+        public async Task<Dictionary<string,string>> GetPermissionListDictionary(List<RolePermissionDto> dtos)
+        {
+            Dictionary<string,string> result = new Dictionary<string,string>();
+
+            foreach(RolePermissionDto dto in dtos)
+            {
+                string key = "permission:"+dto.RoleId.ToString()+":"+dto.PermissionName;
+                string value = 1.ToString();
+
+                result.Add(key, value);
+            }
+
+            return result;
         }
 
         public async Task<List<RolePermissionDto>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName)
