@@ -1,12 +1,10 @@
-﻿using API_Gateway.Helpers;
-using API_Gateway.Services;
-using ApiGateway.Protos;
-using Grpc.Core;
+﻿using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
+using UserServiceGrpc.Helpers;
+using UserServiceGrpc.Services;
 
-namespace API_Gateway.AuthHandlers.Handlers
+namespace UserServiceGrpc.Authorization
 {
     public class RolePermissionRequirement : IAuthorizationRequirement
     {
@@ -18,15 +16,17 @@ namespace API_Gateway.AuthHandlers.Handlers
         }
     }
 
-    public class RoleAuthorizationHandler : AuthorizationHandler<RolePermissionRequirement>
+    public class RolePermissionHandler : AuthorizationHandler<RolePermissionRequirement>
     {
-        private readonly IRedisService _redisService;
-        private readonly ILogger<RoleAuthorizationHandler> _logger;
+        private readonly ILogger<RolePermissionHandler> _logger;
+        private readonly ITokenHelper _tokenHelper;
+        private readonly IRolePermissionService _permissionService;
 
-        public RoleAuthorizationHandler(IRedisService service, ILogger<RoleAuthorizationHandler> logger)
+        public RolePermissionHandler(ILogger<RolePermissionHandler> logger, ITokenHelper tokenHelper, IRolePermissionService permissionService)
         {
-            _redisService = service;
             _logger = logger;
+            _tokenHelper = tokenHelper;
+            _permissionService = permissionService;
         }
 
         protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, RolePermissionRequirement requirement)
@@ -35,28 +35,27 @@ namespace API_Gateway.AuthHandlers.Handlers
             {
                 _logger.LogInformation("Handling RoleAuth Requirement for requirement: {requirement}", requirement);
 
-                Claim roleClaim = context.User.FindFirst("role") ?? null;
-                Claim roleIdClaim = context.User.FindFirst("roleId") ?? null;
+                string roleId = _tokenHelper.GetClaimValueFromToken("RoleId");
+                string permissionName = _tokenHelper.GetClaimValueFromToken("Permission");
 
-                if (roleClaim is null)
+                if (string.IsNullOrWhiteSpace(roleId) || string.IsNullOrEmpty(permissionName))
                 {
                     context.Fail();
+                    _logger.LogError("Permission Name and/or roleId not found");
                     return;
                 }
 
-                int roleId = Convert.ToInt32(roleIdClaim.Value);
-
-                if (roleId == 0)
+                if (permissionName != requirement.Permission)
                 {
-                    _logger.LogError("User role not found!");
                     context.Fail();
+                    _logger.LogError("User does not have matching permission");
                     return;
                 }
 
                 //Replace this with a cache call after Redis is setup
-                string response = await _redisService.GetValueByKey("permission:"+roleId.ToString()+":"+requirement.Permission.ToLower());
+                bool isAuthorized = await _permissionService.CheckRoleIdAndPermissionName(long.Parse(roleId), requirement.Permission);
 
-                if (response!="1")
+                if (!isAuthorized)
                 {
                     _logger.LogCritical("Unauthorized user detected for requirement: {r}", requirement);
                     context.Fail();

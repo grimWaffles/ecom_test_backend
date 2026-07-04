@@ -1,10 +1,8 @@
-﻿
-using API_Gateway.AuthHandlers.Handlers;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 
-namespace API_Gateway.AuthHandlers.PolicyProviders
+namespace UserServiceGrpc.Authorization
 {
     public class RequiresPermissionAttribute : AuthorizeAttribute
     {
@@ -14,21 +12,21 @@ namespace API_Gateway.AuthHandlers.PolicyProviders
         }
     }
 
-    public class RolePermissionPolicyProvider : IAuthorizationPolicyProvider
+    public class AuthorizationPolicyProvider : IAuthorizationPolicyProvider
     {
         private readonly DefaultAuthorizationPolicyProvider _defPolicyProvider;
-        private readonly ILogger<RolePermissionPolicyProvider> _logger;
+        private readonly ILogger<AuthorizationPolicyProvider> _logger;
 
         ConcurrentDictionary<string, AuthorizationPolicy> _policyDictionary;
 
-        public RolePermissionPolicyProvider(IOptions<AuthorizationOptions> options, ILogger<RolePermissionPolicyProvider> logger)
+        public AuthorizationPolicyProvider(IOptions<AuthorizationOptions> options, ILogger<AuthorizationPolicyProvider> logger)
         {
             _defPolicyProvider = new DefaultAuthorizationPolicyProvider(options);
             _logger = logger;
 
             _policyDictionary = new ConcurrentDictionary<string, AuthorizationPolicy>();
 
-            _logger.LogInformation("CREATED CUSTOMER AUTH POLICY PROVIDER");
+            _logger.LogInformation("UserService AUTH POLICY PROVIDER loaded");
         }
 
         public async Task<AuthorizationPolicy> GetDefaultPolicyAsync()
@@ -43,13 +41,7 @@ namespace API_Gateway.AuthHandlers.PolicyProviders
 
         public async Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
         {
-            //if (!policyName.StartsWith(POLICY_PREFIX))
-            //{
-            //    _logger.LogInformation("Forwarding to appropriate policy");
-            //    return await _defPolicyProvider.GetPolicyAsync(policyName);
-            //}
-
-            string permissionName = policyName.ToLower(); //policyName.Replace(POLICY_PREFIX, "");
+            string permissionName = policyName.ToLower();
 
             _logger.LogInformation("Processing policy: {policy}", permissionName);
 

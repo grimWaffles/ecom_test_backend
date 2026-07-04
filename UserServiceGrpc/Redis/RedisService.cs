@@ -2,14 +2,8 @@
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
-namespace API_Gateway.Services
+namespace UserServiceGrpc.Services
 {
-    public class RedisKeyValueModel
-    {
-        public string Key { get; set; }
-        public string Value { get; set; }
-    }
-
     public class RedisConfigModel
     {
         public const string SectionName = "Redis";
@@ -25,10 +19,11 @@ namespace API_Gateway.Services
     public interface IRedisService
     {
         Task<string> GetValueByKey(string key);
-        string SetValueByKey(string keyName, string keyValue);
+        bool SetValueByKey(string keyName, string keyValue);
         bool DoesKeyExist(string key);
         bool DeleteKey(string key);
     }
+
     public class RedisService : IRedisService
     {
         private readonly IOptions<RedisConfigModel> _config;
@@ -66,16 +61,16 @@ namespace API_Gateway.Services
             }
         }
 
-        public string SetValueByKey(string keyName, string keyValue)
+        public bool SetValueByKey(string keyName, string keyValue)
         {
             try
             {
-                bool keyAdded = _redis.StringSet(keyName, keyValue);
-                return keyAdded ? "Success" : "Failed";
+                _redis.StringSet(keyName, keyValue);
+                return true;
             }
             catch (Exception e)
             {
-                return "Failed";
+                return false;
             }
         }
 

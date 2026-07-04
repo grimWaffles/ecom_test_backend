@@ -8,6 +8,7 @@ namespace UserServiceGrpc.Repository
     {
         Task<List<Role>> GetAllAsync();
         Task<Role?> GetByIdAsync(int id);
+        Task<Role?> GetByRoleName(string roleName);
         Task<Role?> CreateAsync(Role role);
         Task<Role?> UpdateAsync(Role role);
         Task<bool> DeleteAsync(int id, int modifiedBy);
@@ -41,6 +42,19 @@ namespace UserServiceGrpc.Repository
             {
                 return await _context.Roles
                     .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<Role?> GetByRoleName(string roleName)
+        {
+            try
+            {
+                return await _context.Roles
+                    .FirstOrDefaultAsync(x => x.Name == roleName && !x.IsDeleted);
             }
             catch
             {

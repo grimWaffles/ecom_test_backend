@@ -1,5 +1,7 @@
 using API_Gateway.Database;
+using API_Gateway.Filters;
 using API_Gateway.Helpers;
+using API_Gateway.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -9,12 +11,11 @@ namespace API_Gateway
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
             builder.Services.AddHttpContextAccessor();
-            builder.Services.AddMemoryCache();
 
             DependencyResolver.ConfigureDatabases(builder.Services, builder.Configuration);
 
@@ -50,43 +51,10 @@ namespace API_Gateway
                         RoleClaimType = "Role",
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtUserSchema:SigningKey"]))
                     };
-                })
-                .AddJwtBearer("InternalAuthScheme", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters()
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-
-                        ValidIssuer = builder.Configuration["JwtInternalSchema:validIssuer"],
-                        ValidAudience = builder.Configuration["JwtInternalSchema:validAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtInternalSchema:SigningKey"]))
-                    };
                 });
 
-            //Rest of the policies are dynamically provided by the AuthProvider, only role-based are declared here.
-            //Find the rest in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
-            builder.Services.AddAuthorization(
-                options =>
-                {
-                    options.AddPolicy("AdminOnly", policy =>
-                    {
-                        policy.RequireRole("ADMIN");
-                    });
-
-                    options.AddPolicy("CustomerOnly", policy =>
-                    {
-                        policy.RequireRole("CUSTOMER");
-                    });
-
-                    options.AddPolicy("SellerOnly", policy =>
-                    {
-                        policy.RequireRole("SELLER");
-                    });
-                }
-            );
+            //Find the policies flow in ./AuthHandlers/PolicyProviders/RolePermissionPolicyProvider.cs
+            builder.Services.AddAuthorization();
 
             builder.Services.AddControllers();
 
@@ -95,7 +63,7 @@ namespace API_Gateway
             app.UseCors("AllowOrigin");
             app.UseHttpsRedirection();
 
-            //Use Custom Middleware
+            ////Use Custom Middleware
             //app.UseTokenAuthorizationMiddleware();
             //app.UseRequestLogMiddleware();
 

@@ -107,7 +107,7 @@ namespace UserServiceGrpc.Repository
         {
             try
             {
-                UserModel user = await _db.Users.AsNoTracking().Include(u=>u.Role).Where(u => u.Username == username)
+                UserModel user = await _db.Users.AsNoTracking().Include(u=>u.Role).Where(u => u.Username.ToLower() == username.ToLower())
                     .Select(u=> new UserModel
                 {
                     Id = u.Id, Username = u.Username, Password = u.Password, RoleId = u.RoleId, Role = u.Role

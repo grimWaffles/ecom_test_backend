@@ -1,7 +1,7 @@
 ﻿using API_Gateway.AuthHandlers.Handlers;
 using API_Gateway.AuthHandlers.PolicyProviders;
-using API_Gateway.CacheService;
 using API_Gateway.Database;
+using API_Gateway.Filters;
 using API_Gateway.Grpc;
 using API_Gateway.Interceptors;
 using API_Gateway.Middlewares;
@@ -61,6 +61,24 @@ namespace API_Gateway.Helpers
 
         public static void RegisterServices(this IServiceCollection services, IConfiguration config)
         {
+            // ── Redis ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IRedisService, RedisService>();
+
+            // ── Filters ─────────────────────────────────────────────────────────────
+            services.AddScoped<RequirePermissionFilter>();
+
+            // ── Repository ─────────────────────────────────────────────────────────────
+            services.AddScoped<IRequestLogRepository, RequestLogRepository>();
+            services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
+
+            // ── Main Auth Policy Provider
+            services.AddSingleton<IAuthorizationPolicyProvider, RolePermissionPolicyProvider>();
+            services.AddScoped<JwtForwardingInterceptor>();
+
+            // ── Service ────────────────────────────────────────────────────────────────
+            services.AddScoped<IRequestLogService, RequestLogService>();
+            services.AddScoped<ITokenHelper, TokenHelper>();
+
             // ── External ─────────────────────────────────────────────────────────────
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IProductCategoryGrpcClient, ProductCategoryGrpcClient>();
@@ -68,20 +86,7 @@ namespace API_Gateway.Helpers
             services.AddScoped<ISellerGrpcClient, SellerGrpcClient>();
             services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
             services.AddScoped<ICustomerTransactionGrpcClient, CustomerTransactionGrpcClient>();
-
-            // ── Repository ─────────────────────────────────────────────────────────────
-            services.AddScoped<IRequestLogRepository, RequestLogRepository>();
-            services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
-            services.AddScoped<IAuthorizationHandler, ReportAuthorizationHandler>();
-
-            // ── Main Auth Policy Provider
-            services.AddSingleton<IAuthorizationPolicyProvider, RolePermissionPolicyProvider>();
-            services.AddSingleton<JwtForwardingInterceptor>();
-
-            // ── Service ────────────────────────────────────────────────────────────────
-            services.AddScoped<IRequestLogService, RequestLogService>();
-            services.AddSingleton<IRedisService, RedisService>();
-            services.AddSingleton<ICustomCacheService, CustomCacheService>();
+            services.AddScoped<IPermissionService, PermissionService>();
         }
 
         public static void RegisterMiddleware(this IServiceCollection services)
@@ -92,6 +97,9 @@ namespace API_Gateway.Helpers
         public static void RegisterConfigOptions(this IServiceCollection services, IConfiguration config)
         {
             services.Configure<MicroServiceUrl>(config.GetSection("MicroServiceUrls"));
+            services.Configure<JwtInternalSchemaOptions>(config.GetSection(JwtInternalSchemaOptions.SectionName));
+            services.Configure<RedisConfigModel>(config.GetSection(RedisConfigModel.SectionName));
+
         }
 
         public static void RegisterGrpcServices(this IServiceCollection services, IConfiguration config)
@@ -103,27 +111,7 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<User.UserClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetUserServiceUrl());
-            })
-                ////Option 1 : Use the call credentials to attach the token to the requests made from this client
-                //// USES HTTPS ONLY
-                //.AddCallCredentials(async (context, metadata, serviceProvider) =>
-                //{
-                //    IHttpContextAccessor httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
-
-                //    if (httpContextAccessor.HttpContext != null)
-                //    {
-                //        string? token = await httpContextAccessor.HttpContext.GetTokenAsync("access_token");
-
-                //        if (!string.IsNullOrEmpty(token))
-                //        {
-                //            metadata.Add("Authorization", $"Bearer {token}");
-                //        }
-                //    }
-                //});
-                
-                //Option 2: The recommended/ cleaner approach is to use a seperate interceptor class.
-                //Adds more flexibility and the options to add logging and what not.
-                .AddInterceptor<JwtForwardingInterceptor>(); //UserService uses the main token forwarding.
+            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<Seller.SellerClient>(options =>
             {
@@ -143,6 +131,11 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<OrderGrpcService.OrderGrpcServiceClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetOrderServiceUrl());
+            });
+
+            services.AddGrpcClient<Permission.PermissionClient>(options =>
+            {
+                options.Address = new Uri(serviceUrls.GetUserServiceUrl());
             });
         }
     }

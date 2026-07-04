@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option csharp_namespace = "UserServiceGrpc.Protos";
+
+message CheckRoleIdAndPermissionRequest{
+	int64 role_id = 1;
+	string permission_name = 2;
+}
+
+message CheckRoleIdAndPermissionResponse {
+    bool exists = 1;
+}
+
+service Permission{
+	rpc CheckRoleIdAndPermission (CheckRoleIdAndPermissionRequest) returns (CheckRoleIdAndPermissionResponse);
+}

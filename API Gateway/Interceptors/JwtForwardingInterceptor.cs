@@ -1,30 +1,42 @@
-﻿using Grpc.Core;
+﻿using API_Gateway.Helpers;
+using ApiGateway.Protos;
+using Azure.Core;
+using Grpc.Core;
 using Grpc.Core.Interceptors;
+using Grpc.Net.Client.Configuration;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 
 namespace API_Gateway.Interceptors
 {
     public class JwtForwardingInterceptor : Interceptor
     {
-        private readonly IHttpContextAccessor _httpContext;
+        private readonly ILogger<JwtForwardingInterceptor> _logger;
+        private readonly ITokenHelper _tokenHelper;
 
-        public JwtForwardingInterceptor(IHttpContextAccessor contextAccessor)
+        public JwtForwardingInterceptor(ILogger<JwtForwardingInterceptor> logger, ITokenHelper tokenHelper)
         {
-            _httpContext = contextAccessor;
+            _logger = logger;
+            _tokenHelper = tokenHelper;
         }
 
         public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(TRequest request, ClientInterceptorContext<TRequest, TResponse> context, AsyncUnaryCallContinuation<TRequest, TResponse> continuation)
         {
-            string authHeadersFromToken = _httpContext.HttpContext.Request.Headers["Authorization"].FirstOrDefault() ?? "";
-            
-            Metadata headers = new Metadata();
+            _logger.LogInformation($"Interceptor hit — Method: {context.Method.Name}, Request type: {typeof(TRequest).Name}");
 
-            headers.Add("Authorization", authHeadersFromToken);
+            //Sends the Service Auth Token from the RequirePermission filter
+            Metadata? authHeadersFromHttpContext = _tokenHelper.GetGrpcHeaders();
 
-            CallOptions options = context.Options.WithHeaders(headers);
-            
-            ClientInterceptorContext<TRequest, TResponse> newContext = new ClientInterceptorContext<TRequest, TResponse>(context.Method, context.Host, options);
+            if (authHeadersFromHttpContext != null)
+            {
+                CallOptions options = context.Options.WithHeaders(authHeadersFromHttpContext);
 
-            return continuation(request, newContext);
+                ClientInterceptorContext<TRequest, TResponse> newContext = new ClientInterceptorContext<TRequest, TResponse>(context.Method, context.Host, options);
+
+                return continuation(request, newContext);
+            }
+
+            return continuation(request, context);
         }
     }
 }
