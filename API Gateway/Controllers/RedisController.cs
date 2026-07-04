@@ -1,9 +1,8 @@
 using System.Text.Json;
 using System.Threading.Tasks;
-using API_Gateway.Services;
+using API_Gateway.Redis;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Mvc;
-using StackExchange.Redis;
 
 namespace API_Gateway.Controllers
 {
@@ -24,7 +23,7 @@ namespace API_Gateway.Controllers
         [Route("add-key")]
         public async Task<IActionResult> AddKeyToRedis([FromBody] RedisKeyValueModel model)
         {
-            _redisService.SetValueByKey(model.Key,model.Value);
+            await _redisService.SetValueByKeyAsync(model.Key, model.Value);
             return Ok("Addtion complete");
         }
 
@@ -34,15 +33,15 @@ namespace API_Gateway.Controllers
         {
             if (key != "permissions")
             {
-                string value = await _redisService.GetValueByKey(key);
-                return Ok(key+": "+value);
+                string value = await _redisService.GetValueByKeyAsync(key) ?? "";
+                return Ok(key + ": " + value);
             }
             else
             {
-                if (_redisService.DoesKeyExist(key))
+                if (await _redisService.DoesKeyExistAsync(key))
                 {
-                    var redisList = await _redisService.GetValueByKey(key);
-                    List<RolePermissionDto> list = JsonSerializer.Deserialize<List<RolePermissionDto>>(redisList);
+                    var redisList = await _redisService.GetValueByKeyAsync(key);
+                    List<RolePermissionDto> list = JsonSerializer.Deserialize<List<RolePermissionDto>>(redisList)?? new List<RolePermissionDto>();
                     return Ok(list);
                 }
                 else
@@ -57,9 +56,9 @@ namespace API_Gateway.Controllers
         public async Task<IActionResult> DeleteKey()
         {
             string key = "user_obj";
-            if (_redisService.DoesKeyExist(key))
+            if (await _redisService.DoesKeyExistAsync(key))
             {
-                _redisService.DeleteKey(key);
+                await _redisService.DeleteKeyAsync(key);
                 return Ok("Data deleted");
             }
             return Ok("No key exists.");

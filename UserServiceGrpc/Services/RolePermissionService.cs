@@ -106,7 +106,7 @@ namespace UserServiceGrpc.Services
                 SecurityPermission permissionName = await _spService.GetByIdAsync(model.PermissionId) ?? new SecurityPermission();
 
                 string keyName = "permission:" + model.RoleId + ":" + permissionName.Permission;
-                _redis.SetValueByKey(keyName, "1");
+                await _redis.SetValueByKeyAsync(keyName, "1", TimeSpan.FromDays(30), null, true);
 
                 return Mapper.CreateRolePermissionDtoFromModel(created);
             }
@@ -137,7 +137,7 @@ namespace UserServiceGrpc.Services
                     SecurityPermission permissionName = await _spService.GetByIdAsync(model.PermissionId) ?? new SecurityPermission();
 
                     string keyName = "permission:" + model.RoleId + ":" + permissionName.Permission;
-                    _redis.SetValueByKey(keyName, "1");
+                    await _redis.SetValueByKeyAsync(keyName, "1", TimeSpan.FromDays(30), null, true);
                 }
 
                 return true;

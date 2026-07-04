@@ -18,6 +18,9 @@ namespace UserServiceGrpc
 
             builder.Services.AddHttpContextAccessor();
 
+            // Add config options
+            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
+
             // Add services to the container.
             builder.Services.AddGrpc();
 
@@ -26,7 +29,6 @@ namespace UserServiceGrpc
 
             //Add services for dependency injection
             DependencyResolver.RegisterServices(builder.Services);
-            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
 
             //Add Authentication and Authorization
             builder.Services.AddAuthentication(defaultScheme: "InternalAuthScheme")

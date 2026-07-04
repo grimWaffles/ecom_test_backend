@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using System.Text.Json;
 using UserServiceGrpc.Authorization;
@@ -20,6 +21,33 @@ namespace UserServiceGrpc.Helpers
 
         public static void RegisterServices(this IServiceCollection services)
         {
+            // ── Redis Connection Multiplexer ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                var config = sp.GetRequiredService<IOptions<RedisConfigModel>>();
+
+                ConfigurationOptions options = new()
+                {
+                    User = config.Value.Username,
+                    Password = config.Value.Password,
+                    AbortOnConnectFail = false
+                };
+
+                options.EndPoints.Add(
+                    config.Value.GetRedisConnectionString());
+
+                return ConnectionMultiplexer.Connect(options);
+            });
+
+            // ── Redis DB Reference ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IDatabase>(sp =>
+            {
+                return sp
+                    .GetRequiredService<IConnectionMultiplexer>()
+                    .GetDatabase();
+            });
+
+            // ── Redis Service ───────────────────────────────────────────────────────
             services.AddSingleton<IRedisService, RedisService>();
 
             services.AddScoped<ITokenHelper, TokenHelper>();
@@ -115,7 +143,7 @@ namespace UserServiceGrpc.Helpers
 
                         foreach (var (key, value) in formattedDictionary)
                         {
-                            bool r = redisService.SetValueByKey(key, value);
+                            bool r = await redisService.SetValueByKeyAsync(key, value, TimeSpan.FromDays(30), null, true);
 
                             if (r)
                             {
@@ -133,6 +161,7 @@ namespace UserServiceGrpc.Helpers
                 Console.WriteLine($"Mesage: {e.Message}");
 
                 Console.WriteLine($"Stacktrace: {e.StackTrace}");
+                return;
             }
         }
     }
