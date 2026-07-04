@@ -2,7 +2,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 
-
 namespace UserServiceGrpc.Models.Entities
 {
     [Table("Roles")]
@@ -21,5 +20,10 @@ namespace UserServiceGrpc.Models.Entities
         //FKs and Relationships
         public virtual ICollection<UserModel> Users { get; set; }
         public ICollection<SecurityPermission> Permissions { get; set; }
+
+        public static implicit operator StackExchange.Redis.Role?(Role? v)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

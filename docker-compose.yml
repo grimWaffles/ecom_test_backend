@@ -7,8 +7,8 @@
         ports:
             - 6379:6379
         volumes:
-            - ../RedisConfiguration/redis.conf:/usr/local/etc/redis/redis.conf
-            - ../RedisConfiguration/users.acl:/usr/local/etc/redis/users.acl
+            - ./RedisConfiguration/redis.conf:/usr/local/etc/redis/redis.conf
+            - ./RedisConfiguration/users.acl:/usr/local/etc/redis/users.acl
             - redis-data:/data
 
         command: redis-server /usr/local/etc/redis/redis.conf

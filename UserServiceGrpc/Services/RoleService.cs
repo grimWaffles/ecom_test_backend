@@ -7,6 +7,7 @@ namespace UserServiceGrpc.Services
     {
         Task<List<Role>> GetAllAsync();
         Task<Role?> GetByIdAsync(int id);
+        Task<int?> GetRoleIdByName(string roleName);
         Task<Role?> CreateAsync(Role role);
         Task<Role?> UpdateAsync(Role role);
         Task<bool> DeleteAsync(int id, int modifiedBy);
@@ -37,6 +38,19 @@ namespace UserServiceGrpc.Services
             try
             {
                 return await _roleRepository.GetByIdAsync(id);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<int?> GetRoleIdByName(string roleName)
+        {
+            try
+            {
+                Role r = await _roleRepository.GetByRoleName(roleName);
+                return r?.Id;
             }
             catch
             {

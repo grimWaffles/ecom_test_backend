@@ -20,12 +20,12 @@ namespace API_Gateway.AuthHandlers.Handlers
 
     public class RoleAuthorizationHandler : AuthorizationHandler<RolePermissionRequirement>
     {
-        private readonly IPermissionService _permissionService;
+        private readonly IRedisService _redisService;
         private readonly ILogger<RoleAuthorizationHandler> _logger;
 
-        public RoleAuthorizationHandler(IPermissionService service, ILogger<RoleAuthorizationHandler> logger)
+        public RoleAuthorizationHandler(IRedisService service, ILogger<RoleAuthorizationHandler> logger)
         {
-            _permissionService = service;
+            _redisService = service;
             _logger = logger;
         }
 
@@ -54,9 +54,9 @@ namespace API_Gateway.AuthHandlers.Handlers
                 }
 
                 //Replace this with a cache call after Redis is setup
-                CheckRoleIdAndPermissionResponse response = await _permissionService.CheckRoleIdAndPermission(roleId, requirement.Permission) ?? new CheckRoleIdAndPermissionResponse();
+                string response = await _redisService.GetValueByKey("permission:"+roleId.ToString()+":"+requirement.Permission.ToLower());
 
-                if (!response.Exists)
+                if (response!="1")
                 {
                     _logger.LogCritical("Unauthorized user detected for requirement: {r}", requirement);
                     context.Fail();
