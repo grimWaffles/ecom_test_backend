@@ -7,11 +7,13 @@ namespace UserServiceGrpc.Repository
     public interface IRolePermissionRepository
     {
         Task<List<RolePermission>> GetAllPermissionsByRoleId(long roleId);
+        Task<RolePermission> GetPermissionById(long id);
+
         Task<List<RolePermission>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName);
         Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName);
         Task<RolePermission> CreateRolePermission(RolePermission model, int userId);
         Task<RolePermission> UpdateRolePermission(RolePermission model, int userId);
-        Task DeleteRolePermission(long id, int userId);
+        Task<bool> DeleteRolePermission(long id, int userId);
     }
 
     public class RolePermissionRepository : IRolePermissionRepository
@@ -33,6 +35,22 @@ namespace UserServiceGrpc.Repository
                     .Include(x => x.Permission)
                     .Where(x => x.RoleId == roleId && !x.IsDeleted) // fix: was x.Id == roleId
                     .ToListAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Error: Failed to fetch role permissions. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
+                throw;
+            }
+        }
+
+        public async Task<RolePermission> GetPermissionById(long id)
+        {
+            try
+            {
+                return await _db.RolePermissions
+                    .Include(x => x.Permission)
+                    .Where(x => x.Id == id && !x.IsDeleted) // fix: was x.Id == roleId
+                    .FirstAsync();
             }
             catch (Exception e)
             {
@@ -118,7 +136,7 @@ namespace UserServiceGrpc.Repository
             }
         }
 
-        public async Task DeleteRolePermission(long id, int userId)
+        public async Task<bool> DeleteRolePermission(long id, int userId)
         {
             try
             {
@@ -130,6 +148,8 @@ namespace UserServiceGrpc.Repository
                 existing.ModifiedDate = DateTime.UtcNow;
 
                 await _db.SaveChangesAsync();
+
+                return true;
             }
             catch (Exception e)
             {

@@ -19,9 +19,9 @@ namespace API_Gateway
 
             DependencyResolver.ConfigureDatabases(builder.Services, builder.Configuration);
 
+            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
             DependencyResolver.RegisterMiddleware(builder.Services);
             DependencyResolver.RegisterServices(builder.Services, builder.Configuration);
-            DependencyResolver.RegisterConfigOptions(builder.Services, builder.Configuration);
             DependencyResolver.RegisterGrpcServices(builder.Services, builder.Configuration);
 
             builder.Services.AddCors(options =>
