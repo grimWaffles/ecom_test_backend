@@ -11,8 +11,7 @@ namespace UserServiceGrpc.Services
         Task<List<RolePermissionDto>> GetPermissionByRoleIdAndPermissionName(long roleId, string permissionName);
         Task<bool> CheckRoleIdAndPermissionName(long roleId, string permissionName);
         Task<RolePermissionDto> CreateRolePermission(RolePermissionDto model, int userId);
-        Task<RolePermissionDto> UpdateRolePermission(RolePermissionDto model, int userId);
-        Task DeleteRolePermission(long id, int userId);
+        Task<bool> DeleteRolePermission(long id, int userId);
         Task<Dictionary<string, string>> GetPermissionListDictionary(List<RolePermissionDto> dtos);
     }
 
@@ -20,13 +19,17 @@ namespace UserServiceGrpc.Services
     {
         private readonly ILogger<RolePermissionService> _logger;
         private readonly IRolePermissionRepository _rolePermissionRepository;
+        private readonly ISecurityPermissionService _spService;
+        private readonly IRedisService _redis;
 
         public RolePermissionService(
-            ILogger<RolePermissionService> logger,
+            ILogger<RolePermissionService> logger, IRedisService redis, ISecurityPermissionService spService,
             IRolePermissionRepository rolePermissionRepository)
         {
             _logger = logger;
             _rolePermissionRepository = rolePermissionRepository;
+            _spService = spService;
+            _redis = redis;
         }
 
         public async Task<List<RolePermissionDto>> GetAllPermissionsByRoleId(long roleId)
@@ -44,13 +47,13 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        public async Task<Dictionary<string,string>> GetPermissionListDictionary(List<RolePermissionDto> dtos)
+        public async Task<Dictionary<string, string>> GetPermissionListDictionary(List<RolePermissionDto> dtos)
         {
-            Dictionary<string,string> result = new Dictionary<string,string>();
+            Dictionary<string, string> result = new Dictionary<string, string>();
 
-            foreach(RolePermissionDto dto in dtos)
+            foreach (RolePermissionDto dto in dtos)
             {
-                string key = "permission:"+dto.RoleId.ToString()+":"+dto.PermissionName;
+                string key = "permission:" + dto.RoleId.ToString() + ":" + dto.PermissionName;
                 string value = 1.ToString();
 
                 result.Add(key, value);
@@ -94,7 +97,18 @@ namespace UserServiceGrpc.Services
             try
             {
                 RolePermission created = await _rolePermissionRepository.CreateRolePermission(Mapper.CreateRolePermissionModelFromDto(model), userId);
-                return created == null ? null : Mapper.CreateRolePermissionDtoFromModel(created);
+
+                if (created == null)
+                {
+                    return null;
+                }
+
+                SecurityPermission permissionName = await _spService.GetByIdAsync(model.PermissionId) ?? new SecurityPermission();
+
+                string keyName = "permission:" + model.RoleId + ":" + permissionName.Permission;
+                _redis.SetValueByKey(keyName, "1");
+
+                return Mapper.CreateRolePermissionDtoFromModel(created);
             }
             catch (Exception e)
             {
@@ -103,25 +117,30 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        public async Task<RolePermissionDto> UpdateRolePermission(RolePermissionDto model, int userId)
+        public async Task<bool> DeleteRolePermission(long id, int userId)
         {
             try
             {
-                RolePermission updated = await _rolePermissionRepository.UpdateRolePermission(Mapper.CreateRolePermissionModelFromDto(model), userId);
-                return updated == null ? null : Mapper.CreateRolePermissionDtoFromModel(updated);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError("Error: Failed to update role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
-                throw;
-            }
-        }
+                //Check if exists
+                RolePermission model = await _rolePermissionRepository.GetPermissionById(id);
 
-        public async Task DeleteRolePermission(long id, int userId)
-        {
-            try
-            {
-                await _rolePermissionRepository.DeleteRolePermission(id, userId);
+                if (model == null || model.Id == 0)
+                {
+                    return false;
+                }
+
+                bool isDeleted = await _rolePermissionRepository.DeleteRolePermission(id, userId);
+
+                if (isDeleted)
+                {
+                    //Update cache
+                    SecurityPermission permissionName = await _spService.GetByIdAsync(model.PermissionId) ?? new SecurityPermission();
+
+                    string keyName = "permission:" + model.RoleId + ":" + permissionName.Permission;
+                    _redis.SetValueByKey(keyName, "1");
+                }
+
+                return true;
             }
             catch (Exception e)
             {
