@@ -1,13 +1,7 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using System.Text.Json;
-using UserServiceGrpc.Database;
 using UserServiceGrpc.Grpc;
 using UserServiceGrpc.Helpers;
-using UserServiceGrpc.Repository;
-using UserServiceGrpc.Services;
 namespace UserServiceGrpc
 {
     public class Program

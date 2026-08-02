@@ -6,7 +6,7 @@
 6) Metrics/OpenTelemetry
 7) Resilience Policies (Polly)
 8) Error Translation
-9) Caching
+9) Caching - done
 10) API Versioning -- not needed yet
 11) RBAC -- done
 12) Secrets Management -- not needed yet

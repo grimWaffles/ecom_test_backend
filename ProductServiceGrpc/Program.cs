@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using ProductServiceGrpc.Database;
 using ProductServiceGrpc.Repository;
 using ProductServiceGrpc.Services;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 public class Program
 {
@@ -13,19 +15,36 @@ public class Program
         builder.Services.AddGrpc();
 
         //Configure the database 
-        ConfigureDatabase(builder.Services,builder.Configuration);
-
-        //Add Database to the server
-        // builder.Services.AddDbContext<AppDbContext>(options =>
-        //     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-        // );
+        ConfigureDatabase(builder.Services, builder.Configuration);
 
         //Add Dependency Injections
         builder.Services.AddScoped<ISellerRepository, SellerRepository>();
         builder.Services.AddScoped<IProductCategoryRepository, ProductCategoryRepository>();
         builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
+        //Add Authentication and Authorization
+        builder.Services.AddAuthentication(defaultScheme: "InternalAuthScheme")
+            .AddJwtBearer("InternalAuthScheme", options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters()
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+
+                    ValidIssuer = builder.Configuration["JwtInternalSchema:validIssuer"],
+                    ValidAudience = builder.Configuration["JwtInternalSchema:validAudience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtInternalSchema:SigningKey"] ?? ""))
+                };
+            });
+
+        builder.Services.AddAuthorization();
+
         var app = builder.Build();
+
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         // Configure the HTTP request pipeline.
         app.MapGrpcService<ProductService>();
