@@ -4,9 +4,12 @@ using Grpc.Core;
 using ProductServiceGrpc;
 using ProductServiceGrpc.Repository;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using ProductServiceGrpc.Authorization;
 
 namespace ProductServiceGrpc.Services
 {
+    [Authorize]
     public class ProductService : ProductServiceGrpc.ProductService.ProductServiceBase
     {
         private readonly IProductRepository _repo;
@@ -16,6 +19,7 @@ namespace ProductServiceGrpc.Services
             _repo = repo;
         }
 
+        [AllowAnonymous]
         public override Task<ProductServiceTestMessage> TestProductService(Empty request, ServerCallContext context)
         {
             return Task.FromResult(new ProductServiceTestMessage()
@@ -24,6 +28,7 @@ namespace ProductServiceGrpc.Services
             });
         }
 
+        [RequiresPermission("product.create")]
         public override async Task<ProductResponse> CreateProduct(ProductRequest request, ServerCallContext context)
         {
             var response = new ProductResponse();
@@ -60,6 +65,7 @@ namespace ProductServiceGrpc.Services
             return response;
         }
 
+        [RequiresPermission("product.view")]
         public override async Task<ProductDto> GetProductById(ProductIdRequest request, ServerCallContext context)
         {
             try
@@ -73,6 +79,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("product.view")]
         public override async Task<ProductListResponse> GetAllProducts(Google.Protobuf.WellKnownTypes.Empty request, ServerCallContext context)
         {
             var response = new ProductListResponse();
@@ -101,6 +108,7 @@ namespace ProductServiceGrpc.Services
             return response;
         }
 
+        [RequiresPermission("product.update")]
         public override async Task<ProductResponse> UpdateProduct(ProductRequest request, ServerCallContext context)
         {
             var response = new ProductResponse();
@@ -135,6 +143,7 @@ namespace ProductServiceGrpc.Services
             return response;
         }
 
+        [RequiresPermission("product.delete")]
         public override async Task<ProductResponse> DeleteProduct(ProductDeleteRequest request, ServerCallContext context)
         {
             var response = new ProductResponse();

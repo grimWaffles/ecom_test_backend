@@ -1,4 +1,5 @@
 ﻿using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.Filters;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 [ApiController]
 [Route("api/products")]
+[ServiceFilter(typeof(RequirePermissionFilter))]
 [Authorize]
 public class ProductController : ControllerBase
 {

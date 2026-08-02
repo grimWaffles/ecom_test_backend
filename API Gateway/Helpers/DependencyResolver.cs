@@ -149,7 +149,7 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<ProductService.ProductServiceClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetProductServiceUrl());
-            });
+            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<ProductCategory.ProductCategoryClient>(options =>
             {

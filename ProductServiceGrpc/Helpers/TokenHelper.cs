@@ -8,7 +8,7 @@ namespace ProductServiceGrpc.Helpers
         string? GetClaimValueFromToken(string claimType);
     }
 
-    public class TokenHelper
+    public class TokenHelper :ITokenHelper
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
 
