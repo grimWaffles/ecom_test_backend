@@ -1,4 +1,5 @@
 ﻿using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.Filters;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +8,8 @@ using System.Security.Claims;
 
 [ApiController]
 [Route("api/product-categories")]
+
+[ServiceFilter(typeof(RequirePermissionFilter))]
 [Authorize]
 public class ProductCategoryController : ControllerBase
 {

@@ -1,6 +1,8 @@
-﻿using ProductServiceGrpc.Models;
-using Google.Protobuf.WellKnownTypes;
+﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Microsoft.AspNetCore.Authorization;
+using ProductServiceGrpc.Authorization;
+using ProductServiceGrpc.Models;
 using ProductServiceGrpc.Repository;
 using SellerServiceGrpc;
 using System;
@@ -10,6 +12,7 @@ using System.Threading.Tasks;
 
 namespace ProductServiceGrpc.Services
 {
+    [Authorize]
     public class SellerService : Seller.SellerBase
     {
         private readonly ISellerRepository _repo;
@@ -19,6 +22,7 @@ namespace ProductServiceGrpc.Services
             _repo = repo;
         }
 
+        [RequiresPermission("seller.create")]
         public override async Task<SellerResponse> CreateSeller(SellerRequest request, ServerCallContext context)
         {
             try
@@ -53,6 +57,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("seller.view")]
         public override async Task<SellerDto> GetSellerById(SellerSingleRequest request, ServerCallContext context)
         {
             try
@@ -69,6 +74,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("seller.view")]
         public override async Task<SellerMultipleResponse> GetAllSellers(Empty request, ServerCallContext context)
         {
             try
@@ -84,6 +90,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("seller.update")]
         public override async Task<SellerResponse> UpdateSeller(SellerRequest request, ServerCallContext context)
         {
             try
@@ -128,6 +135,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("seller.delete")]
         public override async Task<SellerResponse> DeleteSeller(SellerDeleteRequest request, ServerCallContext context)
         {
             try
