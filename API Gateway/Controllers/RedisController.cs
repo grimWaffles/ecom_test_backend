@@ -19,6 +19,13 @@ namespace API_Gateway.Controllers
             return Ok("Controller Functional");
         }
 
+        [HttpGet]
+        [Route("get-all-keys")]
+        public async Task<IActionResult> ListAllKeys()
+        {
+            return Ok(await _redisService.ListAllKeys());
+        }
+
         [HttpPost]
         [Route("add-key")]
         public async Task<IActionResult> AddKeyToRedis([FromBody] RedisKeyValueModel model)
