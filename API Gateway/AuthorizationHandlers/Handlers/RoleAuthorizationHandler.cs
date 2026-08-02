@@ -22,12 +22,10 @@ namespace API_Gateway.AuthHandlers.Handlers
     public class RoleAuthorizationHandler : AuthorizationHandler<RolePermissionRequirement>
     {
         private readonly IPermissionService _permissionService;
-        private readonly IRedisService _redisService;
         private readonly ILogger<RoleAuthorizationHandler> _logger;
 
-        public RoleAuthorizationHandler(IRedisService service, IPermissionService permissionService, ILogger<RoleAuthorizationHandler> logger)
+        public RoleAuthorizationHandler(IPermissionService permissionService, ILogger<RoleAuthorizationHandler> logger)
         {
-            _redisService = service;
             _permissionService = permissionService;
             _logger = logger;
         }
@@ -47,46 +45,7 @@ namespace API_Gateway.AuthHandlers.Handlers
                     return;
                 }
 
-                bool isPermitted;
-
-                string cacheKey =
-                    $"permission:{roleId}:{requirement.Permission.ToLowerInvariant()}";
-
-                try
-                {
-                    var cached = await _redisService.GetValueByKeyAsync(cacheKey);
-
-                    if (cached != null)
-                    {
-                        _logger.LogInformation("Permission cache hit for {Permission}", requirement.Permission);
-
-                        isPermitted = cached == "1";
-                    }
-                    else
-                    {
-                        _logger.LogInformation(
-                            "Permission cache miss for {Permission}",
-                            requirement.Permission);
-
-                        var response =
-                            await _permissionService
-                                .CheckRoleIdAndPermission(
-                                    roleId,
-                                    requirement.Permission);
-
-                        isPermitted = response?.Exists ?? false;
-
-                        await _redisService.SetValueByKeyAsync(cacheKey, isPermitted ? "1" : "0", TimeSpan.FromDays(30), null, true);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Redis error, falling back to permission service");
-
-                    var response = await _permissionService.CheckRoleIdAndPermission(roleId, requirement.Permission);
-
-                    isPermitted = response?.Exists ?? false;
-                }
+                bool isPermitted = await _permissionService.CheckRoleIdAndPermission(roleId, requirement.Permission);
 
                 if (!isPermitted)
                 {
