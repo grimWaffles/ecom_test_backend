@@ -1,9 +1,8 @@
-﻿using API_Gateway.Redis;
-using ApiGateway.Protos;
-using Grpc.Core;
-using System.Security;
+﻿using Grpc.Core;
+using ProductServiceGrpc.Helpers;
+using ProductServiceGrpc.Repository;
 
-namespace API_Gateway.Services
+namespace ProductServiceGrpc.Services
 {
     public interface IPermissionService
     {
@@ -11,15 +10,13 @@ namespace API_Gateway.Services
     }
     public class PermissionService : IPermissionService
     {
-        private readonly Permission.PermissionClient _client;
         private readonly ILogger<PermissionService> _logger;
         private readonly IRedisService _redis;
 
-        public PermissionService(Permission.PermissionClient client, ILogger<PermissionService> logger, IRedisService redisService)
+        public PermissionService(ILogger<PermissionService> logger, IRedisService redisService)
         {
-            _client = client; _logger = logger;
+            _logger = logger;
             _redis = redisService;
-
         }
 
         public async Task<bool> CheckRoleIdAndPermission(int roleId, string permissionName)
@@ -47,10 +44,8 @@ namespace API_Gateway.Services
 
                 //on failing check the DB
                 _logger.LogWarning("Cache Miss: Found permission in DB for ROLE: {role} and PERMISSION: {p}", roleId, permissionName);
-                CheckRoleIdAndPermissionResponse res = await _client.CheckRoleIdAndPermissionAsync(new CheckRoleIdAndPermissionRequest { RoleId = roleId, PermissionName = permissionName }).ResponseAsync;
-                await _redis.SetValueByKeyAsync(permissionKey, res.Exists ? "1" : "0");
-
-                return res.Exists;
+                
+                return exists;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
             {

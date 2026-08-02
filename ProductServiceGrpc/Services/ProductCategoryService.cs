@@ -1,7 +1,9 @@
-﻿using ProductServiceGrpc.Models;
-using Google.Protobuf.WellKnownTypes;
+﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Microsoft.AspNetCore.Authorization;
 using ProductServiceGrpc;
+using ProductServiceGrpc.Authorization;
+using ProductServiceGrpc.Models;
 using ProductServiceGrpc.Repository;
 using System;
 using System.Collections.Generic;
@@ -10,6 +12,7 @@ using System.Threading.Tasks;
 
 namespace ProductServiceGrpc.Services
 {
+    [Authorize]
     public class ProductCategoryService : ProductCategory.ProductCategoryBase
     {
         private readonly IProductCategoryRepository _repo;
@@ -19,6 +22,7 @@ namespace ProductServiceGrpc.Services
             _repo = repo;
         }
 
+        [RequiresPermission("productCategory.create")]
         public override async Task<ProductCategoryCreateResponse> CreateCategory(ProductCategoryCreateRequest request, ServerCallContext context)
         {
             try
@@ -79,6 +83,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("productCategory.view")]
         public override async Task<ProductCategoryDto> GetCategoryById(ProductCategorySingleRequest request, ServerCallContext context)
         {
             try
@@ -99,6 +104,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("productCategory.view")]
         public override async Task<ProductCategoryMultipleResponse> GetAllCategories(Empty request, ServerCallContext context)
         {
             var response = new ProductCategoryMultipleResponse();
@@ -122,6 +128,7 @@ namespace ProductServiceGrpc.Services
             return response;
         }
 
+        [RequiresPermission("productCategory.update")]
         public override async Task<ProductCategoryCreateResponse> UpdateCategory(ProductCategoryCreateRequest request, ServerCallContext context)
         {
             try
@@ -165,6 +172,7 @@ namespace ProductServiceGrpc.Services
             }
         }
 
+        [RequiresPermission("productCategory.delete")]
         public override async Task<ProductCategoryCreateResponse> DeleteCategory(ProductCategoryDeleteRequest request, ServerCallContext context)
         {
             try

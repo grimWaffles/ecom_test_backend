@@ -1,7 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using ProductServiceGrpc.Authorization;
 using ProductServiceGrpc.Database;
+using ProductServiceGrpc.Helpers;
 using ProductServiceGrpc.Repository;
 using ProductServiceGrpc.Services;
+using StackExchange.Redis;
+using System.Configuration;
+using System.Text;
 
 public class Program
 {
@@ -10,22 +18,74 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
+        builder.Services.Configure<RedisConfigModel>(builder.Configuration.GetSection(RedisConfigModel.SectionName));
+        
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddGrpc();
 
         //Configure the database 
-        ConfigureDatabase(builder.Services,builder.Configuration);
+        ConfigureDatabase(builder.Services, builder.Configuration);
 
-        //Add Database to the server
-        // builder.Services.AddDbContext<AppDbContext>(options =>
-        //     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-        // );
+        //Configure Redis
+        builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+        {
+            var config = sp.GetRequiredService<IOptions<RedisConfigModel>>();
+
+            ConfigurationOptions options = new()
+            {
+                User = config.Value.Username,
+                Password = config.Value.Password,
+                AbortOnConnectFail = false
+            };
+
+            options.EndPoints.Add(
+                config.Value.GetRedisConnectionString());
+
+            return ConnectionMultiplexer.Connect(options);
+        });
+
+        // ── Redis DB Reference ─────────────────────────────────────────────────────────────
+        builder.Services.AddSingleton<IDatabase>(sp =>
+        {
+            return sp
+                .GetRequiredService<IConnectionMultiplexer>()
+                .GetDatabase();
+        });
+        
+        builder.Services.AddSingleton<IRedisService, RedisService>();
+        builder.Services.AddSingleton<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>();
 
         //Add Dependency Injections
+        builder.Services.AddScoped<ITokenHelper, TokenHelper>();
+        builder.Services.AddScoped<IPermissionService, PermissionService>();
+        builder.Services.AddScoped<IAuthorizationHandler, RolePermissionHandler>();
         builder.Services.AddScoped<ISellerRepository, SellerRepository>();
         builder.Services.AddScoped<IProductCategoryRepository, ProductCategoryRepository>();
         builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
+        //Add Authentication and Authorization
+        builder.Services.AddAuthentication(defaultScheme: "InternalAuthScheme")
+            .AddJwtBearer("InternalAuthScheme", options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters()
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+
+                    ValidIssuer = builder.Configuration["JwtInternalSchema:validIssuer"],
+                    ValidAudience = builder.Configuration["JwtInternalSchema:validAudience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtInternalSchema:SigningKey"] ?? ""))
+                };
+            });
+
+        builder.Services.AddAuthorization();
+
         var app = builder.Build();
+
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         // Configure the HTTP request pipeline.
         app.MapGrpcService<ProductService>();

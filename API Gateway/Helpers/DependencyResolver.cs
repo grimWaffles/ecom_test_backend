@@ -11,12 +11,10 @@ using API_Gateway.Repository;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Grpc.Net.ClientFactory;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
-using System.Runtime.CompilerServices;
 
 namespace API_Gateway.Helpers
 {
@@ -144,17 +142,17 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<Seller.SellerClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetProductServiceUrl());
-            });
+            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<ProductService.ProductServiceClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetProductServiceUrl());
-            });
+            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<ProductCategory.ProductCategoryClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetProductServiceUrl());
-            });
+            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<OrderGrpcService.OrderGrpcServiceClient>(options =>
             {

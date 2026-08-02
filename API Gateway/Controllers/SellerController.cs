@@ -1,4 +1,5 @@
 ﻿using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.Filters;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -6,6 +7,8 @@ using System.Security.Claims;
 
 [ApiController]
 [Route("api/sellers")]
+
+[ServiceFilter(typeof(RequirePermissionFilter))]
 [Authorize]
 public class SellersController : ControllerBase
 {
