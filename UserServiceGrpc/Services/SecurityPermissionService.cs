@@ -6,7 +6,7 @@ namespace UserServiceGrpc.Services
     public interface ISecurityPermissionService
     {
         Task<List<SecurityPermission>> GetAllAsync();
-        Task<SecurityPermission?> GetByIdAsync(int id);
+        Task<SecurityPermission?> GetByIdAsync(long id);
         Task<SecurityPermission?> CreateAsync(SecurityPermission permission);
         Task<SecurityPermission?> UpdateAsync(SecurityPermission permission);
         Task<bool> DeleteAsync(int id, int modifiedBy);
@@ -34,7 +34,7 @@ namespace UserServiceGrpc.Services
             }
         }
 
-        public async Task<SecurityPermission?> GetByIdAsync(int id)
+        public async Task<SecurityPermission?> GetByIdAsync(long id)
         {
             try
             {

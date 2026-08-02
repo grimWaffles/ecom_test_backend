@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
-namespace UserServiceGrpc.Services
+namespace API_Gateway.Redis
 {
     public class RedisKeyValueModel
     {

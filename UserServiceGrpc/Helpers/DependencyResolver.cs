@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 using System.Text.Json;
 using UserServiceGrpc.Authorization;
 using UserServiceGrpc.Database;
@@ -19,6 +21,33 @@ namespace UserServiceGrpc.Helpers
 
         public static void RegisterServices(this IServiceCollection services)
         {
+            // ── Redis Connection Multiplexer ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                var config = sp.GetRequiredService<IOptions<RedisConfigModel>>();
+
+                ConfigurationOptions options = new()
+                {
+                    User = config.Value.Username,
+                    Password = config.Value.Password,
+                    AbortOnConnectFail = false
+                };
+
+                options.EndPoints.Add(
+                    config.Value.GetRedisConnectionString());
+
+                return ConnectionMultiplexer.Connect(options);
+            });
+
+            // ── Redis DB Reference ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IDatabase>(sp =>
+            {
+                return sp
+                    .GetRequiredService<IConnectionMultiplexer>()
+                    .GetDatabase();
+            });
+
+            // ── Redis Service ───────────────────────────────────────────────────────
             services.AddSingleton<IRedisService, RedisService>();
 
             services.AddScoped<ITokenHelper, TokenHelper>();
@@ -93,31 +122,46 @@ namespace UserServiceGrpc.Helpers
 
                     //Load to cache
                     IRolePermissionService rolePermissionService = scope.ServiceProvider.GetRequiredService<IRolePermissionService>();
+                    IRoleService roleService = scope.ServiceProvider.GetRequiredService<IRoleService>();
 
-                    List<RolePermissionDto> dataToLoad = await rolePermissionService.GetAllPermissionsByRoleId(1);
-
-                    Dictionary<string, string> formattedDictionary = await rolePermissionService.GetPermissionListDictionary(dataToLoad);
-
-                    IRedisService redisService = scope.ServiceProvider.GetRequiredService<IRedisService>();
+                    List<UserServiceGrpc.Models.Entities.Role> roleList = await roleService.GetAllAsync();
                     
                     int statusCount = 0;
 
-                    foreach (var (key,value) in formattedDictionary)
+                    foreach (UserServiceGrpc.Models.Entities.Role role in roleList)
                     {
-                        bool r = redisService.SetValueByKey(key, value);
+                        Console.WriteLine("Populating permissions for role: " + role.Name);
 
-                        if (r)
+                        int currentRoleId = role.Id;
+                        List<RolePermissionDto> dataToLoad = await rolePermissionService.GetAllPermissionsByRoleId(currentRoleId);
+
+                        Console.WriteLine($"PermissionLoader: Found {dataToLoad.Count()} permissions for role: '{role.Name}' to load to cache");
+
+                        Dictionary<string, string> formattedDictionary = await rolePermissionService.GetPermissionListDictionary(dataToLoad);
+
+                        IRedisService redisService = scope.ServiceProvider.GetRequiredService<IRedisService>();
+
+                        foreach (var (key, value) in formattedDictionary)
                         {
-                            statusCount++;
+                            bool r = await redisService.SetValueByKeyAsync(key, value, TimeSpan.FromDays(30), null, true);
+
+                            if (r)
+                            {
+                                statusCount++;
+                            }
                         }
                     }
 
                     Console.WriteLine("Data to loaded to cache: " + statusCount.ToString());
                 }
             }
-            catch
+            catch (Exception e)
             {
                 Console.WriteLine("Failed to preload cache");
+                Console.WriteLine($"Mesage: {e.Message}");
+
+                Console.WriteLine($"Stacktrace: {e.StackTrace}");
+                return;
             }
         }
     }

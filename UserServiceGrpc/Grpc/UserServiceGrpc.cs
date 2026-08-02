@@ -224,47 +224,14 @@ namespace UserServiceGrpc.Grpc
             }
         }
 
-        [RequiresPermission("permission.update")]
-        public override async Task<UpdateRolePermissionResponse> UpdateRolePermission(UpdateRolePermissionRequest request, ServerCallContext context)
-        {
-            try
-            {
-                RolePermission model = Mapper.CreateRolePermissionModelFromDto(new RolePermissionDto
-                {
-                    Id = request.Model.Id,
-                    RoleId = request.Model.RoleId,
-                    PermissionId = request.Model.PermissionId
-                });
-
-                RolePermissionDto updated = await _rolePermissionService.UpdateRolePermission(Mapper.CreateRolePermissionDtoFromModel(model), request.UserId);
-
-                return new UpdateRolePermissionResponse
-                {
-                    RolePermission = new RolePermissionDto
-                    {
-                        Id = updated.Id,
-                        RoleId = updated.RoleId,
-                        PermissionId = updated.PermissionId,
-                        RoleName = updated.RoleName,
-                        PermissionName = updated.PermissionName
-                    }
-                };
-            }
-            catch (Exception e)
-            {
-                _logger.LogError("Error: Failed to update role permission. Message: {message}. StackTrace: {stacktrace}", e.Message, e.StackTrace);
-                throw new RpcException(new Status(StatusCode.Internal, e.Message));
-            }
-        }
-
         [RequiresPermission("permission.delete")]
         public override async Task<DeleteRolePermissionResponse> DeleteRolePermission(DeleteRolePermissionRequest request, ServerCallContext context)
         {
             try
             {
-                await _rolePermissionService.DeleteRolePermission(request.Id, request.UserId);
+                bool r = await _rolePermissionService.DeleteRolePermission(request.Id, request.UserId);
 
-                return new DeleteRolePermissionResponse { Success = true };
+                return new DeleteRolePermissionResponse { Success = r };
             }
             catch (Exception e)
             {

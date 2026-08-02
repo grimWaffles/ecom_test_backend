@@ -6,6 +6,7 @@ using API_Gateway.Grpc;
 using API_Gateway.Interceptors;
 using API_Gateway.Middlewares;
 using API_Gateway.Models;
+using API_Gateway.Redis;
 using API_Gateway.Repository;
 using API_Gateway.Services;
 using ApiGateway.Protos;
@@ -14,6 +15,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 using System.Runtime.CompilerServices;
 
 namespace API_Gateway.Helpers
@@ -61,13 +63,39 @@ namespace API_Gateway.Helpers
 
         public static void RegisterServices(this IServiceCollection services, IConfiguration config)
         {
-            // ── Redis ─────────────────────────────────────────────────────────────
+            // ── Redis Connection Multiplexer ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                var config = sp.GetRequiredService<IOptions<RedisConfigModel>>();
+
+                ConfigurationOptions options = new()
+                {
+                    User = config.Value.Username,
+                    Password = config.Value.Password,
+                    AbortOnConnectFail = false
+                };
+
+                options.EndPoints.Add(
+                    config.Value.GetRedisConnectionString());
+
+                return ConnectionMultiplexer.Connect(options);
+            });
+
+            // ── Redis DB Reference ─────────────────────────────────────────────────────────────
+            services.AddSingleton<IDatabase>(sp =>
+            {
+                return sp
+                    .GetRequiredService<IConnectionMultiplexer>()
+                    .GetDatabase();
+            });
+
+            // ── Redis Service ───────────────────────────────────────────────────────
             services.AddSingleton<IRedisService, RedisService>();
 
             // ── Filters ─────────────────────────────────────────────────────────────
             services.AddScoped<RequirePermissionFilter>();
 
-            // ── Repository ─────────────────────────────────────────────────────────────
+            // ── Repository ──────────────────────────────────────────────────────────
             services.AddScoped<IRequestLogRepository, RequestLogRepository>();
             services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 
@@ -75,7 +103,7 @@ namespace API_Gateway.Helpers
             services.AddSingleton<IAuthorizationPolicyProvider, RolePermissionPolicyProvider>();
             services.AddScoped<JwtForwardingInterceptor>();
 
-            // ── Service ────────────────────────────────────────────────────────────────
+            // ── Service ─────────────────────────────────────────────────────────────
             services.AddScoped<IRequestLogService, RequestLogService>();
             services.AddScoped<ITokenHelper, TokenHelper>();
 
