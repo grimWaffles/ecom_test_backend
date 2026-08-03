@@ -1,5 +1,8 @@
 ﻿
 using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.Filters;
+using API_Gateway.Helpers;
+using API_Gateway.Models;
 using API_Gateway.Services;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,6 +13,7 @@ namespace API_Gateway.Controllers
 
     [ApiController]
     [Route("api/[controller]")]
+    [ServiceFilter(typeof(RequirePermissionFilter))]
     [Authorize]
     public class OrderController : ControllerBase
     {
@@ -48,20 +52,42 @@ namespace API_Gateway.Controllers
         [HttpGet]
         [Route("user")]
         [RequiresPermission("order.view")]
-        public async Task<IActionResult> GetOrdersByUser([FromQuery] OrderListRequest request)
+        public async Task<IActionResult> GetOrdersByUser([FromQuery] OrderListRequestDto request)
         {
             request.UserId = UserId;
-            var response = await _grpcClient.GetOrdersByUserAsync(request);
+
+            var r = new OrderListRequest()
+            {
+                PageNumber = request.PageNumber,
+                PageSize = request.PageSize,
+                UserId = request.UserId,
+                StartDate = CustomConverters.ConvertDateTimeToGoogleTimeStamp(request.StartDate),
+                EndDate = CustomConverters.ConvertDateTimeToGoogleTimeStamp(request.EndDate),
+            };
+
+            var response = await _grpcClient.GetOrdersByUserAsync(r);
+
             return Ok(response);
         }
 
         [HttpGet]
         [Route("all")]
         [RequiresPermission("order.view")]
-        public async Task<IActionResult> GetAllOrders([FromQuery] OrderListRequest request)
+        public async Task<IActionResult> GetAllOrders([FromQuery] OrderListRequestDto request)
         {
             request.UserId = UserId;
-            var response = await _grpcClient.GetAllOrdersAsync(request);
+
+            var r = new OrderListRequest()
+            {
+                PageNumber = request.PageNumber,
+                PageSize = request.PageSize,
+                UserId = request.UserId,
+                StartDate = CustomConverters.ConvertDateTimeToGoogleTimeStamp(request.StartDate),
+                EndDate = CustomConverters.ConvertDateTimeToGoogleTimeStamp(request.EndDate),
+            };
+
+            var response = await _grpcClient.GetAllOrdersAsync(r);
+
             return Ok(response);
         }
 

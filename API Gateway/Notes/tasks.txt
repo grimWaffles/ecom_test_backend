@@ -10,4 +10,6 @@
 10) API Versioning -- not needed yet
 11) RBAC -- done
 12) Secrets Management -- not needed yet
-13) Grpc Service Auth
+13) Grpc Service Auth -- done
+14) Customer Transaction Module
+15) 
