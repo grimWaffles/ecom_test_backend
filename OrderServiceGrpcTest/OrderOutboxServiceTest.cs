@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ObjectPool;
 using Moq;
 using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Repository;
 using OrderServiceGrpc.Services;
+using System.Diagnostics.Contracts;
 
 namespace OrderServiceGrpcTest
 {
@@ -96,7 +98,7 @@ namespace OrderServiceGrpcTest
             var response = await _service.GetAllRecordsAsync(1, 2, 1, "Order");
 
             //Assert
-            Assert.Equal(2,response.Items.Count());
+            Assert.Equal(2, response.Items.Count());
             Assert.Equal(2, response.TotalCount);
 
             _mockRepo.Verify(x => x.GetAllRecordsAsync(1, 2, 1, "Order"), Times.Once);
@@ -149,20 +151,20 @@ namespace OrderServiceGrpcTest
 
             //Assert
             Assert.NotNull(response);
-            Assert.Equal(1, response.Id );
+            Assert.Equal(1, response.Id);
 
             _mockRepo.Verify(x => x.GetByIdAsync(1), Times.Once);
         }
         [Fact]
         public async Task GetByIdAsync_ReturnsNullIfInvalidId()
         {
-            int id = -1; OrderOutbox res = (OrderOutbox?) null;
+            int id = -1; OrderOutbox res = (OrderOutbox?)null;
 
             _mockRepo.Setup(x => x.GetByIdAsync(id)).ReturnsAsync(res);
 
             var response = await _service.GetByIdAsync(id);
 
-            Assert.Equal(res,response);
+            Assert.Equal(res, response);
 
             _mockRepo.Verify(x => x.GetByIdAsync(id), Times.Never);
         }
@@ -185,7 +187,7 @@ namespace OrderServiceGrpcTest
             Exception e = new Exception("DB Error");
             _mockRepo.Setup(x => x.GetByIdAsync(1)).ThrowsAsync(e);
 
-            var response = await Assert.ThrowsAsync<Exception>(()=> _service.GetByIdAsync(1));
+            var response = await Assert.ThrowsAsync<Exception>(() => _service.GetByIdAsync(1));
 
             Assert.Equal(e.Message, response.Message);
         }
@@ -249,19 +251,304 @@ namespace OrderServiceGrpcTest
         [Fact]
         public async Task CreateAsync_ArgNullException()
         {
-            //Arrange 
-            ArgumentNullException e = new ArgumentNullException("Value cannot be null. (Parameter 'entity')");
-            OrderOutbox entity = (OrderOutbox?)null;
-
-            _mockRepo.Setup(x => x.CreateAsync(entity)).ThrowsAsync(e);
-
             //Act & Assert
-            await Assert.ThrowsAsync<ArgumentNullException>(() => _service.CreateAsync(entity));
+            await Assert.ThrowsAsync<ArgumentNullException>(() => _service.CreateAsync(null));
 
-            _mockRepo.Verify(x => x.CreateAsync(entity), Times.Never);
+            _mockRepo.Verify(x => x.CreateAsync(null), Times.Never);
 
         }
         //check invalid entry (Arg Exception) using member
+        public static IEnumerable<object[]> InvalidOrderOutboxEntities() =>
+            new List<object[]>
+            {
+                new object[]
+                {
+                    new OrderOutbox
+                    {
+                        AggregateId = 0,
+                        AggregateType = "Order",
+                        EventType = "OrderCreated",
+                        Topic = "order-created",
+                        Payload = "{}",
+                        PartitionKey = "1"
+                    }
+                },
+                new object[]
+                {
+                    new OrderOutbox
+                    {
+                        AggregateId = 1,
+                        AggregateType = "",
+                        EventType = "OrderCreated",
+                        Topic = "order-created",
+                        Payload = "{}",
+                        PartitionKey = "1"
+                    }
+                }
+            };
+        
+        [Theory]
+        [MemberData(nameof(InvalidOrderOutboxEntities))]
+        public async Task CreateAsync_ArgException(OrderOutbox model)
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => _service.CreateAsync(model));
+
+            _mockRepo.Verify(x => x.CreateAsync(model), Times.Never);
+        }
         #endregion
+
+        #region UpdateAsync
+        [Fact]
+        public async Task UpdateAsync_ThrowsArgException()
+        {
+            OrderOutbox entity = new OrderOutbox
+            {
+                Id = 0,
+                AggregateId = 0,
+                AggregateType = "Order",
+                EventType = "OrderCreated",
+                Topic = "order-created",
+                Payload = "{}",
+                PartitionKey = "1"
+            };
+
+            await Assert.ThrowsAsync<ArgumentException>(() => _service.UpdateAsync(entity));
+
+            _mockRepo.Verify(x => x.GetByIdAsync(entity.Id), Times.Never);
+            _mockRepo.Verify(x => x.UpdateAsync(entity), Times.Never);
+        }
+
+        [Theory]
+        [MemberData(nameof(InvalidOrderOutboxEntities))]
+        public async Task UpdateAsync_ThrowsArgExceptionWithInvalidEntities(OrderOutbox entity)
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => _service.UpdateAsync(entity));
+
+            _mockRepo.Verify(x => x.GetByIdAsync(entity.Id), Times.Never);
+            _mockRepo.Verify(x => x.UpdateAsync(entity), Times.Never);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_KeyNotFoundException()
+        {
+            OrderOutbox entity = new OrderOutbox
+            {
+                Id = 1,
+                AggregateId = 1,
+                AggregateType = "Order",
+                EventType = "OrderCreated",
+                Topic = "order-created",
+                Payload = "{}",
+                PartitionKey = "1"
+            };
+
+            _mockRepo.Setup(x => x.GetByIdAsync(entity.Id)).ReturnsAsync((OrderOutbox?)null);
+
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.UpdateAsync(entity));
+
+            _mockRepo.Verify(x => x.GetByIdAsync(entity.Id), Times.Once); 
+            _mockRepo.Verify(x => x.UpdateAsync(entity), Times.Never);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ThrowsException()
+        {
+            OrderOutbox entity = new OrderOutbox
+            {
+                Id = 1,
+                AggregateId = 1,
+                AggregateType = "Order",
+                EventType = "OrderCreated",
+                Topic = "order-created",
+                Payload = "{}",
+                PartitionKey = "1"
+            };
+
+            _mockRepo.Setup(x => x.GetByIdAsync(entity.Id)).ReturnsAsync(entity);
+            _mockRepo.Setup(x => x.UpdateAsync(entity)).ThrowsAsync(new Exception("DB Error"));
+
+            var response = await Assert.ThrowsAsync<Exception>(() => _service.UpdateAsync(entity));
+
+            Assert.Equal("DB Error", response.Message);
+
+            _mockRepo.Verify(x => x.GetByIdAsync(entity.Id), Times.Once);
+            _mockRepo.Verify(x => x.UpdateAsync(entity), Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ReturnsResult()
+        {
+            OrderOutbox entity = new OrderOutbox
+            {
+                Id = 1,
+                AggregateId = 1,
+                AggregateType = "Order",
+                EventType = "OrderCreated",
+                Topic = "order-created",
+                Payload = "{}",
+                PartitionKey = "1"
+            };
+
+            _mockRepo.Setup(x => x.GetByIdAsync(entity.Id)).ReturnsAsync(entity);
+            _mockRepo.Setup(x => x.UpdateAsync(entity)).ReturnsAsync(entity);
+
+            var response = await _service.UpdateAsync(entity);
+
+            Assert.Equal(entity, response);
+
+            _mockRepo.Verify(x => x.GetByIdAsync(entity.Id), Times.Once);
+            _mockRepo.Verify(x => x.UpdateAsync(entity), Times.Once);
+        }
+        #endregion
+
+        #region DeleteByIdAsync
+        [Fact]
+        public async Task DeleteByIdAsync_ReturnsTrue_WhenRecordIsDeleted()
+        {
+            // Arrange
+            _mockRepo
+                .Setup(x => x.DeleteByIdAsync(1))
+                .ReturnsAsync(true);
+
+            // Act
+            var result = await _service.DeleteByIdAsync(1);
+
+            // Assert
+            Assert.True(result);
+
+            _mockRepo.Verify(
+                x => x.DeleteByIdAsync(1),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task DeleteByIdAsync_ReturnsFalse_WhenRecordDoesNotExist()
+        {
+            // Arrange
+            _mockRepo
+                .Setup(x => x.DeleteByIdAsync(999))
+                .ReturnsAsync(false);
+
+            // Act
+            var result = await _service.DeleteByIdAsync(999);
+
+            // Assert
+            Assert.False(result);
+
+            _mockRepo.Verify(
+                x => x.DeleteByIdAsync(999),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task DeleteByIdAsync_Throws_WhenIdIsInvalid()
+        {
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(
+                () => _service.DeleteByIdAsync(0));
+
+            _mockRepo.Verify(
+                x => x.DeleteByIdAsync(It.IsAny<int>()),
+                Times.Never);
+        }
+
+        [Fact]
+        public async Task DeleteByIdAsync_Throws_WhenRepositoryFails()
+        {
+            // Arrange
+            _mockRepo
+                .Setup(x => x.DeleteByIdAsync(1))
+                .ThrowsAsync(new Exception("Database error"));
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<Exception>(
+                () => _service.DeleteByIdAsync(1));
+
+            Assert.Equal("Database error", exception.Message);
+        }
+
+        #endregion
+
+        #region DeleteByDateRangeAsync
+        [Fact]
+        public async Task DeleteByDateRangeAsync_ReturnsDeletedCount()
+        {
+            // Arrange
+            var from = new DateTime(2026, 8, 1);
+            var to = new DateTime(2026, 8, 10);
+
+            _mockRepo
+                .Setup(x => x.DeleteByDateRangeAsync(from, to))
+                .ReturnsAsync(5);
+
+            // Act
+            var result = await _service.DeleteByDateRangeAsync(from, to);
+
+            // Assert
+            Assert.Equal(5, result);
+
+            _mockRepo.Verify(
+                x => x.DeleteByDateRangeAsync(from, to),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task DeleteByDateRangeAsync_Throws_WhenFromIsAfterTo()
+        {
+            // Arrange
+            var from = new DateTime(2026, 8, 10);
+            var to = new DateTime(2026, 8, 1);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(
+                () => _service.DeleteByDateRangeAsync(from, to));
+
+            _mockRepo.Verify(
+                x => x.DeleteByDateRangeAsync(
+                    It.IsAny<DateTime>(),
+                    It.IsAny<DateTime>()),
+                Times.Never);
+        }
+
+        [Fact]
+        public async Task DeleteByDateRangeAsync_StillDeletes_WhenToDateIsInFuture()
+        {
+            // Arrange
+            var from = DateTime.UtcNow.AddDays(-2);
+            var to = DateTime.UtcNow.AddDays(2);
+
+            _mockRepo
+                .Setup(x => x.DeleteByDateRangeAsync(from, to))
+                .ReturnsAsync(3);
+
+            // Act
+            var result = await _service.DeleteByDateRangeAsync(from, to);
+
+            // Assert
+            Assert.Equal(3, result);
+
+            _mockRepo.Verify(
+                x => x.DeleteByDateRangeAsync(from, to),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task DeleteByDateRangeAsync_Throws_WhenRepositoryFails()
+        {
+            // Arrange
+            var from = new DateTime(2026, 8, 1);
+            var to = new DateTime(2026, 8, 10);
+
+            _mockRepo
+                .Setup(x => x.DeleteByDateRangeAsync(from, to))
+                .ThrowsAsync(new Exception("Database error"));
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<Exception>(
+                () => _service.DeleteByDateRangeAsync(from, to));
+
+            Assert.Equal("Database error", exception.Message);
+        }
+        #endregion 
     }
 }
