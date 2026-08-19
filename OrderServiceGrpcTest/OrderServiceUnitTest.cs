@@ -15,13 +15,13 @@ using System.Threading.Tasks;
 
 namespace OrderServiceGrpcTest
 {
-    public class OrderServiceTest
+    public class OrderServiceUnitTest
     {
         private readonly Mock<IOrderRepository> _mockOrderRepo = new Mock<IOrderRepository>();
         private readonly Mock<IUnitOfWork> _mockUow = new Mock<IUnitOfWork>();
         private readonly OrderService _service;
 
-        public OrderServiceTest()
+        public OrderServiceUnitTest()
         {
             _service = new OrderService(_mockOrderRepo.Object, _mockUow.Object);
         }
@@ -698,7 +698,6 @@ namespace OrderServiceGrpcTest
 
         #endregion
 
-
         #region GetAllOrders
 
         [Fact]
@@ -788,7 +787,6 @@ namespace OrderServiceGrpcTest
         }
 
         #endregion
-
 
         #region GetOrderById
 
