@@ -157,7 +157,7 @@ namespace API_Gateway.Helpers
             services.AddGrpcClient<OrderGrpcService.OrderGrpcServiceClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetOrderServiceUrl());
-            });
+            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<Permission.PermissionClient>(options =>
             {

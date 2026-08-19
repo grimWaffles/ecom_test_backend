@@ -2,6 +2,8 @@
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Microsoft.AspNetCore.Authorization;
+using OrderServiceGrpc.Authorization;
 using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models;
 using OrderServiceGrpc.Models.Dtos;
@@ -12,6 +14,7 @@ using OrderServiceGrpc.Services;
 
 namespace OrderServiceGrpc.GrpcServices
 {
+    [Authorize]
     public class OrderGrpcService : Protos.OrderGrpcService.OrderGrpcServiceBase
     {
         private readonly IOrderService _service;
@@ -21,6 +24,7 @@ namespace OrderServiceGrpc.GrpcServices
             _service = orderProcessorService;
         }
 
+        [RequiresPermission("order.create")]
         public override async Task<OrderResponse> CreateOrder(CreateOrderRequest request, ServerCallContext context)
         {
             string validationError = ValidateOrder(request.Order);
@@ -47,6 +51,7 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("order.update")]
         public override async Task<OrderResponse> UpdateOrder(UpdateOrderRequest request, ServerCallContext context)
         {
             if (request.Order.Id <= 0)
@@ -74,6 +79,7 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("order.delete")]
         public override async Task<OrderResponse> DeleteOrder(DeleteOrderRequest request, ServerCallContext context)
         {
             if (request.Id <= 0)
@@ -95,6 +101,7 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("order.view")]
         public override async Task<OrderListResponse> GetAllOrders(OrderListRequest request, ServerCallContext context)
         {
             OrderListResponse validationResponse = ValidatePagedRequests(request);
@@ -121,6 +128,7 @@ namespace OrderServiceGrpc.GrpcServices
             return orderListResponse;
         }
 
+        [RequiresPermission("order.view")]
         public override async Task<OrderResponse> GetOrderById(OrderIdRequest request, ServerCallContext context)
         {
             if (request.Id <= 0)
@@ -137,6 +145,7 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("order.view")]
         public override async Task<OrderListResponse> GetOrdersByUser(OrderListRequest request, ServerCallContext context)
         {
             OrderListResponse validationResponse = ValidatePagedRequests(request);
@@ -168,6 +177,7 @@ namespace OrderServiceGrpc.GrpcServices
             return orderListResponse;
         }
 
+        [RequiresPermission("order.test")]
         public override async Task<OrderResponse> TestOrderGrpcService(Empty request, ServerCallContext context)
         {
             ConsumerResponseModel response = await _service.TestOrderProcessorService();
@@ -178,6 +188,7 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("order.test")]
         public override async Task<OrderHealthCheckMessage> TestOrderServiceHealth(Empty request, ServerCallContext context)
         {
             return await Task.FromResult(new OrderHealthCheckMessage() { Message = "Order service up and running"} );

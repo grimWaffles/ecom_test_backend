@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.7.11919.86 stable
+VisualStudioVersion = 18.7.11919.86
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "API Gateway", "API Gateway\API Gateway.csproj", "{F863208E-D25C-48D8-8FD5-7BE338BEDCA1}"
 EndProject
@@ -10,6 +10,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProductServiceGrpc", "ProductServiceGrpc\ProductServiceGrpc.csproj", "{E21235B3-CDB7-443F-BB1F-1908B2F8708A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderServiceGrpc", "OrderServiceGrpc\OrderServiceGrpc.csproj", "{E6AE726E-7957-4C10-86A1-69C3E3DF64FC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderServiceGrpcTest", "OrderServiceGrpcTest\OrderServiceGrpcTest.csproj", "{4CB2A80D-A2B1-4EA2-84F0-39BBDF97ABA5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{E6AE726E-7957-4C10-86A1-69C3E3DF64FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E6AE726E-7957-4C10-86A1-69C3E3DF64FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E6AE726E-7957-4C10-86A1-69C3E3DF64FC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4CB2A80D-A2B1-4EA2-84F0-39BBDF97ABA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4CB2A80D-A2B1-4EA2-84F0-39BBDF97ABA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4CB2A80D-A2B1-4EA2-84F0-39BBDF97ABA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4CB2A80D-A2B1-4EA2-84F0-39BBDF97ABA5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,10 +1,10 @@
 ﻿using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
-using ProductServiceGrpc.Helpers;
-using ProductServiceGrpc.Services;
+using OrderServiceGrpc.Helpers;
+using OrderServiceGrpc.Services;
 
-namespace ProductServiceGrpc.Authorization
+namespace OrderServiceGrpc.Authorization
 {
     public class RolePermissionRequirement : IAuthorizationRequirement
     {
