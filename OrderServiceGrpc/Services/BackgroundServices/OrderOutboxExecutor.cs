@@ -62,17 +62,17 @@ namespace OrderServiceGrpc.Services.BackgroundServices
                         return;
                     }
 
-                    //Produce the kafka message
-                    foreach (OrderOutbox orderOutbox in outboxRecords)
-                    {
-                        bool eventProduced = await _kafkaEventProducer.ProduceEventAsync(orderOutbox.Topic, orderOutbox.PartitionKey, orderOutbox.Payload, stoppingToken);
+                    ////Produce the kafka message
+                    //foreach (OrderOutbox orderOutbox in outboxRecords)
+                    //{
+                    //    bool eventProduced = await _kafkaEventProducer.ProduceEventAsync(orderOutbox.Topic, orderOutbox.PartitionKey, orderOutbox.Payload, stoppingToken);
 
-                        if (eventProduced)
-                        {
-                            orderOutbox.ProcessedAt = DateTime.UtcNow;
-                            await outboxService.UpdateAsync(orderOutbox);
-                        }
-                    }
+                    //    if (eventProduced)
+                    //    {
+                    //        orderOutbox.ProcessedAt = DateTime.UtcNow;
+                    //        await outboxService.UpdateAsync(orderOutbox);
+                    //    }
+                    //}
                 }
             }
             catch (OperationCanceledException)
