@@ -282,11 +282,6 @@ namespace OrderServiceGrpc.Kafka.Consumers
                     return await ProcessOrderEvent(result);
                 }
 
-                else if (result.Topic.ToLower().Contains("transaction"))
-                {
-                    return await ProcessTransactionEvent(result);
-                }
-
                 return new ConsumerResponseModel()
                 {
                     Status = false,
@@ -347,91 +342,36 @@ namespace OrderServiceGrpc.Kafka.Consumers
             }
         }
 
-        private async Task<ConsumerResponseModel> ProcessTransactionEvent(ConsumeResult<string, string> result)
-        {
-            _logger.LogInformation("Processing compensating event for failed transaction. Topic: {topic}", result.Topic);
-
-            OrderEventMessage request = JsonSerializer.Deserialize<OrderEventMessage>(result.Message.Value) ?? new OrderEventMessage();
-
-            if (request != null && request.OrderId > 0)
-            {
-                using (var scope = _serviceProvider.CreateScope())
-                {
-                    IOrderService processorService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-
-                    ConsumerResponseModel repoResponse = new ConsumerResponseModel();
-
-                    if (result.Topic.Contains("create"))
-                    {
-                        //Execute the delete operation
-                        repoResponse = await processorService.UpdateDeleteStatusForSingleOrder(request.OrderId, request.UserId);
-                    }
-                    else if (result.Topic.Contains("delete"))
-                    {
-                        //Undo the delete operation
-                        repoResponse = await processorService.UpdateDeleteStatusForSingleOrder(request.OrderId, request.UserId);
-                    }
-                    else if (result.Topic.Contains("update"))
-                    {
-                        //Execute another update operation to revert to original state
-                        //TODO
-                    }
-                    else
-                    {
-                        _logger.LogError("Failed to process compensating event for failed transaction. Topic: {topic}", result.Topic);
-                        return new ConsumerResponseModel()
-                        {
-                            Status = false,
-                            Message = $"KAFKA ORDER CONSUMER: Invalid topic provided in message={result.Topic}"
-                        };
-                    }
-
-                    _logger.LogInformation("Successfully processed compensating event for failed transaction. Topic: {topic}", result.Topic);
-                    return repoResponse;
-                }
-            }
-
-            else
-            {
-                _logger.LogError("KAFKA ORDER CONSUMER: Consumer has null order to process");
-                return new ConsumerResponseModel()
-                {
-                    Status = false,
-                    Message = "Consumer has null order to process"
-                };
-            }
-        }
-
         private async Task<bool> ProcessNextEventInSaga(OrderDto dto, string originalTopic, CancellationToken token)
         {
             try
             {
-                //Process the order dto for transaction information
-                OrderConsumerMessage message = new OrderConsumerMessage()
-                {
-                    UserId = dto.UserId,
-                    Amount = dto.NetAmount,
-                    OrderId = dto.Id
-                };
+                ////Process the order dto for transaction information
+                //OrderConsumerMessage message = new OrderConsumerMessage()
+                //{
+                //    UserId = dto.UserId,
+                //    Amount = dto.NetAmount,
+                //    OrderId = dto.Id
+                //};
 
-                string payload = JsonSerializer.Serialize(message);
+                //string payload = JsonSerializer.Serialize(message);
 
-                if(!_sagaTopicMapping.TryGetValue(originalTopic, out var topicForNextEventInSaga))
-                {
-                    _logger.LogError("KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled because topic cannot be found for original topic:{originalTopic}", originalTopic);
-                    return false;
-                }
+                //if(!_sagaTopicMapping.TryGetValue(originalTopic, out var topicForNextEventInSaga))
+                //{
+                //    _logger.LogError("KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled because topic cannot be found for original topic:{originalTopic}", originalTopic);
+                //    return false;
+                //}
 
-                if (topicForNextEventInSaga == null || topicForNextEventInSaga == "")
-                {
-                    _logger.LogError("KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled because topic cannot be found");
-                    return false;
-                }
+                //if (topicForNextEventInSaga == null || topicForNextEventInSaga == "")
+                //{
+                //    _logger.LogError("KAFKA ORDER CONSUMER: Processing next event in saga has been cancelled because topic cannot be found");
+                //    return false;
+                //}
 
-                //Produce the message
-                await _kafkaProducer.ProduceEventAsync(topicForNextEventInSaga, dto.Id.ToString(), payload, token);
+                ////Produce the message
+                //await _kafkaProducer.ProduceEventAsync(topicForNextEventInSaga, dto.Id.ToString(), payload, token);
 
-                _logger.LogInformation("KAFKA ORDER CONSUMER: Processing next event in saga successful");
+                //_logger.LogInformation("KAFKA ORDER CONSUMER: Processing next event in saga successful");
 
                 return true;
             }

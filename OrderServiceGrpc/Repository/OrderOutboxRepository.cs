@@ -31,7 +31,6 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<IEnumerable<OrderOutbox>> GetRecentRecordsToPublishAfterDateAsync(DateTime date)
         {
-            _logger.LogInformation("Fetching outbox records with ScheduledAt >= {Date} and StatusId IN (1, 4)", date);
             try
             {
                 IQueryable<OrderOutbox> recordQuery = _context.OrderOutbox
@@ -44,7 +43,6 @@ namespace OrderServiceGrpc.Repository
                     .AsNoTracking()
                     .ToListAsync();
 
-                _logger.LogInformation("Retrieved {Count} publishable outbox records after {Date}", records.Count, date);
                 return records;
             }
             catch (Exception ex)

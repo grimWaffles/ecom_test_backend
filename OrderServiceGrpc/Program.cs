@@ -145,7 +145,7 @@ builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
 builder.Services.AddScoped<IOutboxStatusService, OutboxStatusService>();
 builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
 
-builder.Services.AddHostedService<OutboxExecutor>();
+builder.Services.AddHostedService<OrderOutboxExecutor>();
 builder.Services.AddHostedService<OrderEventConsumer>();
 builder.Services.AddHostedService<TransactionEventConsumer>();
 

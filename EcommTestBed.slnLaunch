@@ -11,6 +11,11 @@
         "Path": "OrderServiceGrpc\\OrderServiceGrpc.csproj",
         "Action": "Start",
         "DebugTarget": "http"
+      },
+      {
+        "Path": "UserServiceGrpc\\UserServiceGrpc.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
       }
     ]
   }

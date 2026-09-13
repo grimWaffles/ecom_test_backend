@@ -46,7 +46,7 @@ namespace API_Gateway.Services
                 }
 
                 //on failing check the DB
-                _logger.LogWarning("Cache Miss: Found permission in DB for ROLE: {role} and PERMISSION: {p}", roleId, permissionName);
+                _logger.LogWarning("Cache Miss: Checking permission in DB for ROLE: {role} and PERMISSION: {p}", roleId, permissionName);
                 CheckRoleIdAndPermissionResponse res = await _client.CheckRoleIdAndPermissionAsync(new CheckRoleIdAndPermissionRequest { RoleId = roleId, PermissionName = permissionName }).ResponseAsync;
                 await _redis.SetValueByKeyAsync(permissionKey, res.Exists ? "1" : "0");
 
