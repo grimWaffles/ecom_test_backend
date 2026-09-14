@@ -38,6 +38,17 @@ namespace OrderServiceGrpc.Services
             int result = -1;
             try
             {
+                //Check for duplicate order transactions
+                if(request.OrderId != null && request.OrderId != 0)
+                {
+                    bool orderExists = await _repo.GetTransactionByOrderId(request.OrderId);
+
+                    if (orderExists)
+                    {
+                        return 0;
+                    }
+                }
+
                 CustomerTransactionModel model = TransactionMapper.DtoToEntity(request);
                 int totalTransactionsToday = await _repo.GetTotalTransactionCountForUser(request.UserId);
 

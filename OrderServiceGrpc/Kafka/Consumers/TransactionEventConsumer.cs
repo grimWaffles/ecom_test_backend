@@ -184,11 +184,11 @@ namespace OrderServiceGrpc.Kafka.Consumers
 
                     //TODO: Produce next event in saga processing
 
-                    //Failure Processing
-                    if (!processedMessage.Status || !topicExists)
-                    {
-                        await ProduceCompensatingEvent(result.Topic, oem, stoppingToken);
-                    }
+                    ////Failure Processing
+                    //if (!processedMessage.Status || !topicExists)
+                    //{
+                    //    await ProduceCompensatingEvent(result.Topic, oem, stoppingToken);
+                    //}
 
                     //Add to processed messages
                     _processedOffsets[result.TopicPartition] = result.Offset + 1;
@@ -327,10 +327,17 @@ namespace OrderServiceGrpc.Kafka.Consumers
 
             int insertedId = await processorService.AddTransaction(trxDto, request.UserId);
 
+            string responseMessage = (insertedId) switch
+            {
+                < 0 => "Failed to create transaction",
+                0 => "Transaction already exists",
+                > 0 => $"KAFKA TRX CONSUMER: Transaction created with ID: {insertedId}"
+            };
+
             return new ConsumerResponseModel()
             {
-                Status = insertedId > 0,
-                Message = insertedId > 0 ? $"KAFKA TRX CONSUMER: Transaction created with ID: {insertedId}" : "Failed to create transaction",
+                Status = insertedId >= 0 ? true : false,
+                Message = responseMessage,
                 TrxDto = trxDto,
             };
         }

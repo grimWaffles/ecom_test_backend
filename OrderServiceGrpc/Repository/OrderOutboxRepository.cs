@@ -34,7 +34,7 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 IQueryable<OrderOutbox> recordQuery = _context.OrderOutbox
-                    .Where(o => (o.ScheduledAt >= date) && (o.StatusId == 1 || o.StatusId == 4))
+                    .Where(o => (o.ScheduledAt >= date) && (o.StatusId == 1 || o.StatusId == 4) && o.ProcessedAt == null)
                     .OrderBy(o => o.CreatedAt)
                     .AsQueryable();
 

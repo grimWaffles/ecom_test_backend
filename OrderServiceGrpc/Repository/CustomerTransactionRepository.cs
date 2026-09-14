@@ -28,6 +28,7 @@ namespace OrderServiceGrpc.Repository
         Task<PagedTransactionResultFromRepo> GetAllTransactionsWithPagination(DateTime startDate, DateTime endDate, int pageNumber, int pageSize, string transactionType);
         Task<int> GetTotalTransactionCountForUser(int userId);
         Task<int> CheckIfTransactionKeyExists(string trxKey);
+        Task<bool> GetTransactionByOrderId(int orderId);
     }
 
     public class CustomerTransactionRepository : ICustomerTransactionRepository
@@ -51,7 +52,7 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<int> AddTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" INSERT INTO CustomerTransactions (
+            string sql = @" INSERT INTO CustomerTransaction (
                                 UserId,
                                 TransactionType,
                                 Amount,
@@ -118,7 +119,7 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<bool> DeleteTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" UPDATE CustomerTransactions
+            string sql = @" UPDATE CustomerTransaction
                             SET
                                 IsDeleted = @IsDeleted,
                                 ModifiedDate = @ModifiedDate,
@@ -167,7 +168,7 @@ namespace OrderServiceGrpc.Repository
         {
             try
             {
-                string sql = @"select * from CustomerTransactions";
+                string sql = @"select * from CustomerTransaction";
 
                 await using SqlConnection conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
@@ -187,7 +188,7 @@ namespace OrderServiceGrpc.Repository
         {
             try
             {
-                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where UserId = @UserId and Convert(date,TransactionDate) = Convert(date,GETDATE());";
+                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransaction where UserId = @UserId and Convert(date,TransactionDate) = Convert(date,GETDATE());";
 
                 DynamicParameters parameters = new DynamicParameters();
                 parameters.Add("@UserId", userId);
@@ -210,7 +211,7 @@ namespace OrderServiceGrpc.Repository
         {
             try
             {
-                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransactions where TransactionKey = @TransactionKey and IsDeleted = 0";
+                string sql = @" select Count(*) TotalTransactionsToday from CustomerTransaction where TransactionKey = @TransactionKey and IsDeleted = 0";
 
                 DynamicParameters parameters = new DynamicParameters();
                 parameters.Add("@TransactionKey", trxKey);
@@ -247,7 +248,7 @@ namespace OrderServiceGrpc.Repository
 		                            ,[TransactionDate]
                                     ,[TransactionKey]
                                     ,[OrderId]
-	                            FROM [ECommercePlatform].[dbo].[CustomerTransactions]
+	                            FROM [ECommercePlatform].[dbo].[CustomerTransaction]
 	                            WHERE
 									(@TransactionType = '' or TransactionType = @TransactionType) and
 									convert(date,TransactionDate) >= @StartDate and
@@ -257,7 +258,7 @@ namespace OrderServiceGrpc.Repository
 	                            OFFSET (@PageNumber-1)*(@PageSize) ROWS
 	                            FETCH NEXT @PageSize ROWS ONLY
 
-	                            declare @TRows int = (SELECT COUNT(*) TotalTransactions FROM CustomerTransactions where (@TransactionType = '' or TransactionType = @TransactionType) and
+	                            declare @TRows int = (SELECT COUNT(*) TotalTransactions FROM CustomerTransaction where (@TransactionType = '' or TransactionType = @TransactionType) and
 									convert(date,TransactionDate) >= @StartDate and
 									convert(date,TransactionDate) <= @EndDate )
 	                            
@@ -313,7 +314,7 @@ namespace OrderServiceGrpc.Repository
 
                 string sql = @" select 
                                     *--TransactionType, Amount, TransactionDate, UserId 
-                                from CustomerTransactions 
+                                from CustomerTransaction 
                                 where Id = @Id and IsDeleted = 0";
 
                 DynamicParameters param = new DynamicParameters();
@@ -330,12 +331,39 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
+        public async Task<bool> GetTransactionByOrderId(int orderId)
+        {
+            try
+            {
+                await using var db = new SqlConnection(_connectionString);
+                await db.OpenAsync();
+
+                string sql = @" select 
+                                    Count(*)
+                                from CustomerTransaction 
+                                where OrderId = @OrderId and IsDeleted = 0";
+
+                DynamicParameters param = new DynamicParameters();
+                param.Add("@OrderId", orderId);
+
+                int count = await db.ExecuteScalarAsync<int>(sql, param);
+
+                return count > 0 ? true : false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetTransactionById: failed for Id {Id}", orderId);
+                throw;
+            }
+        }
+
+
         public async Task<int> GetTransactionCount()
         {
             try
             {
                 await using var db = new SqlConnection(_connectionString);
-                string sql = "select count(*) from CustomerTransactions";
+                string sql = "select count(*) from CustomerTransaction";
 
                 await db.OpenAsync();
                 int response = await db.ExecuteScalarAsync<int>(sql);
@@ -353,7 +381,7 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<bool> UpdateTransaction(CustomerTransactionModel request, int userId)
         {
-            string sql = @" UPDATE CustomerTransactions
+            string sql = @" UPDATE CustomerTransaction
                             SET
                                 UserId = @UserId,
                                 TransactionType = @TransactionType,
@@ -409,7 +437,7 @@ namespace OrderServiceGrpc.Repository
 
         public async Task<bool> UpdateTransactionUsingOrderId(CustomerTransactionModel request, int userId)
         {
-            string sql = @" UPDATE CustomerTransactions
+            string sql = @" UPDATE CustomerTransaction
                             SET
                                 UserId = @UserId,
                                 TransactionType = @TransactionType,
