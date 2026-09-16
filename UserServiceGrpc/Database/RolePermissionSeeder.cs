@@ -18,7 +18,7 @@ public class RolePermissionSeeder
     public RolePermissionSeeder(AppDbContext dbContext)
     {
         _context = dbContext;
-        EntitiesArray = ["cart", "order", "productcategory", "product", "seller", "user", "permission", "role","securitypermission"];
+        EntitiesArray = ["cart", "order", "productcategory", "product", "seller", "user", "permission", "role","securitypermission", "inventory"];
         ActionArray = ["create", "view", "update", "delete","test"];
     }
 
