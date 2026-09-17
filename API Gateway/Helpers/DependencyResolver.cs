@@ -163,6 +163,9 @@ namespace API_Gateway.Helpers
             {
                 options.Address = new Uri(serviceUrls.GetUserServiceUrl());
             });
+
+            services.AddGrpcClient<ApiGateway.Protos.CartService.CartServiceClient>(options => options.Address = new Uri(serviceUrls.GetOrderServiceUrl())).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
+            services.AddGrpcClient<ApiGateway.Protos.InventoryService.InventoryServiceClient>(options => options.Address = new Uri(serviceUrls.GetOrderServiceUrl())).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
         }
     }
 }

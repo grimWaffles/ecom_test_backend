@@ -2,24 +2,20 @@
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
 using OrderServiceGrpc.Authorization;
-using OrderServiceGrpc.Models.Entities;
+using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Protos;
 using OrderServiceGrpc.Services;
 
 namespace OrderServiceGrpc.GrpcServices
 {
     [Authorize]
-    public class InventoryGrpcService: Protos.InventoryService.InventoryServiceBase
+    public class InventoryGrpcService : Protos.InventoryService.InventoryServiceBase
     {
         private readonly IInventoryService _inventoryService;
-        private readonly ILogger<InventoryGrpcService> _logger;
 
-        public InventoryGrpcService(
-            IInventoryService inventoryService,
-            ILogger<InventoryGrpcService> logger)
+        public InventoryGrpcService(IInventoryService inventoryService)
         {
             _inventoryService = inventoryService;
-            _logger = logger;
         }
 
         [RequiresPermission("inventory.view")]

@@ -1,4 +1,5 @@
-﻿using OrderServiceGrpc.Models.Entities;
+﻿using OrderServiceGrpc.Models.Dtos;
+using OrderServiceGrpc.Models.Entities;
 using OrderServiceGrpc.Repository;
 
 namespace OrderServiceGrpc.Services

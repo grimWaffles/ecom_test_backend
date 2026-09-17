@@ -24,16 +24,27 @@ create table InventoryReservation
 	Id bigint primary key identity(1,1),
 	
 	ProductId int foreign key references Products(Id) not null,
-	OrderId int foreign key references Orders(Id) not null,
+	CartId int foreign key references Orders(Id) not null,
 	LockQuantity int not null,
 	LockExpirationDate datetime not null,
 	
 	CreatedBy int foreign key references Users(Id) not null,
 	CreatedDate datetime not null,
-	ModifiedBy int foreign key references Users(Id),
-	ModifiedDate datetime,
 
 	IsDeleted bit default 0
+)
+
+drop table if exists Cart
+create table Cart
+(
+	Id bigint primary key identity(1,1),
+	UserId int foreign key references Users(Id) not null,
+	ProductId int foreign key references Products(Id) not null,
+	Quantity int not null,
+	UnitPrice decimal(18,4) not null,
+	CreatedBy int foreign key references Users(Id) not null,
+	CreatedDate datetime not null,
+	IsDeleted bit default 0 not null
 )
 
 ------------------------------------------------------------------
@@ -68,3 +79,4 @@ select * from Products where Id not in (select ProductId from Inventory)
 
 select * from Inventory
 select * from InventoryReservation
+select * from Cart
