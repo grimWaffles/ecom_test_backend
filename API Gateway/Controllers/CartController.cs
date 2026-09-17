@@ -1,83 +1,92 @@
+using API_Gateway.AuthHandlers.PolicyProviders;
+using API_Gateway.Filters;
+using API_Gateway.Grpc;
+using API_Gateway.Helpers;
 using API_Gateway.Models;
+using API_Gateway.Models.Dtos;
 using API_Gateway.Services;
 using ApiGateway.Protos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 namespace API_Gateway.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [ServiceFilter(typeof(RequirePermissionFilter))]
+    [Authorize]
     public class CartController : ControllerBase
     {
-        private readonly ICartService _cartService;
+        private readonly ICartGrpcClient _grpcClient;
 
-        public CartController(ICartService cartService)
+        public CartController(ICartGrpcClient grpcClient)
         {
-            _cartService = cartService;
+            _grpcClient = grpcClient;
         }
 
-        // Get a user's cart
-        [HttpGet("{userId}")]
-        public async Task<IActionResult> GetCart(int userId)
+        [HttpGet]
+        [Route("")]
+        [RequiresPermission("cart.view")]
+        public async Task<IActionResult> ViewCart()
         {
-            var cart = await _cartService.GetCartAsync(userId);
-            if (cart == null)
-                return NotFound($"No cart found for user {userId}");
-            return Ok(cart);
+            var request = new ViewCartRequest();
+            CartListResponse response = await _grpcClient.ViewCartAsync(request);
+
+            if (!response.Success)
+                return BadRequest(new { response.Message });
+
+            List<CartDto> items = response.Items.Select(CustomConverters.CartProtoToDto).ToList();
+            return Ok(items);
         }
 
-        // Save (create/update) a cart
         [HttpPost]
-        public async Task<IActionResult> SaveCart([FromBody] Cart cart)
+        [Route("add")]
+        [RequiresPermission("cart.create")]
+        public async Task<IActionResult> AddToCart([FromBody] CartUpsertDto cart)
         {
-            if (cart == null || cart.UserId <= 0)
-                return BadRequest("Invalid cart data.");
+            var request = new AddToCartRequest
+            {
+                Cart = CustomConverters.CartDtoToProto(cart)
+            };
 
-            var success = await _cartService.SaveCartAsync(cart);
-            if (!success)
-                return StatusCode(500, "Failed to save cart.");
-            return Ok("Cart saved successfully.");
+            CartResponse response = await _grpcClient.AddToCartAsync(request);
+
+            if (!response.Success)
+                return BadRequest(new { response.Message });
+
+            return Ok(CustomConverters.CartProtoToDto(response.Cart));
         }
 
-        // Delete a cart
-        [HttpDelete("{userId}")]
-        public async Task<IActionResult> DeleteCart(int userId)
+        [HttpPut]
+        [Route("update")]
+        [RequiresPermission("cart.update")]
+        public async Task<IActionResult> UpdateCartItem([FromBody] CartUpsertDto cart)
         {
-            var deleted = await _cartService.DeleteCartAsync(userId);
-            if (!deleted)
-                return NotFound($"No cart found for user {userId}");
-            return Ok($"Cart for user {userId} deleted.");
+            var request = new UpdateCartItemRequest
+            {
+                Cart = CustomConverters.CartDtoToProto(cart)
+            };
+
+            CartResponse response = await _grpcClient.UpdateCartItemAsync(request);
+
+            if (!response.Success)
+                return BadRequest(new { response.Message });
+
+            return Ok(CustomConverters.CartProtoToDto(response.Cart));
         }
 
-        // Add item to a cart
-        [HttpPost("{userId}/items")]
-        public async Task<IActionResult> AddItem(int userId, [FromBody] OrderItem item)
+        [HttpDelete]
+        [Route("{cartId}")]
+        [RequiresPermission("cart.delete")]
+        public async Task<IActionResult> RemoveFromCart(long cartId)
         {
-            if (item == null)
-                return BadRequest("Invalid item data.");
+            var request = new RemoveFromCartRequest { CartId = cartId };
+            RemoveFromCartResponse response = await _grpcClient.RemoveFromCartAsync(request);
 
-            var success = await _cartService.AddItemToCartAsync(userId, item);
-            if (!success)
-                return StatusCode(500, "Failed to add item to cart.");
-            return Ok("Item added successfully.");
-        }
+            if (!response.Success)
+                return BadRequest(new { response.Message });
 
-        // Remove item from a cart
-        [HttpDelete("{userId}/items/{itemId}")]
-        public async Task<IActionResult> RemoveItem(int userId, int itemId)
-        {
-            var success = await _cartService.RemoveItemFromCartAsync(userId, itemId);
-            if (!success)
-                return NotFound($"Item {itemId} not found in user {userId}'s cart.");
-            return Ok($"Item {itemId} removed from cart.");
-        }
-
-        // (Optional) Get all carts (admin endpoint)
-        [HttpGet("all")]
-        public async Task<IActionResult> GetAllCarts()
-        {
-            var carts = await _cartService.GetAllCartsAsync();
-            return Ok(carts);
+            return Ok(new { response.Success });
         }
     }
 

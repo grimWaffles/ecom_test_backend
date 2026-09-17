@@ -90,7 +90,7 @@ namespace OrderServiceGrpc.Repository
             {
                 DynamicParameters iop = new DynamicParameters();
 
-                iop.Add("@OrderDate", request.OrderDate);
+                iop.Add("@OrderDate", DateTime.UtcNow);
                 iop.Add("@OrderCounter", request.OrderCounter);
                 iop.Add("@UserId", request.UserId);
                 iop.Add("@Status", request.Status);

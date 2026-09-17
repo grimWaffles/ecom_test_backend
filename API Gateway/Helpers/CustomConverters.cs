@@ -1,6 +1,8 @@
 ﻿using API_Gateway.Models;
+using API_Gateway.Models.Dtos;
 using ApiGateway.Protos;
 using Google.Protobuf.WellKnownTypes;
+using System.Globalization;
 
 namespace API_Gateway.Helpers
 {
@@ -137,6 +139,69 @@ namespace API_Gateway.Helpers
                 Orders = response.Orders
                     .Select(order => order.ModelProtoToDto())
                     .ToList()
+            };
+        }
+
+        // ---- Inventory ----
+
+        public static InventoryUpsertMessage InventoryDtoToProto(InventoryUpsertDto dto)
+        {
+            return new InventoryUpsertMessage
+            {
+                Id = dto.Id,
+                ProductId = dto.ProductId,
+                ProductCategoryId = dto.ProductCategoryId,
+                Quantity = dto.Quantity
+            };
+        }
+
+        public static InventoryDto InventoryProtoToDto(InventoryMessage message)
+        {
+            InventoryDto dto = new InventoryDto
+            {
+                Id = message.Id,
+                ProductId = message.ProductId,
+                ProductCategoryId = message.ProductCategoryId,
+                Quantity = message.Quantity,
+                CreatedBy = message.CreatedBy,
+                CreatedDate = message.CreatedDate.ToDateTime(),
+                IsDeleted = message.IsDeleted
+            };
+
+            if (message.HasModifiedBy)
+                dto.ModifiedBy = message.ModifiedBy;
+
+            if (message.ModifiedDate is not null)
+                dto.ModifiedDate = message.ModifiedDate.ToDateTime();
+
+            return dto;
+        }
+
+        // ---- Cart ----
+
+        public static CartUpsertMessage CartDtoToProto(CartUpsertDto dto)
+        {
+            return new CartUpsertMessage
+            {
+                Id = dto.Id,
+                ProductId = dto.ProductId,
+                Quantity = dto.Quantity,
+                UnitPrice = dto.UnitPrice.ToString(CultureInfo.InvariantCulture)
+            };
+        }
+
+        public static CartDto CartProtoToDto(CartMessage message)
+        {
+            return new CartDto
+            {
+                Id = message.Id,
+                UserId = message.UserId,
+                ProductId = message.ProductId,
+                Quantity = message.Quantity,
+                UnitPrice = decimal.Parse(message.UnitPrice, NumberStyles.Number, CultureInfo.InvariantCulture),
+                CreatedBy = message.CreatedBy,
+                CreatedDate = message.CreatedDate.ToDateTime(),
+                IsDeleted = message.IsDeleted
             };
         }
     }

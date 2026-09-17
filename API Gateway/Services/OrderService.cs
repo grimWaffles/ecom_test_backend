@@ -166,6 +166,17 @@ namespace API_Gateway.Services
             try
             {
                 response = await GetAllOrdersAsync(request);
+
+                if (response == null)
+                {
+                    return new OrderResponse()
+                    {
+                        Status = false,
+                        Message = $"No orders found",
+                        Order = null
+                    };
+                }
+
                 orderList = response.Orders.ToList();
 
                 foreach (Order order in orderList)

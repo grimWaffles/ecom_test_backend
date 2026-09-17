@@ -133,6 +133,9 @@ builder.Services.AddSingleton<IKafkaEventProducer, KafkaEventProducer>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<UnitOfWorkContext>();
 
+builder.Services.AddScoped<IInventoryRepository, InventoryRepository>();
+builder.Services.AddScoped<IInventoryService, InventoryService>();
+
 builder.Services.AddScoped<ICustomerTransactionRepository, CustomerTransactionRepository>();
 builder.Services.AddScoped<ICustomerTransactionService, CustomerTransactionService>();
 
@@ -145,7 +148,13 @@ builder.Services.AddScoped<IOrderOutboxRepository, OrderOutboxRepository>();
 builder.Services.AddScoped<IOutboxStatusService, OutboxStatusService>();
 builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
 
-builder.Services.AddHostedService<OutboxExecutor>();
+builder.Services.AddScoped<ICartRepository, CartRepository>();
+builder.Services.AddScoped<ICartService, CartService>();
+
+builder.Services.AddScoped<IInventoryRepository, InventoryRepository>();
+builder.Services.AddScoped<IInventoryReservationRepository, InventoryReservationRepository>();
+
+builder.Services.AddHostedService<OrderOutboxExecutor>();
 builder.Services.AddHostedService<OrderEventConsumer>();
 builder.Services.AddHostedService<TransactionEventConsumer>();
 
@@ -157,6 +166,8 @@ app.UseAuthorization();
 // Configure the HTTP request pipeline.
 app.MapGrpcService<CustomerTransactionGrpcService>();
 app.MapGrpcService<OrderGrpcService>();
+app.MapGrpcService<InventoryGrpcService>();
+app.MapGrpcService<CartGrpcService>();
 
 app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
 

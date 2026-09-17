@@ -6,14 +6,14 @@ using OrderServiceGrpc.Models.Entities;
 
 namespace OrderServiceGrpc.Services.BackgroundServices
 {
-    public class OutboxExecutor : BackgroundService
+    public class OrderOutboxExecutor : BackgroundService
     {
-        private readonly ILogger<OutboxExecutor> _logger;
+        private readonly ILogger<OrderOutboxExecutor> _logger;
         private readonly IKafkaEventProducer _kafkaEventProducer;
         private readonly IServiceProvider _serviceProvider;
         private const int DelayInSeconds = 6000;
 
-        public OutboxExecutor(ILogger<OutboxExecutor> logger, IKafkaEventProducer kafkaEventProducer, IServiceProvider serviceProvider)
+        public OrderOutboxExecutor(ILogger<OrderOutboxExecutor> logger, IKafkaEventProducer kafkaEventProducer, IServiceProvider serviceProvider)
         {
             _logger = logger;
             _kafkaEventProducer = kafkaEventProducer;
@@ -27,7 +27,7 @@ namespace OrderServiceGrpc.Services.BackgroundServices
                 try
                 {
                     await Task.Delay(DelayInSeconds, stoppingToken);
-                    await RunOutboxExecutorAsync(stoppingToken);
+                    await RunOrderOutboxExecutorAsync(stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -42,7 +42,7 @@ namespace OrderServiceGrpc.Services.BackgroundServices
             }
         }
 
-        private async Task RunOutboxExecutorAsync(CancellationToken stoppingToken)
+        private async Task RunOrderOutboxExecutorAsync(CancellationToken stoppingToken)
         {
             try
             {
@@ -59,7 +59,6 @@ namespace OrderServiceGrpc.Services.BackgroundServices
 
                     if (!outboxRecords.Any())
                     {
-                        _logger.LogInformation("No records to publish at this time");
                         return;
                     }
 
