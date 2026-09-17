@@ -133,6 +133,67 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("inventory.test")]
+        public override async Task<RunInventoryLifecycleResponse> RunInventoryLifecycle(
+            RunInventoryLifecycleRequest request, ServerCallContext context)
+        {
+            if (request.UserId <= 0)
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "UserId must be greater than 0."));
+
+            // Step 1: Load all current inventory
+            List<InventoryDto> allItems = await _inventoryService.GetAllAsync(pageNumber: 1, pageSize: 100);
+
+            if (allItems.Count == 0)
+                throw new RpcException(new Status(StatusCode.FailedPrecondition, "Inventory table is empty — cannot run lifecycle."));
+
+            InventoryDto originalItem = allItems.First();
+            int originalCount = allItems.Count;
+
+            // Step 2: Remove one and save
+            bool deleteSucceeded = await _inventoryService.DeleteAsync((int)originalItem.Id, request.UserId);
+
+            if (!deleteSucceeded)
+                throw new RpcException(new Status(StatusCode.Internal, $"Failed to delete Inventory Id {originalItem.Id}."));
+
+            List<InventoryDto> postDeleteItems = await _inventoryService.GetAllAsync(pageNumber: 1, pageSize: 100);
+
+            // Step 3: Add that one again
+            InventoryUpsertDto recreateDto = new InventoryUpsertDto
+            {
+                ProductId = originalItem.ProductId,
+                ProductCategoryId = originalItem.ProductCategoryId,
+                Quantity = originalItem.Quantity
+            };
+
+            InventoryDto recreatedItem = await _inventoryService.CreateAsync(recreateDto, request.UserId);
+
+            // Step 4: Update its quantity by 40%
+            int increasedQuantity = (int)Math.Round(recreatedItem.Quantity * 1.4, MidpointRounding.AwayFromZero);
+
+            InventoryUpsertDto updateDto = new InventoryUpsertDto
+            {
+                Id = recreatedItem.Id,
+                ProductId = recreatedItem.ProductId,
+                ProductCategoryId = recreatedItem.ProductCategoryId,
+                Quantity = increasedQuantity
+            };
+
+            InventoryDto? updatedItem = await _inventoryService.UpdateAsync(updateDto, request.UserId);
+
+            if (updatedItem is null)
+                throw new RpcException(new Status(StatusCode.Internal, $"Failed to update recreated Inventory Id {recreatedItem.Id}."));
+
+            return new RunInventoryLifecycleResponse
+            {
+                OriginalItem = MapToMessage(originalItem),
+                DeleteSucceeded = deleteSucceeded,
+                OriginalListCount = originalCount,
+                PostDeleteListCount = postDeleteItems.Count,
+                RecreatedItem = MapToMessage(recreatedItem),
+                UpdatedItem = MapToMessage(updatedItem)
+            };
+        }
+
         // ===================== Validation =====================
 
         private static void ValidatePaging(int pageNumber, int pageSize)

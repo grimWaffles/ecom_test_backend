@@ -2,6 +2,7 @@
 using API_Gateway.Filters;
 using API_Gateway.Grpc;
 using API_Gateway.Helpers;
+using API_Gateway.Models;
 using API_Gateway.Models.Dtos;
 using ApiGateway.Protos;
 using Microsoft.AspNetCore.Authorization;
@@ -108,6 +109,25 @@ namespace API_Gateway.Controllers
             DeleteInventoryResponse response = await _grpcClient.DeleteInventoryAsync(request);
 
             return Ok(new { response.Success });
+        }
+
+        [HttpPost]
+        [Route("test/lifecycle")]
+        [RequiresPermission("inventory.test")]
+        public async Task<IActionResult> RunInventoryLifecycle()
+        {
+            var request = new RunInventoryLifecycleRequest { UserId = UserId };
+            RunInventoryLifecycleResponse response = await _grpcClient.RunInventoryLifecycleAsync(request);
+
+            return Ok(new
+            {
+                OriginalItem = CustomConverters.InventoryProtoToDto(response.OriginalItem),
+                response.DeleteSucceeded,
+                response.OriginalListCount,
+                response.PostDeleteListCount,
+                RecreatedItem = CustomConverters.InventoryProtoToDto(response.RecreatedItem),
+                UpdatedItem = CustomConverters.InventoryProtoToDto(response.UpdatedItem)
+            });
         }
     }
 }

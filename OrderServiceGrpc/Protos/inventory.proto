@@ -58,6 +58,10 @@ message GetInventoryByProductCategoryRequest {
   int32 page_size = 3;
 }
 
+message RunInventoryLifecycleRequest {
+  int32 user_id = 1;
+}
+
 // ---- Response messages ----
 
 message InventoryListResponse {
@@ -72,6 +76,15 @@ message DeleteInventoryResponse {
   bool success = 1;
 }
 
+message RunInventoryLifecycleResponse {
+  InventoryMessage original_item = 1;
+  bool delete_succeeded = 2;
+  int32 original_list_count = 3;
+  int32 post_delete_list_count = 4;
+  InventoryMessage recreated_item = 5;
+  InventoryMessage updated_item = 6;
+}
+
 // ===================== Service =====================
 
 service InventoryService {
@@ -81,4 +94,5 @@ service InventoryService {
   rpc UpdateInventory (UpdateInventoryRequest) returns (InventoryResponse);
   rpc DeleteInventory (DeleteInventoryRequest) returns (DeleteInventoryResponse);
   rpc GetInventoryByProductCategory (GetInventoryByProductCategoryRequest) returns (InventoryListResponse);
+  rpc RunInventoryLifecycle (RunInventoryLifecycleRequest) returns (RunInventoryLifecycleResponse);
 }

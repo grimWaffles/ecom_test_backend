@@ -13,6 +13,7 @@ namespace API_Gateway.Grpc
         Task<InventoryResponse> UpdateInventoryAsync(UpdateInventoryRequest request);
         Task<DeleteInventoryResponse> DeleteInventoryAsync(DeleteInventoryRequest request);
         Task<InventoryListResponse> GetInventoryByProductCategoryAsync(GetInventoryByProductCategoryRequest request);
+        Task<RunInventoryLifecycleResponse> RunInventoryLifecycleAsync(RunInventoryLifecycleRequest request);
     }
     public class InventoryGrpcClient : IInventoryGrpcClient
     {
@@ -51,6 +52,11 @@ namespace API_Gateway.Grpc
         public async Task<InventoryListResponse> GetInventoryByProductCategoryAsync(GetInventoryByProductCategoryRequest request)
         {
             return await _client.GetInventoryByProductCategoryAsync(request);
+        }
+
+        public async Task<RunInventoryLifecycleResponse> RunInventoryLifecycleAsync(RunInventoryLifecycleRequest request)
+        {
+            return await _client.RunInventoryLifecycleAsync(request);
         }
     }
 }
