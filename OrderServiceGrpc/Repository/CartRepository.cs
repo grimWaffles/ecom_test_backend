@@ -101,10 +101,7 @@ namespace OrderServiceGrpc.Repository
 
                 await _context.Carts.AddAsync(entity);
 
-                if (!_uowContext.IsUnderUnitOfWork)
-                {
-                    await _context.SaveChangesAsync();
-                }
+                await _context.SaveChangesAsync();
 
                 _logger.LogInformation("Created Cart with Id: {Id}", entity.Id);
                 return entity;

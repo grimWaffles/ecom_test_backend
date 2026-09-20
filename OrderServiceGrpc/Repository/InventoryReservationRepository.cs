@@ -88,10 +88,7 @@ namespace OrderServiceGrpc.Repository
 
                 await _context.InventoryReservations.AddAsync(entity);
 
-                if (!_uowContext.IsUnderUnitOfWork)
-                {
-                    await _context.SaveChangesAsync();
-                }
+                await _context.SaveChangesAsync();
 
                 _logger.LogInformation("Created InventoryReservation with Id: {Id}", entity.Id);
                 return entity;

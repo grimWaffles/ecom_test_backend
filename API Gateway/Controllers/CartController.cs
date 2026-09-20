@@ -18,10 +18,12 @@ namespace API_Gateway.Controllers
     public class CartController : ControllerBase
     {
         private readonly ICartGrpcClient _grpcClient;
+        private readonly ITokenHelper _tokenHelper;
 
-        public CartController(ICartGrpcClient grpcClient)
+        public CartController(ICartGrpcClient grpcClient, ITokenHelper tokenHelper)
         {
             _grpcClient = grpcClient;
+            _tokenHelper = tokenHelper;
         }
 
         [HttpGet]
@@ -29,7 +31,11 @@ namespace API_Gateway.Controllers
         [RequiresPermission("cart.view")]
         public async Task<IActionResult> ViewCart()
         {
-            var request = new ViewCartRequest();
+            var request = new ViewCartRequest()
+            {
+                UserId = Convert.ToInt32(_tokenHelper.GetClaimValueFromToken("UserId"))
+            };
+
             CartListResponse response = await _grpcClient.ViewCartAsync(request);
 
             if (!response.Success)
@@ -80,7 +86,7 @@ namespace API_Gateway.Controllers
         [RequiresPermission("cart.delete")]
         public async Task<IActionResult> RemoveFromCart(long cartId)
         {
-            var request = new RemoveFromCartRequest { CartId = cartId };
+            var request = new RemoveFromCartRequest { CartId = cartId, UserId = Convert.ToInt32(_tokenHelper.GetClaimValueFromToken("UserId")) };
             RemoveFromCartResponse response = await _grpcClient.RemoveFromCartAsync(request);
 
             if (!response.Success)
