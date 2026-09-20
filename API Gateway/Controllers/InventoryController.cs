@@ -18,13 +18,13 @@ namespace API_Gateway.Controllers
     public class InventoryController : ControllerBase
     {
         private readonly IInventoryGrpcClient _grpcClient;
+        private readonly ITokenHelper _tokenHelper;
 
-        public InventoryController(IInventoryGrpcClient grpcClient)
+        public InventoryController(IInventoryGrpcClient grpcClient, ITokenHelper tokenHelper)
         {
             _grpcClient = grpcClient;
+            _tokenHelper = tokenHelper;
         }
-
-        private int UserId => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
 
         [HttpGet]
         [Route("")]
@@ -76,7 +76,7 @@ namespace API_Gateway.Controllers
             var request = new CreateInventoryRequest
             {
                 Inventory = CustomConverters.InventoryDtoToProto(inventory),
-                UserId = UserId
+                UserId = Convert.ToInt32(_tokenHelper.GetClaimValueFromToken("UserId"))
             };
 
             InventoryResponse response = await _grpcClient.CreateInventoryAsync(request);
@@ -92,7 +92,7 @@ namespace API_Gateway.Controllers
             var request = new UpdateInventoryRequest
             {
                 Inventory = CustomConverters.InventoryDtoToProto(inventory),
-                UserId = UserId
+                UserId = Convert.ToInt32(_tokenHelper.GetClaimValueFromToken("UserId"))
             };
 
             InventoryResponse response = await _grpcClient.UpdateInventoryAsync(request);
@@ -105,7 +105,7 @@ namespace API_Gateway.Controllers
         [RequiresPermission("inventory.delete")]
         public async Task<IActionResult> DeleteInventory(int id)
         {
-            var request = new DeleteInventoryRequest { Id = id, UserId = UserId };
+            var request = new DeleteInventoryRequest { Id = id, UserId = Convert.ToInt32(_tokenHelper.GetClaimValueFromToken("UserId")) };
             DeleteInventoryResponse response = await _grpcClient.DeleteInventoryAsync(request);
 
             return Ok(new { response.Success });
@@ -116,7 +116,7 @@ namespace API_Gateway.Controllers
         [RequiresPermission("inventory.test")]
         public async Task<IActionResult> RunInventoryLifecycle()
         {
-            var request = new RunInventoryLifecycleRequest { UserId = UserId };
+            var request = new RunInventoryLifecycleRequest { UserId = Convert.ToInt32(_tokenHelper.GetClaimValueFromToken("UserId")) };
             RunInventoryLifecycleResponse response = await _grpcClient.RunInventoryLifecycleAsync(request);
 
             return Ok(new
