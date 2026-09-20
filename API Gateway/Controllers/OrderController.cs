@@ -19,13 +19,16 @@ namespace API_Gateway.Controllers
     public class OrderController : ControllerBase
     {
         private readonly IOrderGrpcClient _grpcClient;
-        public OrderController(IOrderGrpcClient grpcClient)
+        private readonly ITokenHelper _tokenHelper;
+
+        public OrderController(IOrderGrpcClient grpcClient, ITokenHelper tokenHelper)
         {
             _grpcClient = grpcClient;
+            _tokenHelper = tokenHelper;
         }
 
         // Get userId from JWT token
-        private int UserId => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        private int UserId => Convert.ToInt32(_tokenHelper.GetClaimValueFromToken("UserId"));
 
         [HttpPost]
         [Route("create")]
