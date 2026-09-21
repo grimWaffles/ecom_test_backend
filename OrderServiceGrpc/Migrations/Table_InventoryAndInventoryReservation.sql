@@ -18,35 +18,6 @@ create table Inventory
 	IsDeleted bit default 0
 )
 
-drop table if exists InventoryReservation
-create table InventoryReservation
-(
-	Id bigint primary key identity(1,1),
-	
-	ProductId int foreign key references Products(Id) not null,
-	CartId bigint foreign key references Orders(Id) not null,
-	LockQuantity int not null,
-	LockExpirationDate datetime not null,
-	
-	CreatedBy int foreign key references Users(Id) not null,
-	CreatedDate datetime not null,
-
-	IsDeleted bit default 0
-)
-
-drop table if exists Cart
-create table Cart
-(
-	Id bigint primary key identity(1,1),
-	UserId int foreign key references Users(Id) not null,
-	ProductId int foreign key references Products(Id) not null,
-	Quantity int not null,
-	UnitPrice decimal(18,4) not null,
-	CreatedBy int foreign key references Users(Id) not null,
-	CreatedDate datetime not null,
-	IsDeleted bit default 0 not null
-)
-
 ------------------------------------------------------------------
 -- Populate tables
 ------------------------------------------------------------------

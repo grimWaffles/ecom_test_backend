@@ -10,7 +10,6 @@
 	 <Protobuf Include="Protos\customerTransaction.proto" GrpcServices="Server" />
 	  <Protobuf Include="Protos\order.proto" GrpcServices="Server" />
 	  <Protobuf Include="Protos\inventory.proto" GrpcServices="Server" />
-	  <Protobuf Include="Protos\cart.proto" GrpcServices="Server" />
   </ItemGroup>
 
   <ItemGroup>

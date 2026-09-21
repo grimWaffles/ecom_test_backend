@@ -10,8 +10,6 @@ namespace OrderServiceGrpc.Database
         public DbSet<OrderOutbox> OrderOutbox { get; set; }
         public DbSet<OutboxStatus> OutboxStatus { get; set; }
         public DbSet<Inventory> Inventory { get; set; }
-        public DbSet<InventoryReservation> InventoryReservations { get; set; }
-        public DbSet<Cart> Carts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

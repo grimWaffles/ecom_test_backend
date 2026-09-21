@@ -2,7 +2,6 @@
 using API_Gateway.Models.Dtos;
 using ApiGateway.Protos;
 using Google.Protobuf.WellKnownTypes;
-using System.Globalization;
 
 namespace API_Gateway.Helpers
 {
@@ -175,35 +174,6 @@ namespace API_Gateway.Helpers
                 dto.ModifiedDate = message.ModifiedDate.ToDateTime();
 
             return dto;
-        }
-
-        // ---- Cart ----
-
-        public static CartUpsertMessage CartDtoToProto(CartUpsertDto dto)
-        {
-            return new CartUpsertMessage
-            {
-                Id = dto.Id,
-                ProductId = dto.ProductId,
-                Quantity = dto.Quantity,
-                UnitPrice = dto.UnitPrice.ToString(CultureInfo.InvariantCulture),
-                UserId = dto.UserId
-            };
-        }
-
-        public static CartDto CartProtoToDto(CartMessage message)
-        {
-            return new CartDto
-            {
-                Id = message.Id,
-                UserId = message.UserId,
-                ProductId = message.ProductId,
-                Quantity = message.Quantity,
-                UnitPrice = decimal.Parse(message.UnitPrice, NumberStyles.Number, CultureInfo.InvariantCulture),
-                CreatedBy = message.CreatedBy,
-                CreatedDate = message.CreatedDate.ToDateTime(),
-                IsDeleted = message.IsDeleted
-            };
         }
     }
 }

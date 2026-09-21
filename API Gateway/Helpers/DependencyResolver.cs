@@ -113,7 +113,6 @@ namespace API_Gateway.Helpers
             services.AddScoped<IOrderGrpcClient, OrderGrpcClient>();
             services.AddScoped<ICustomerTransactionGrpcClient, CustomerTransactionGrpcClient>();
             services.AddScoped<IInventoryGrpcClient, InventoryGrpcClient>();
-            services.AddScoped<ICartGrpcClient, CartGrpcClient>();
             services.AddScoped<IPermissionService, PermissionService>();
         }
 
@@ -157,11 +156,6 @@ namespace API_Gateway.Helpers
             }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
 
             services.AddGrpcClient<OrderGrpcService.OrderGrpcServiceClient>(options =>
-            {
-                options.Address = new Uri(serviceUrls.GetOrderServiceUrl());
-            }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
-
-            services.AddGrpcClient<ApiGateway.Protos.CartService.CartServiceClient>(options =>
             {
                 options.Address = new Uri(serviceUrls.GetOrderServiceUrl());
             }).AddInterceptor<JwtForwardingInterceptor>(InterceptorScope.Client);
