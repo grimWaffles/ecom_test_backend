@@ -20,19 +20,20 @@ namespace OrderServiceGrpc.GrpcServices
 
         public CartGrpcService(
             ICartService cartService,
-            ILogger<CartGrpcService> logger, ITokenHelper _tokenHelper)
+            ILogger<CartGrpcService> logger)
         {
             _cartService = cartService;
             _logger = logger;
         }
 
+        [RequiresPermission("cart.create")]
         public override async Task<CartResponse> AddToCart(
             AddToCartRequest request, ServerCallContext context)
         {
             if (request.Cart is null)
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Cart payload is required."));
 
-            int userId = GetUserId(context);
+            int userId = request.Cart.UserId;
 
             ValidateUpsertMessage(request.Cart);
 
@@ -48,6 +49,7 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("cart.update")]
         public override async Task<CartResponse> UpdateCartItem(
             UpdateCartItemRequest request, ServerCallContext context)
         {
@@ -57,7 +59,7 @@ namespace OrderServiceGrpc.GrpcServices
             if (request.Cart.Id <= 0)
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Id must be greater than 0 for update."));
 
-            int userId = GetUserId(context);
+            int userId = request.Cart.UserId;
 
             ValidateUpsertMessage(request.Cart);
 
@@ -73,13 +75,14 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("cart.delete")]
         public override async Task<RemoveFromCartResponse> RemoveFromCart(
             RemoveFromCartRequest request, ServerCallContext context)
         {
             if (request.CartId <= 0)
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "CartId must be greater than 0."));
 
-            int userId = GetUserId(context);
+            int userId = request.UserId;
 
             ServiceResult<bool> result = await _cartService.RemoveFromCartAsync(request.CartId, userId);
 
@@ -90,10 +93,11 @@ namespace OrderServiceGrpc.GrpcServices
             };
         }
 
+        [RequiresPermission("cart.view")]
         public override async Task<CartListResponse> ViewCart(
             ViewCartRequest request, ServerCallContext context)
         {
-            int userId = GetUserId(context);
+            int userId = request.UserId;
 
             ServiceResult<List<CartDto>> result = await _cartService.ViewCartAsync(userId);
 
@@ -109,20 +113,6 @@ namespace OrderServiceGrpc.GrpcServices
             }
 
             return response;
-        }
-
-        // ===================== Auth =====================
-
-        private static int GetUserId(ServerCallContext context)
-        {
-            ClaimsPrincipal? user = context.GetHttpContext()?.User;
-
-            Claim? claim = user?.FindFirst(ClaimTypes.NameIdentifier) ?? user?.FindFirst("sub");
-
-            if (claim is null || !int.TryParse(claim.Value, out int userId))
-                throw new RpcException(new Status(StatusCode.Unauthenticated, "Unable to resolve authenticated user."));
-
-            return userId;
         }
 
         // ===================== Validation =====================

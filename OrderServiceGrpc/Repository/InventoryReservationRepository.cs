@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 using OrderServiceGrpc.Database;
 using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Models.Entities;
@@ -33,18 +34,22 @@ namespace OrderServiceGrpc.Repository
         public async Task<int> GetActiveLockedQuantityByProductIdAsync(int productId, long? excludeReservationId = null)
         {
             _logger.LogInformation("Calculating locked quantity for ProductId: {ProductId}", productId);
+
             try
             {
-                IQueryable<InventoryReservation> query = _context.InventoryReservations
+                var mainQuery = _context.Inventory
                     .AsNoTracking()
-                    .Where(x => !x.IsDeleted
-                        && x.ProductId == productId
-                        && x.LockExpirationDate > DateTime.UtcNow);
+                    .Where(iv => iv.ProductId == productId)
+                    .Select(iv => iv.Quantity - (
+                        _context.InventoryReservations
+                            .Where(x => !x.IsDeleted
+                                && x.ProductId == productId
+                                && x.LockExpirationDate > DateTime.UtcNow
+                            )
+                            .Sum(iv => (int?)iv.LockQuantity ?? 0)
+                    ));
 
-                if (excludeReservationId.HasValue)
-                    query = query.Where(x => x.Id != excludeReservationId.Value);
-
-                int lockedQuantity = await query.SumAsync(x => (int?)x.LockQuantity) ?? 0;
+                int lockedQuantity = await mainQuery.SingleOrDefaultAsync();
 
                 _logger.LogInformation("Locked quantity for ProductId: {ProductId} is {LockedQuantity}", productId, lockedQuantity);
                 return lockedQuantity;
@@ -88,10 +93,7 @@ namespace OrderServiceGrpc.Repository
 
                 await _context.InventoryReservations.AddAsync(entity);
 
-                if (!_uowContext.IsUnderUnitOfWork)
-                {
-                    await _context.SaveChangesAsync();
-                }
+                await _context.SaveChangesAsync();
 
                 _logger.LogInformation("Created InventoryReservation with Id: {Id}", entity.Id);
                 return entity;

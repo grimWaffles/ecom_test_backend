@@ -24,7 +24,7 @@ create table InventoryReservation
 	Id bigint primary key identity(1,1),
 	
 	ProductId int foreign key references Products(Id) not null,
-	CartId int foreign key references Orders(Id) not null,
+	CartId bigint foreign key references Orders(Id) not null,
 	LockQuantity int not null,
 	LockExpirationDate datetime not null,
 	

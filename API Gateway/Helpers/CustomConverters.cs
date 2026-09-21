@@ -186,7 +186,8 @@ namespace API_Gateway.Helpers
                 Id = dto.Id,
                 ProductId = dto.ProductId,
                 Quantity = dto.Quantity,
-                UnitPrice = dto.UnitPrice.ToString(CultureInfo.InvariantCulture)
+                UnitPrice = dto.UnitPrice.ToString(CultureInfo.InvariantCulture),
+                UserId = dto.UserId
             };
         }
 
