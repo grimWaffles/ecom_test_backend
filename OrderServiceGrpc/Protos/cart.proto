@@ -1,0 +1,12 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+
+option csharp_namespace = "OrderServiceGrpc.Protos";
+
+message TestCartResult{
+	string message = 1;
+}
+
+service CartService{
+	rpc TestCartFunctions(google.protobuf.Empty) returns (TestCartResult);
+}
