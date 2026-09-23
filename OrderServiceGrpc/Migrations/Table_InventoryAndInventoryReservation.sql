@@ -17,6 +17,7 @@ create table Inventory
 
 	IsDeleted bit default 0
 )
+alter table Inventory add ReservedQuantity int
 
 ------------------------------------------------------------------
 -- Populate tables
@@ -46,8 +47,8 @@ from Products p
 	inner join ProductCategories pc on pc.Id = p.ProductCategoryId
 where p.Id not in (select ProductId from Inventory)
 
+update Inventory set ReservedQuantity = 0
+
 select * from Products where Id not in (select ProductId from Inventory)
 
 select * from Inventory
-select * from InventoryReservation
-select * from Cart

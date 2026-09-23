@@ -53,7 +53,7 @@ namespace OrderServiceGrpc.Services
             {
                 ProductId = dto.ProductId,
                 ProductCategoryId = dto.ProductCategoryId,
-                Quantity = dto.Quantity
+                Quantity = dto.Quantity,
             };
 
             Inventory created = await _repository.CreateAsync(entity, userId);
@@ -70,7 +70,7 @@ namespace OrderServiceGrpc.Services
                 Id = dto.Id,
                 ProductId = dto.ProductId,
                 ProductCategoryId = dto.ProductCategoryId,
-                Quantity = dto.Quantity
+                Quantity = dto.Quantity,
             };
 
             Inventory? updated = await _repository.UpdateAsync(entity, userId);
@@ -110,6 +110,8 @@ namespace OrderServiceGrpc.Services
                 ProductId = entity.ProductId,
                 ProductCategoryId = entity.ProductCategoryId,
                 Quantity = entity.Quantity,
+                ReservedQuantity = entity.ReservedQuantity,
+                AvailableQuantity = entity.Quantity - entity.ReservedQuantity,
                 CreatedBy = entity.CreatedBy,
                 CreatedDate = entity.CreatedDate,
                 ModifiedBy = entity.ModifiedBy,

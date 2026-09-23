@@ -50,5 +50,29 @@ namespace OrderServiceGrpc.Helpers.Converters
                 UpdatedBy = entity.UpdatedBy,
                 Items = (entity.Items != null) ? entity.Items.Select(i => i.ToDto()).ToList() : new()
             };
+
+        //SaveCartDto and SaveCartItemDto
+        public static CartItem SaveCartItemDtoToEntity(this SaveCartItemDto x) =>
+            new()
+            {
+                Id = 0,
+                CartId = 0,
+                ProductId = x.ProductId,
+                Quantity = x.Quantity,
+                UnitPrice = 0,
+                ReservationExpiresAt = DateTime.UtcNow,
+                StatusId = 0,
+                IsDeleted = false,
+            };
+
+        public static Cart SaveCartDtoToEntity(this SaveCartDto x) =>
+            new()
+            {
+                Id = x.Id,
+                UserId = 0,
+                StatusId = 0,
+                IsDeleted = false,
+                Items = x.Items.Select(i => i.SaveCartItemDtoToEntity()).ToList()
+            };
     }
 }

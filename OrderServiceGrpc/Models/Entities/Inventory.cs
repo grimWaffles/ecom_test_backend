@@ -19,6 +19,8 @@ namespace OrderServiceGrpc.Models.Entities
         [Required]
         public int Quantity { get; set; } = 0;
 
+        public int ReservedQuantity { get; set; } = 0;
+
         [Required]
         public int CreatedBy { get; set; }
 
