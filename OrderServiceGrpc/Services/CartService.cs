@@ -1,6 +1,7 @@
 ﻿using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using OrderServiceGrpc.Database;
+using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
@@ -9,9 +10,9 @@ namespace OrderServiceGrpc.Services
 {
     public interface ICartService
     {
-        public Task<PagedCartResult> GetAllCarts(int pageNumber, int pageSize, int statusId = CartStatusIds.Active);
-        public Task<CartDto> GetCartByCartId(int cartId, int statusId = CartStatusIds.Active);
-        public Task<CartDto> GetCartByUserId(int userId, int statusId = CartStatusIds.Active);
+        public Task<PagedCartResult> GetAllCarts(int pageNumber, int pageSize, bool trackChanges = true, int statusId = CartStatusIds.Active);
+        public Task<CartDto> GetCartByCartId(int cartId, bool trackChanges = true, int statusId = CartStatusIds.Active);
+        public Task<CartDto> GetCartByUserId(int userId, bool trackChanges = true, int statusId = CartStatusIds.Active);
         public Task<(bool, string, Cart?)> ModifyCart(SaveCartDto cart, int userId);
     }
 
@@ -27,7 +28,7 @@ namespace OrderServiceGrpc.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<PagedCartResult> GetAllCarts(int pageNumber, int pageSize, int statusId = CartStatusIds.Active)
+        public async Task<PagedCartResult> GetAllCarts(int pageNumber, int pageSize, bool trackChanges = true, int statusId = CartStatusIds.Active)
         {
             if (pageNumber < 1 || pageSize < 1 || statusId < 1)
             {
@@ -39,11 +40,10 @@ namespace OrderServiceGrpc.Services
 
             try
             {
-                IQueryable<Cart> baseQuery = _context.Carts.AsNoTracking()
+                IQueryable<Cart> baseQuery = _context.Carts.WithTracking(track: trackChanges)
                     .Where(c => c.StatusId == statusId)
                     .OrderByDescending(c => c.CreatedAt);
 
-                // FIX: count the full matching set BEFORE paging, not after Skip/Take (was undercounting to at most pageSize)
                 int totalCount = await baseQuery.CountAsync();
 
                 List<CartDto> list = await baseQuery
@@ -58,8 +58,6 @@ namespace OrderServiceGrpc.Services
                     PageSize = pageSize,
                     Items = list,
                     TotalCount = totalCount,
-                    // FIX: cast to decimal BEFORE dividing so Ceiling has something meaningful to round;
-                    // also guard divide-by-zero-shaped edge case when totalCount is 0
                     TotalPages = totalCount == 0 ? 0 : (int)Math.Ceiling((decimal)totalCount / pageSize)
                 };
 
@@ -73,9 +71,8 @@ namespace OrderServiceGrpc.Services
             }
         }
 
-        public async Task<CartDto> GetCartByCartId(int cartId, int statusId = CartStatusIds.Active)
+        public async Task<CartDto> GetCartByCartId(int cartId, bool trackChanges = true, int statusId = CartStatusIds.Active)
         {
-            // FIX: added validation (previously none)
             if (cartId < 1 || statusId < 1)
             {
                 _logger.LogWarning("Invalid parameters for GetCartByCartId. CartId: {cartId}, StatusId: {statusId}", cartId, statusId);
@@ -84,18 +81,14 @@ namespace OrderServiceGrpc.Services
 
             try
             {
-                IQueryable<Cart> cartQuery = _context.Carts.AsNoTracking()
+                IQueryable<Cart> cartQuery = _context.Carts.WithTracking(track: trackChanges)
                     .Include(c => c.Status)
-                    // FIX: filter must be applied to the Items collection itself (filtered Include),
-                    // not chained after ThenInclude — the old .Where(i => ...) was filtering Cart, not CartItem
                     .Include(c => c.Items.Where(i => i.StatusId == CartItemStatusIds.Processing || i.StatusId == CartItemStatusIds.Reserved))
                         .ThenInclude(i => i.Status)
                     .Where(c => c.Id == cartId && c.StatusId == statusId);
 
                 List<CartDto> cartDtos = await cartQuery.Select(c => CartMappingExtensions.ToDto(c)).ToListAsync();
 
-                // FIX: Select().ToListAsync() never returns null, it returns an empty list — check Count instead,
-                // otherwise cartDtos[0] below would throw IndexOutOfRangeException on a genuine "not found"
                 if (cartDtos.Count == 0)
                 {
                     _logger.LogWarning("Cart not found with Id: {cartId}", cartId);
@@ -106,15 +99,13 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception e)
             {
-                // FIX: pass the exception itself so stack trace/details are actually captured
                 _logger.LogError(e, "Failed to fetch cart with Id: {cartId}", cartId);
                 throw;
             }
         }
 
-        public async Task<CartDto> GetCartByUserId(int userId, int statusId = CartStatusIds.Active)
+        public async Task<CartDto> GetCartByUserId(int userId, bool trackChanges = true, int statusId = CartStatusIds.Active)
         {
-            // FIX: added validation (previously none)
             if (userId < 1 || statusId < 1)
             {
                 _logger.LogWarning("Invalid parameters for GetCartByUserId. UserId: {userId}, StatusId: {statusId}", userId, statusId);
@@ -123,16 +114,14 @@ namespace OrderServiceGrpc.Services
 
             try
             {
-                IQueryable<Cart> cartQuery = _context.Carts.AsNoTracking()
+                IQueryable<Cart> cartQuery = _context.Carts.WithTracking(track: trackChanges)
                     .Include(c => c.Status)
-                    // FIX: same filtered-Include correction as GetCartByCartId
                     .Include(c => c.Items.Where(i => i.StatusId == CartItemStatusIds.Processing || i.StatusId == CartItemStatusIds.Reserved))
                         .ThenInclude(i => i.Status)
                     .Where(c => c.UserId == userId && c.StatusId == statusId);
 
                 List<CartDto> cartDtos = await cartQuery.Select(c => CartMappingExtensions.ToDto(c)).ToListAsync();
 
-                // FIX: same null-vs-empty correction as GetCartByCartId
                 if (cartDtos.Count == 0)
                 {
                     _logger.LogWarning("Cart not found with UserId: {userId}", userId);
@@ -143,7 +132,6 @@ namespace OrderServiceGrpc.Services
             }
             catch (Exception e)
             {
-                // FIX: pass the exception itself so stack trace/details are actually captured
                 _logger.LogError(e, "Failed to fetch cart with UserId: {userId}", userId);
                 throw;
             }

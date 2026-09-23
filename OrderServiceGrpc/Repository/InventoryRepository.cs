@@ -7,12 +7,12 @@ namespace OrderServiceGrpc.Repository
 {
     public interface IInventoryRepository
     {
-        Task<List<Inventory>> GetAllAsync(int pageNumber, int pageSize);
-        Task<List<Inventory>> GetByProductIdAsync(int productId);
+        Task<List<Inventory>> GetAllAsync(int pageNumber, int pageSize, bool track = false);
+        Task<List<Inventory>> GetByProductIdAsync(int productId, bool track = false);
         Task<Inventory> CreateAsync(Inventory entity, int userId);
         Task<Inventory?> UpdateAsync(Inventory entity, int userId);
         Task<bool> DeleteAsync(int id, int userId);
-        Task<List<Inventory>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize);
+        Task<List<Inventory>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize, bool track = false);
     }
 
     public class InventoryRepository : IInventoryRepository
@@ -31,13 +31,13 @@ namespace OrderServiceGrpc.Repository
             _uowContext = uowContext;
         }
 
-        public async Task<List<Inventory>> GetAllAsync(int pageNumber, int pageSize)
+        public async Task<List<Inventory>> GetAllAsync(int pageNumber, int pageSize, bool track = false)
         {
             _logger.LogInformation("Fetching Inventory — PageNumber: {PageNumber}, PageSize: {PageSize}", pageNumber, pageSize);
             try
             {
                 IQueryable<Inventory> query = _context.Inventory
-                    .AsNoTracking()
+                    .WithTracking(track: track)
                     .Where(x => !x.IsDeleted)
                     .OrderBy(x => x.Id)
                     .Skip((pageNumber - 1) * pageSize)
@@ -55,13 +55,13 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<List<Inventory>> GetByProductIdAsync(int productId)
+        public async Task<List<Inventory>> GetByProductIdAsync(int productId, bool track = false)
         {
             _logger.LogInformation("Fetching Inventory with ProductId: {ProductId}", productId);
             try
             {
                 IQueryable<Inventory> query = _context.Inventory
-                    .AsNoTracking()
+                    .WithTracking(track: track)
                     .Where(x => !x.IsDeleted && x.ProductId == productId);
 
                 List<Inventory> records = await query.ToListAsync();
@@ -188,7 +188,7 @@ namespace OrderServiceGrpc.Repository
             }
         }
 
-        public async Task<List<Inventory>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize)
+        public async Task<List<Inventory>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize, bool track = false)
         {
             _logger.LogInformation(
                 "Fetching Inventory — ProductCategoryId: {ProductCategoryId}, PageNumber: {PageNumber}, PageSize: {PageSize}",
@@ -196,7 +196,7 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 IQueryable<Inventory> query = _context.Inventory
-                    .AsNoTracking()
+                    .WithTracking(track: track)
                     .Where(x => !x.IsDeleted && x.ProductCategoryId == productCategoryId);
 
                 query = query

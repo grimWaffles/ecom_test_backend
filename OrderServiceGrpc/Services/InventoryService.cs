@@ -6,12 +6,12 @@ namespace OrderServiceGrpc.Services
 {
     public interface IInventoryService
     {
-        Task<List<InventoryDto>> GetAllAsync(int pageNumber, int pageSize);
-        Task<List<InventoryDto>> GetByProductIdAsync(int productId);
+        Task<List<InventoryDto>> GetAllAsync(int pageNumber, int pageSize, bool track = false);
+        Task<List<InventoryDto>> GetByProductIdAsync(int productId, bool track = false);
         Task<InventoryDto> CreateAsync(InventoryUpsertDto dto, int userId);
         Task<InventoryDto?> UpdateAsync(InventoryUpsertDto dto, int userId);
         Task<bool> DeleteAsync(int id, int userId);
-        Task<List<InventoryDto>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize);
+        Task<List<InventoryDto>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize, bool track = false);
     }
 
     public class InventoryService : IInventoryService
@@ -27,20 +27,20 @@ namespace OrderServiceGrpc.Services
             _logger = logger;
         }
 
-        public async Task<List<InventoryDto>> GetAllAsync(int pageNumber, int pageSize)
+        public async Task<List<InventoryDto>> GetAllAsync(int pageNumber, int pageSize, bool track = false)
         {
             _logger.LogInformation("Getting Inventory — PageNumber: {PageNumber}, PageSize: {PageSize}", pageNumber, pageSize);
 
-            List<Inventory> entities = await _repository.GetAllAsync(pageNumber, pageSize);
+            List<Inventory> entities = await _repository.GetAllAsync(pageNumber, pageSize, track);
 
             return entities.Select(MapToDto).ToList();
         }
 
-        public async Task<List<InventoryDto>> GetByProductIdAsync(int productId)
+        public async Task<List<InventoryDto>> GetByProductIdAsync(int productId, bool track = false)
         {
             _logger.LogInformation("Getting Inventory with ProductId: {ProductId}", productId);
 
-            List<Inventory> entities = await _repository.GetByProductIdAsync(productId);
+            List<Inventory> entities = await _repository.GetByProductIdAsync(productId, track);
 
             return entities.Select(MapToDto).ToList();
         }
@@ -91,13 +91,13 @@ namespace OrderServiceGrpc.Services
             return await _repository.DeleteAsync(id, userId);
         }
 
-        public async Task<List<InventoryDto>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize)
+        public async Task<List<InventoryDto>> GetByProductCategoryAsync(int productCategoryId, int pageNumber, int pageSize, bool track = false)
         {
             _logger.LogInformation(
                 "Getting Inventory — ProductCategoryId: {ProductCategoryId}, PageNumber: {PageNumber}, PageSize: {PageSize}",
                 productCategoryId, pageNumber, pageSize);
 
-            List<Inventory> entities = await _repository.GetByProductCategoryAsync(productCategoryId, pageNumber, pageSize);
+            List<Inventory> entities = await _repository.GetByProductCategoryAsync(productCategoryId, pageNumber, pageSize, track);
 
             return entities.Select(MapToDto).ToList();
         }

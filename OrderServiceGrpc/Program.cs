@@ -150,6 +150,8 @@ builder.Services.AddScoped<IOutboxStatusRepository, OutboxStatusRepository>();
 
 builder.Services.AddScoped<ICartService, CartService>();
 
+builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+
 builder.Services.AddHostedService<OrderOutboxExecutor>();
 builder.Services.AddHostedService<OrderEventConsumer>();
 builder.Services.AddHostedService<TransactionEventConsumer>();
