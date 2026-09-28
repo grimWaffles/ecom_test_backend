@@ -44,6 +44,7 @@
         public int CreatedBy { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public int? UpdatedBy { get; set; }
+        public int UnavailableQuantity { get; set; } = 0;
     }
 
     // Full cart, including items

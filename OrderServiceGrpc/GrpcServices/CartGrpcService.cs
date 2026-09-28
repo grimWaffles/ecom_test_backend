@@ -11,10 +11,12 @@ namespace OrderServiceGrpc.GrpcServices
     public class CartGrpcService : Protos.CartService.CartServiceBase
     {
         private readonly ICartService _cartService;
+        private readonly ICheckoutService _checkoutService;
 
-        public CartGrpcService(ICartService cartService)
+        public CartGrpcService(ICartService cartService, ICheckoutService checkoutService)
         {
             _cartService = cartService;
+            _checkoutService = checkoutService;
         }
 
         public override async Task<TestCartResult> TestCartFunctions(Empty request, ServerCallContext context)
@@ -39,6 +41,8 @@ namespace OrderServiceGrpc.GrpcServices
 
             //var result = await _cartService.ModifyCart(cartDto, userId);
             //var result2 = await _cartService.GetCartByUserId(1);
+
+            var result = await _checkoutService.CheckoutCartAsync(3, 1);
 
             return new TestCartResult() { Message = "Test success" };
         }

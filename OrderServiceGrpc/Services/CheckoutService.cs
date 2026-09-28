@@ -5,12 +5,14 @@ using OrderServiceGrpc.Helpers;
 using OrderServiceGrpc.Helpers.Converters;
 using OrderServiceGrpc.Models.Dtos;
 using OrderServiceGrpc.Models.Entities;
+using System.Data;
 
 namespace OrderServiceGrpc.Services
 {
     public interface ICheckoutService
     {
-        public Task<(bool, CartDto?)> CheckoutAsync(int cartId, int userId);
+        Task<(bool, CartDto?)> CheckoutAsync(int cartId, int userId);
+        Task<(bool, CartDto?)> CheckoutCartAsync(int cartId, int userId);
     }
 
     public class CheckoutService : ICheckoutService
@@ -111,6 +113,97 @@ namespace OrderServiceGrpc.Services
                 await transaction.RollbackAsync();
                 _logger.LogError(e, "Failed to checkout cart with cartID: {cId} for UserId: {uId}", cartId, userId);
                 return (false, null);
+            }
+        }
+
+        public async Task<(bool, CartDto?)> CheckoutCartAsync(int cartId, int userId)
+        {
+            await using IDbContextTransaction transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                Cart? cart = await _context.Carts
+                    .WithTracking(track: true)
+                    .Include(c => c.Items.Where(i => i.StatusId == CartItemStatusIds.Processing
+                                                  || i.StatusId == CartItemStatusIds.Reserved))
+                    .FirstOrDefaultAsync(c => c.Id == cartId && c.UserId == userId); // confirm the right ownership field
+
+                if (cart == null || cart.Items.Count == 0)
+                {
+                    _logger.LogWarning("Checkout failed: cart not found or empty. CartId: {cartId}, UserId: {userId}", cartId, userId);
+                    return (false, null);
+                }
+
+                Dictionary<int, int> requested = cart.Items
+                    .GroupBy(i => i.ProductId)
+                    .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+
+                List<int> productIds = requested.Keys.ToList();
+
+                Dictionary<int, Inventory> inventories = await _context.Inventory
+                    .WithTracking(track: true)
+                    .Where(inv => productIds.Contains(inv.ProductId) && !inv.IsDeleted)
+                    .ToDictionaryAsync(inv => inv.ProductId);
+
+                // Check every requested product; missing row = 0 available
+                Dictionary<int, int> unavailableQuantities = new();
+                
+                foreach ((int productId, int qty) in requested)
+                {
+                    int available = inventories.TryGetValue(productId, out Inventory? inv) ? inv.Quantity - inv.ReservedQuantity : 0;
+
+                    if (available < qty)
+                        unavailableQuantities[productId] = qty - available;
+                }
+
+                bool allItemsAvailable = unavailableQuantities.Count == 0;
+                DateTime now = DateTime.UtcNow;
+
+                if (allItemsAvailable)
+                {
+                    foreach ((int productId, int qty) in requested)
+                    {
+                        Inventory inv = inventories[productId];
+                        inv.ReservedQuantity += qty;
+                        inv.ModifiedBy = userId;
+                        inv.ModifiedDate = now;
+                    }
+
+                    DateTime expiresAt = now.AddMinutes(10);
+                    foreach (CartItem item in cart.Items)
+                    {
+                        item.ReservationExpiresAt = expiresAt;
+                        item.StatusId = CartItemStatusIds.Reserved;
+                        item.UpdatedAt = now;
+                        item.UpdatedBy = userId;
+                    }
+
+                    cart.StatusId = CartStatusIds.CheckedOut;
+                    cart.UpdatedAt = now;
+                    cart.UpdatedBy = userId;
+
+                    await _context.SaveChangesAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                CartDto dto = CartMappingExtensions.ToDto(cart); // mapped after changes
+
+                if (!allItemsAvailable)
+                {
+                    foreach (CartItemDto x in dto.Items.Where(x => unavailableQuantities.ContainsKey(x.ProductId)))
+                    {
+                        x.UnavailableQuantity = unavailableQuantities[x.ProductId];
+                        x.StatusId = CartItemStatusIds.Unavailable;
+                    }
+                }
+
+                return (allItemsAvailable, dto);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to checkout cart {cartId} for user {userId}", cartId, userId);
+                await transaction.RollbackAsync();
+                throw;
             }
         }
     }
