@@ -69,6 +69,7 @@ namespace OrderServiceGrpc.Services.BackgroundServices
                     item.StatusId = CartItemStatusIds.Processing;
                     item.UpdatedAt = now;
                     item.UpdatedBy = SystemUserId;
+                    item.ReservationExpiresAt = now;
                 }
 
                 Dictionary<int, int> toRelease = expiredItems
