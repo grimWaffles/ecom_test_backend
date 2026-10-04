@@ -4,18 +4,15 @@
     {
         public const int Active = 1;
         public const int CheckedOut = 2;
-        public const int Abandoned = 3;
     }
 
     // Must match the seeded rows in CartItemStatus
     public static class CartItemStatusIds
     {
-        public const int Reserved = 1; // not used for now
-        public const int Expired = 2;
-        public const int Unavailable = 3;
-        public const int Removed = 4;
-        public const int Purchased = 5;
-        public const int Processing = 6;
+        public const int Reserved = 1;
+        public const int Unavailable = 2;
+        public const int Removed = 3;
+        public const int Processing = 4;
     }
 
     public class CartStatusDto

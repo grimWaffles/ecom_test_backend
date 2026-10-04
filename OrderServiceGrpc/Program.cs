@@ -155,6 +155,7 @@ builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddHostedService<OrderOutboxExecutor>();
 builder.Services.AddHostedService<OrderEventConsumer>();
 builder.Services.AddHostedService<TransactionEventConsumer>();
+builder.Services.AddHostedService<InventoryReservationCleanerService>();
 
 var app = builder.Build();
 

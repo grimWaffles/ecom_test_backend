@@ -37,7 +37,7 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 IQueryable<Inventory> query = _context.Inventory
-                    .WithTracking(track: track)
+                    
                     .Where(x => !x.IsDeleted)
                     .OrderBy(x => x.Id)
                     .Skip((pageNumber - 1) * pageSize)
@@ -61,7 +61,7 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 IQueryable<Inventory> query = _context.Inventory
-                    .WithTracking(track: track)
+                    
                     .Where(x => !x.IsDeleted && x.ProductId == productId);
 
                 List<Inventory> records = await query.ToListAsync();
@@ -196,7 +196,7 @@ namespace OrderServiceGrpc.Repository
             try
             {
                 IQueryable<Inventory> query = _context.Inventory
-                    .WithTracking(track: track)
+                    
                     .Where(x => !x.IsDeleted && x.ProductCategoryId == productCategoryId);
 
                 query = query

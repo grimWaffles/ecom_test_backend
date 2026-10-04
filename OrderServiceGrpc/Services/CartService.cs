@@ -40,7 +40,7 @@ namespace OrderServiceGrpc.Services
 
             try
             {
-                IQueryable<Cart> baseQuery = _context.Carts.WithTracking(track: trackChanges)
+                IQueryable<Cart> baseQuery = _context.Carts
                     .Where(c => c.StatusId == statusId)
                     .OrderByDescending(c => c.CreatedAt);
 
@@ -81,7 +81,7 @@ namespace OrderServiceGrpc.Services
 
             try
             {
-                IQueryable<Cart> cartQuery = _context.Carts.WithTracking(track: trackChanges)
+                IQueryable<Cart> cartQuery = _context.Carts
                     .Include(c => c.Status)
                     .Include(c => c.Items.Where(i => i.StatusId == CartItemStatusIds.Processing || i.StatusId == CartItemStatusIds.Reserved))
                         .ThenInclude(i => i.Status)
@@ -114,7 +114,7 @@ namespace OrderServiceGrpc.Services
 
             try
             {
-                IQueryable<Cart> cartQuery = _context.Carts.WithTracking(track: trackChanges)
+                IQueryable<Cart> cartQuery = _context.Carts
                     .Include(c => c.Status)
                     .Include(c => c.Items.Where(i => i.StatusId == CartItemStatusIds.Processing || i.StatusId == CartItemStatusIds.Reserved))
                         .ThenInclude(i => i.Status)
@@ -293,7 +293,7 @@ namespace OrderServiceGrpc.Services
                     item.UpdatedAt = DateTime.UtcNow; item.UpdatedBy = userId; item.IsDeleted = true; item.StatusId = CartItemStatusIds.Removed;
                 }
 
-                cartFromDb.UpdatedAt = DateTime.UtcNow; cartFromDb.UpdatedBy = userId; cartFromDb.IsDeleted = true; cartFromDb.StatusId = CartStatusIds.Abandoned;
+                cartFromDb.UpdatedAt = DateTime.UtcNow; cartFromDb.UpdatedBy = userId; cartFromDb.IsDeleted = true; cartFromDb.StatusId = CartStatusIds.Active;
 
                 // FIX: this is the big one — SaveChangesAsync was never called, and the method unconditionally
                 // returned (false, "Failed to delete cart", null) even when everything succeeded

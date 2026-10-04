@@ -14,14 +14,12 @@
 --INSERT INTO CartStatus (Id, CartStatusName) VALUES
 --(1, 'Active'),
 --(2, 'CheckedOut'),
---(3, 'Abandoned');
 
 --INSERT INTO CartItemStatus (Id, CartItemStatusName) VALUES
 --(1, 'Reserved'),
---(2, 'Expired'),
---(3, 'Unavailable'),
---(4, 'Removed'),
---(5, 'Purchased');
+--(2, 'Unavailable'),
+--(3, 'Removed'),
+--(4, 'Processing');
 
 --select * from CartStatus
 --select * from CartItemStatus
