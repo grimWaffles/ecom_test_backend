@@ -22,12 +22,12 @@ namespace OrderServiceGrpc.Services
         private readonly IOrderService _orderService;
 
         private readonly IConfiguration _config;
-        private readonly int ReservationMinutes;
+        private readonly int ReservationMinutes = 15;
 
         public CheckoutService(ILogger<CheckoutService> logger, AppDbContext dbContext, IConfiguration config, IOrderService orderService)
         {
             _logger = logger; _context = dbContext; _orderService = orderService; _config = config;
-            ReservationMinutes = config.GetSection("InventoryLockInMinutes") != null ? Convert.ToInt32(config.GetSection("InventoryLockInMinutes").Value) : 10;
+            ReservationMinutes = config.GetSection("InventoryLockInMinutes") != null ? Convert.ToInt32(config.GetSection("InventoryLockInMinutes").Value) : ReservationMinutes;
         }
 
         public async Task<(bool, CartDto?)> CheckoutAsync(int cartId, int userId)
