@@ -33,7 +33,8 @@ namespace OrderServiceGrpc.Helpers.Converters
                 CreatedAt = entity.CreatedAt,
                 CreatedBy = entity.CreatedBy,
                 UpdatedAt = entity.UpdatedAt,
-                UpdatedBy = entity.UpdatedBy
+                UpdatedBy = entity.UpdatedBy,
+                UnavailableQuantity = entity.UnavailableQuantity
             };
 
         // Items are filtered by the CartItem query filter (soft delete) when loaded with Include

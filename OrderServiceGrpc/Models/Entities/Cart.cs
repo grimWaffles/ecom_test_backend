@@ -99,5 +99,8 @@ namespace OrderServiceGrpc.Models.Entities
 
         [ForeignKey(nameof(StatusId))]
         public CartItemStatus Status { get; set; } = null!;
+
+        [NotMapped]
+        public int UnavailableQuantity { get; set; } = 0;
     }
 }
